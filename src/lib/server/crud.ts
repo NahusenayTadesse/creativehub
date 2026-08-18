@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { and, asc, eq, isNull, type SQL } from 'drizzle-orm';
@@ -5,7 +6,15 @@ import { z } from 'zod/v4';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { MySqlTable } from 'drizzle-orm/mysql-core';
 import { db } from '$lib/server/db';
-import { saveUploadedFile } from '$lib/server/upload';
+import { saveUploadedFile, UploadError } from '$lib/server/upload';
+
+/** A rejected upload is the user's to correct, so it gets its own message. */
+export const uploadErrorText = (err: unknown): string | null =>
+	err instanceof UploadError
+		? err.reason === 'too_large'
+			? m.srv_upload_too_large()
+			: m.srv_upload_bad_type()
+		: null;
 
 /** Every content table is keyed by an autoincrement id. */
 export const idSchema = z.object({ id: z.coerce.number() });
@@ -39,8 +48,10 @@ type CrudScope = {
 interface CrudOptions {
 	/** The Drizzle table being managed. */
 	table: AnyTable;
-	/** Singular, human-readable name used in toast messages, e.g. "Package". */
-	label: string;
+	/** Singular, human-readable name used in toast messages, e.g. "Package".
+	 *  Pass a function when the name is localised — it is resolved per request,
+	 *  because the locale is not known while this module is being evaluated. */
+	label: string | (() => string);
 	addSchema: AnySchema;
 	editSchema: AnySchema;
 	/** Fields holding an uploaded File; saved to disk and stored as a filename. */
@@ -49,13 +60,33 @@ interface CrudOptions {
 	listFields?: string[];
 	/** Confines the whole CRUD surface to one owner's rows. */
 	scope?: CrudScope;
-	/** Hides soft-deleted rows from the listing. */
+	/**
+	 * Hides soft-deleted rows from the listing and from the row an edit or
+	 * delete targets. On by default: deletion is soft, so a listing that showed
+	 * deleted rows would make the delete button look like it did nothing.
+	 */
 	excludeDeleted?: boolean;
 	/** Extra columns written on every insert and update. */
 	defaults?: Record<string, unknown>;
 	/** Runs after a successful write, e.g. to recalculate a derived score. */
 	afterWrite?: (event: RequestEvent) => Promise<void> | void;
+	/**
+	 * Runs before every action, and must throw to refuse.
+	 *
+	 * Authorisation cannot live in the route's `load`: SvelteKit runs a form
+	 * action to completion *before* any `load`, so a layout guard fires only
+	 * after the write it was meant to prevent. Every surface that needs a role
+	 * or a session passes it here instead.
+	 */
+	guard?: (event: RequestEvent) => unknown | Promise<unknown>;
 }
+
+/**
+ * How many rows a write touched, across the shapes mysql2 returns for
+ * `update` and `delete`. Zero means the id exists but the guards excluded it.
+ */
+const rowsTouched = (result: any): number =>
+	result?.rowsAffected ?? result?.[0]?.affectedRows ?? result?.affectedRows ?? 1;
 
 /**
  * Builds the `load` and `actions` for a content table's dashboard page.
@@ -72,10 +103,13 @@ export function contentCrud({
 	fileFields = [],
 	listFields = [],
 	scope,
-	excludeDeleted = false,
+	excludeDeleted = true,
 	defaults = {},
-	afterWrite
+	afterWrite,
+	guard
 }: CrudOptions) {
+	/** Resolved at call time so a localised label picks up the request's locale. */
+	const labelText = () => (typeof label === 'function' ? label() : label);
 	/** Newest content sorts by the admin-chosen order; the rest falls back to id. */
 	const orderColumn = table.sortOrder ?? table.id;
 
@@ -140,14 +174,11 @@ export function contentCrud({
 
 	const actions = {
 		add: async (event: RequestEvent) => {
+			await guard?.(event);
 			const { request, locals } = event;
 			const form = await superValidate(request, zod4(addSchema));
 			if (!form.valid) {
-				return message(
-					form,
-					{ type: 'error', text: 'Please check the form for errors' },
-					{ status: 400 }
-				);
+				return message(form, { type: 'error', text: m.srv_please_check_form() }, { status: 400 });
 			}
 
 			try {
@@ -160,22 +191,25 @@ export function contentCrud({
 					createdBy: locals.user?.id
 				});
 				await afterWrite?.(event);
-				return message(form, { type: 'success', text: `${label} added` });
+				return message(form, { type: 'success', text: m.srv_crud_added({ label: labelText() }) });
 			} catch (err) {
-				console.error(`Failed to add ${label}:`, err);
-				return message(form, { type: 'error', text: `Could not add ${label}` }, { status: 500 });
+				const upload = uploadErrorText(err);
+				if (upload) return message(form, { type: 'error', text: upload }, { status: 400 });
+				console.error(`Failed to add ${labelText()}:`, err);
+				return message(
+					form,
+					{ type: 'error', text: m.srv_crud_add_failed({ label: labelText() }) },
+					{ status: 500 }
+				);
 			}
 		},
 
 		edit: async (event: RequestEvent) => {
+			await guard?.(event);
 			const { request, locals } = event;
 			const form = await superValidate(request, zod4(editSchema));
 			if (!form.valid) {
-				return message(
-					form,
-					{ type: 'error', text: 'Please check the form for errors' },
-					{ status: 400 }
-				);
+				return message(form, { type: 'error', text: m.srv_please_check_form() }, { status: 400 });
 			}
 
 			try {
@@ -183,39 +217,82 @@ export function contentCrud({
 				const values = await toRow(data);
 				const result: any = await db
 					.update(table)
-					.set({ ...values, ...defaults, updatedBy: locals.user?.id })
+					.set({
+						...values,
+						...defaults,
+						// Re-stamped, never taken from the form: `guards()` proves the row
+						// is currently this actor's, but without this a posted owner id
+						// would hand it to someone else on the way through.
+						...(scope ? { [scope.key]: scope.value } : {}),
+						updatedBy: locals.user?.id
+					})
 					.where(and(eq(table.id, data.id), ...guards()));
 
 				/* Zero rows means the id exists but is not this actor's to change. */
-				if (scope && (result?.rowsAffected ?? result?.[0]?.affectedRows ?? 1) === 0) {
+				if (scope && rowsTouched(result) === 0) {
 					return message(
 						form,
-						{ type: 'error', text: `That ${label.toLowerCase()} is not yours to edit` },
+						{ type: 'error', text: m.srv_crud_not_yours({ label: labelText().toLowerCase() }) },
 						{ status: 403 }
 					);
 				}
 
 				await afterWrite?.(event);
-				return message(form, { type: 'success', text: `${label} updated` });
+				return message(form, { type: 'success', text: m.srv_crud_updated({ label: labelText() }) });
 			} catch (err) {
-				console.error(`Failed to update ${label}:`, err);
-				return message(form, { type: 'error', text: `Could not update ${label}` }, { status: 500 });
+				const upload = uploadErrorText(err);
+				if (upload) return message(form, { type: 'error', text: upload }, { status: 400 });
+				console.error(`Failed to update ${labelText()}:`, err);
+				return message(
+					form,
+					{ type: 'error', text: m.srv_crud_update_failed({ label: labelText() }) },
+					{ status: 500 }
+				);
 			}
 		},
 
 		delete: async (event: RequestEvent) => {
+			await guard?.(event);
 			const form = await superValidate(event.request, zod4(idSchema));
 			if (!form.valid) {
-				return message(form, { type: 'error', text: 'Invalid request' }, { status: 400 });
+				return message(form, { type: 'error', text: m.srv_invalid_request() }, { status: 400 });
 			}
 
 			try {
-				await db.delete(table).where(and(eq(table.id, (form.data as FormData).id), ...guards()));
+				const where = and(eq(table.id, (form.data as FormData).id), ...guards());
+
+				/*
+				 * Soft delete. A hard DELETE would cascade: removing a campaign takes
+				 * its applications with it, and removing a creator or organisation
+				 * takes their completed bookings and the frozen `termsSnapshot` those
+				 * bookings hold. Every crud-managed table carries `deletedAt`, and the
+				 * listing plus every public query already filter on it.
+				 */
+				const result: any = table.deletedAt
+					? await db
+							.update(table)
+							.set({ deletedAt: new Date(), updatedBy: event.locals.user?.id })
+							.where(where)
+					: await db.delete(table).where(where);
+
+				/* Zero rows means the id exists but is not this actor's to remove. */
+				if (scope && rowsTouched(result) === 0) {
+					return message(
+						form,
+						{ type: 'error', text: m.srv_crud_not_yours({ label: labelText().toLowerCase() }) },
+						{ status: 403 }
+					);
+				}
+
 				await afterWrite?.(event);
-				return message(form, { type: 'success', text: `${label} deleted` });
+				return message(form, { type: 'success', text: m.srv_crud_deleted({ label: labelText() }) });
 			} catch (err) {
-				console.error(`Failed to delete ${label}:`, err);
-				return message(form, { type: 'error', text: `Could not delete ${label}` }, { status: 500 });
+				console.error(`Failed to delete ${labelText()}:`, err);
+				return message(
+					form,
+					{ type: 'error', text: m.srv_crud_delete_failed({ label: labelText() }) },
+					{ status: 500 }
+				);
 			}
 		}
 	};

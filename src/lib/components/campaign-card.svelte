@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { Calendar, Users, Send, CircleCheckBig } from '@lucide/svelte';
+	import * as m from '$lib/paraglide/messages';
+	import { getLocale } from '$lib/paraglide/runtime';
 	import CompensationBadge from './compensation-badge.svelte';
 
 	let {
@@ -15,10 +17,14 @@
 	} = $props();
 
 	const formatDate = (value: string | Date | null) => {
-		if (!value) return 'Open';
+		if (!value) return m.campaign_open();
 		const date = typeof value === 'string' ? new Date(value) : value;
 		if (Number.isNaN(date.getTime())) return String(value);
-		return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+		return date.toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric'
+		});
 	};
 </script>
 
@@ -46,7 +52,9 @@
 						</span>
 					</div>
 					<p class="text-xs font-bold text-slate-500">
-						Category: {campaign.categoryName ?? 'General'}
+						{m.campaign_card_category({
+							name: campaign.categoryName ?? m.campaign_card_general()
+						})}
 					</p>
 				</div>
 			</div>
@@ -78,7 +86,7 @@
 					<span
 						class="rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500"
 					>
-						+{campaign.tags.length - 4} more
+						{m.campaign_card_more({ count: campaign.tags.length - 4 })}
 					</span>
 				{/if}
 			</div>
@@ -94,11 +102,13 @@
 				</div>
 				{#if campaign.eventLocation}
 					<p class="mb-1 text-[11px] font-bold text-indigo-800">
-						Location: {campaign.eventLocation}
+						{m.campaign_card_location({ location: campaign.eventLocation })}
 					</p>
 				{/if}
 				{#if campaign.passType}
-					<p class="text-[11px] font-black text-indigo-900">Pass perks: {campaign.passType}</p>
+					<p class="text-[11px] font-black text-indigo-900">
+						{m.campaign_card_pass_perks({ perks: campaign.passType })}
+					</p>
 				{/if}
 			</div>
 		{/if}
@@ -107,7 +117,7 @@
 			<div
 				class="mb-4 rounded-2xl border-2 border-slate-900 bg-[#fef9c3] p-3.5 text-xs shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 			>
-				<div class="mb-1 font-black text-amber-950">🎁 What the creator receives:</div>
+				<div class="mb-1 font-black text-amber-950">{m.campaign_card_barter_heading()}</div>
 				<p class="text-[11px] font-bold text-amber-900">{campaign.barterDetails}</p>
 			</div>
 		{/if}
@@ -118,26 +128,26 @@
 				class="flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-1.5 text-xs font-bold"
 			>
 				<span class="text-sm">{campaign.countryFlag ?? '🌍'}</span>
-				<span>{campaign.countryName ?? 'Pan-African'}</span>
+				<span>{campaign.countryName ?? m.campaign_pan_african()}</span>
 			</span>
 			<span
 				class="flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-1.5 text-xs font-bold"
 			>
 				<Users class="h-3.5 w-3.5 text-emerald-600" />
-				<span>{campaign.creatorsNeeded} creators needed</span>
+				<span>{m.campaign_creators_needed({ count: campaign.creatorsNeeded })}</span>
 			</span>
 			<span
 				class="flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-1.5 text-xs font-bold"
 			>
 				<Calendar class="h-3.5 w-3.5 text-emerald-600" />
-				<span>Closes {formatDate(campaign.deadline)}</span>
+				<span>{m.campaign_closes({ date: formatDate(campaign.deadline) })}</span>
 			</span>
 		</div>
 
 		{#if campaign.targetRegions?.length}
 			<div class="mb-4 flex flex-wrap items-center gap-1.5">
 				<span class="text-[10px] font-black tracking-wider text-slate-500 uppercase">
-					Target creators:
+					{m.campaign_card_target_creators()}
 				</span>
 				{#each campaign.targetRegions as region (region)}
 					<span
@@ -152,7 +162,7 @@
 		{#if campaign.deliverables?.length}
 			<div class="mb-4">
 				<div class="mb-1.5 text-[10px] font-black tracking-widest text-slate-500 uppercase">
-					Required deliverables:
+					{m.campaign_card_required_deliverables()}
 				</div>
 				<div class="flex flex-wrap gap-2">
 					{#each campaign.deliverables as item (item)}
@@ -171,7 +181,7 @@
 	<div class="flex items-center justify-between gap-3 border-t-2 border-slate-900 pt-4">
 		<div>
 			<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
-				Budget / compensation
+				{m.campaign_card_budget()}
 			</span>
 			{#if campaign.compensationType === 'paid'}
 				<span class="text-sm font-black text-slate-900">
@@ -182,13 +192,13 @@
 				<span
 					class="rounded-md border border-slate-900 bg-[#e0e7ff] px-2 py-0.5 text-xs font-black text-indigo-900"
 				>
-					VIP event access pass
+					{m.campaign_card_event_pass()}
 				</span>
 			{:else}
 				<span
 					class="rounded-md border border-slate-900 bg-[#fef9c3] px-2 py-0.5 text-xs font-black text-amber-900"
 				>
-					Product / voucher exchange
+					{m.campaign_barter_access()}
 				</span>
 			{/if}
 		</div>
@@ -199,7 +209,7 @@
 					class="inline-flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-slate-100 px-3.5 py-2 text-xs font-black text-slate-900"
 				>
 					<CircleCheckBig class="h-3.5 w-3.5 text-emerald-600" />
-					<span>Applied</span>
+					<span>{m.campaign_card_applied()}</span>
 				</span>
 			{:else if canApply && onApply}
 				<button
@@ -208,7 +218,7 @@
 					class="flex cursor-pointer items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700"
 				>
 					<Send class="h-3.5 w-3.5" />
-					<span>Apply / Pitch</span>
+					<span>{m.apply_now()}</span>
 				</button>
 			{:else}
 				<a
@@ -216,7 +226,7 @@
 					class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700"
 				>
 					<Send class="h-3.5 w-3.5" />
-					<span>View Brief</span>
+					<span>{m.campaign_card_view_brief()}</span>
 				</a>
 			{/if}
 		</div>

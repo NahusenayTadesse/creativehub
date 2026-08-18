@@ -2,50 +2,56 @@
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
 	import { assetUrl } from '$lib/assets';
+	import * as m from '$lib/paraglide/messages';
 
 	let { data } = $props();
 
-	const fields: CrudField[] = [
-		{ name: 'url', label: 'Image or video URL', required: true, placeholder: 'https://…' },
-		{ name: 'caption', label: 'Caption', placeholder: 'What this piece was and how it performed' },
+	const fields: CrudField[] = $derived([
+		{ name: 'url', label: m.po_url(), required: true, placeholder: 'https://…' },
+		{ name: 'caption', label: m.po_caption(), placeholder: m.po_caption_placeholder() },
 		{
 			name: 'mediaType',
-			label: 'Media type',
+			label: m.po_media_type(),
 			type: 'select',
 			items: [
-				{ value: 'image', name: 'Image' },
-				{ value: 'video', name: 'Video' }
+				{ value: 'image', name: m.po_image() },
+				{ value: 'video', name: m.po_video() }
 			]
 		},
 		{
 			name: 'platformId',
-			label: 'Platform',
+			label: m.pk_platform(),
 			type: 'select',
 			items: data.platforms.map((p) => ({ value: p.id, name: p.name }))
 		},
-		{ name: 'views', label: 'Views', type: 'number' },
-		{ name: 'likes', label: 'Likes', type: 'number' },
-		{ name: 'sortOrder', label: 'Sort order', type: 'number' },
-		{ name: 'isActive', label: 'Live', type: 'checkboxSingle', placeholder: 'Show on my profile' }
-	];
+		{ name: 'views', label: m.po_views(), type: 'number' },
+		{ name: 'likes', label: m.po_likes(), type: 'number' },
+		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
+		{
+			name: 'isActive',
+			label: m.common_live(),
+			type: 'checkboxSingle',
+			placeholder: m.common_show_on_profile()
+		}
+	]);
 
 	const platformName = (id: number | null) => data.platforms.find((p) => p.id === id)?.name;
 </script>
 
-<svelte:head><title>Portfolio — Creator Network</title></svelte:head>
+<svelte:head><title>{m.po_meta_title()}</title></svelte:head>
 
 <CrudSection
-	eyebrow="Creator studio"
-	title="Portfolio"
-	description="Work samples brands see on your profile. Real numbers on real posts do more than a showreel."
-	label="Portfolio item"
+	eyebrow={m.dashc_eyebrow()}
+	title={m.po_title()}
+	description={m.po_description()}
+	label={m.po_label()}
 	rows={data.rows}
 	{fields}
 	addForm={data.addForm}
 	editForm={data.editForm}
 	deleteForm={data.deleteForm}
 	nameKey="caption"
-	emptyMessage="No portfolio items yet"
+	emptyMessage={m.po_empty()}
 >
 	{#snippet row(item)}
 		<div class="space-y-3">
@@ -62,7 +68,7 @@
 					<span
 						class="absolute top-2 right-2 rounded-md border border-slate-900 bg-white px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-700 uppercase"
 					>
-						Hidden
+						{m.common_hidden()}
 					</span>
 				{/if}
 			</div>
@@ -70,8 +76,8 @@
 			<p class="line-clamp-2 text-xs font-bold text-slate-900">{item.caption}</p>
 
 			<div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
-				<span>👁 {item.views.toLocaleString()} views</span>
-				<span>❤️ {item.likes.toLocaleString()} likes</span>
+				<span>👁 {item.views.toLocaleString()} {m.profile_views()}</span>
+				<span>❤️ {item.likes.toLocaleString()} {m.profile_likes()}</span>
 			</div>
 		</div>
 	{/snippet}

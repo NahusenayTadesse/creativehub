@@ -1,21 +1,23 @@
+import * as m from '$lib/paraglide/messages';
 import { error, redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { getCampaignBySlug } from '$lib/server/queries';
 import { getCreatorFor, recordAudit } from '$lib/server/guards';
 import { applicationSchema } from '$lib/schemas';
+import { recalcCampaignApplications } from '$lib/server/db/rollups';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const campaign = await getCampaignBySlug(params.slug);
-	if (!campaign) error(404, 'That campaign does not exist.');
+	if (!campaign) error(404, m.srv_campaign_not_found());
 
 	const isOperator = (locals.user as { role?: string })?.role === 'admin';
 	if (campaign.status !== 'published' && !isOperator) {
-		error(404, 'That campaign is not open for applications.');
+		error(404, m.srv_campaign_closed());
 	}
 
 	const creator = locals.user ? await getCreatorFor(locals.user.id) : undefined;
@@ -55,12 +57,12 @@ export const actions: Actions = {
 		if (!creator) {
 			return message(
 				form,
-				{ type: 'error', text: 'You need a published creator profile to apply.' },
+				{ type: 'error', text: m.srv_need_published_profile() },
 				{ status: 403 }
 			);
 		}
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Check the form for errors' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
 		}
 
 		const campaignRows = await db
@@ -73,7 +75,7 @@ export const actions: Actions = {
 		if (!campaign || campaign.status !== 'published') {
 			return message(
 				form,
-				{ type: 'error', text: 'This campaign is no longer accepting applications.' },
+				{ type: 'error', text: m.srv_campaign_no_applications() },
 				{ status: 400 }
 			);
 		}
@@ -88,11 +90,7 @@ export const actions: Actions = {
 			.limit(1);
 
 		if (existing.length) {
-			return message(
-				form,
-				{ type: 'error', text: 'You have already applied to this campaign.' },
-				{ status: 409 }
-			);
+			return message(form, { type: 'error', text: m.srv_already_applied() }, { status: 409 });
 		}
 
 		try {
@@ -106,10 +104,8 @@ export const actions: Actions = {
 				createdBy: event.locals.user.id
 			});
 
-			await db
-				.update(t.campaigns)
-				.set({ applicationsCount: sql`${t.campaigns.applicationsCount} + 1` })
-				.where(eq(t.campaigns.id, campaign.id));
+			/* Recount rather than increment, so a later withdrawal can bring it down. */
+			await recalcCampaignApplications(db, campaign.id);
 
 			const orgRows = await db
 				.select({ ownerId: t.organizations.ownerId, name: t.organizations.name })
@@ -120,7 +116,7 @@ export const actions: Actions = {
 			if (orgRows.length) {
 				await db.insert(t.notifications).values({
 					userId: orgRows[0].ownerId,
-					title: `New application from ${creator.fullName}`,
+					title: m.notif_new_application_title({ creator: creator.fullName }),
 					body: campaign.title,
 					link: `/dashboard/applications`,
 					kind: 'application',
@@ -137,14 +133,10 @@ export const actions: Actions = {
 				reason: `Applied to ${campaign.title}`
 			});
 
-			return message(form, { type: 'success', text: 'Your pitch has been sent.' });
+			return message(form, { type: 'success', text: m.srv_pitch_sent() });
 		} catch (err) {
 			console.error('Application failed:', err);
-			return message(
-				form,
-				{ type: 'error', text: 'Could not submit your application.' },
-				{ status: 500 }
-			);
+			return message(form, { type: 'error', text: m.srv_application_failed() }, { status: 500 });
 		}
 	}
 };

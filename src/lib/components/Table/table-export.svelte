@@ -4,6 +4,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index';
 	import { page } from '$app/state';
 	import Papa from 'papaparse';
+	import * as m from '$lib/paraglide/messages';
 
 	const {
 		fileName = page.url.pathname.split('/').pop() || 'export',
@@ -43,7 +44,15 @@
 			return;
 		}
 
-		const title = `${fileName} — ${new Date().toLocaleDateString()}`;
+		/* Written into markup below, so it is escaped rather than trusted. */
+		const escapeHtml = (value: string) =>
+			value.replace(
+				/[&<>"']/g,
+				(c) =>
+					({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string
+			);
+
+		const title = escapeHtml(`${fileName} — ${new Date().toLocaleDateString()}`);
 
 		win.document.write(`<!doctype html>
 <html>
@@ -72,8 +81,11 @@
 		// Images must finish loading or they print as blanks.
 		const start = () => {
 			win.focus();
+			/* Closing in the same tick cancels the print in some browsers; wait for
+			   the dialog to be dismissed, with a timeout in case it never fires. */
+			win.addEventListener('afterprint', () => win.close(), { once: true });
 			win.print();
-			win.close();
+			setTimeout(() => !win.closed && win.close(), 60_000);
 		};
 
 		const images = Array.from(win.document.images);
@@ -95,13 +107,24 @@
 		});
 	}
 
+	/**
+	 * Neutralises a spreadsheet formula.
+	 *
+	 * Every cell here is user-supplied — a bio, a campaign title, a pitch — and
+	 * Excel and LibreOffice execute a cell that opens with `=`, `+`, `-` or `@`
+	 * when the file is opened. A leading apostrophe is the conventional
+	 * mitigation: the spreadsheet treats the rest as literal text, and the
+	 * apostrophe itself is not shown.
+	 */
+	const defuse = (value: string): string => (/^[=+\-@\t\r]/.test(value) ? `'${value}` : value);
+
 	function exportCsv() {
 		const table = findTable();
 		if (!table) return;
 
 		const rows = Array.from(table.querySelectorAll('tr')).map((row) =>
 			Array.from(row.querySelectorAll('th, td')).map((cell) =>
-				(cell as HTMLElement).innerText.trim()
+				defuse((cell as HTMLElement).innerText.trim())
 			)
 		);
 
@@ -110,9 +133,17 @@
 		const link = document.createElement('a');
 		link.href = url;
 		link.download = `${fileName}.csv`;
+
+		/* The anchor has to be in the document for the click to count in Firefox,
+		   and revoking the URL in the same tick can abort the download. */
+		link.style.display = 'none';
+		document.body.appendChild(link);
 		link.click();
 
-		URL.revokeObjectURL(url);
+		setTimeout(() => {
+			link.remove();
+			URL.revokeObjectURL(url);
+		}, 0);
 	}
 </script>
 
@@ -128,14 +159,16 @@
 		<DropdownMenu.Item class="capitalize">
 			{#snippet child({ props })}
 				<Button {...props} variant="default" onclick={printTable}>
-					<Printer class="size-4 text-white dark:text-black" /> Print
+					<Printer class="size-4 text-white dark:text-black" />
+					{m.tbl_print()}
 				</Button>
 			{/snippet}
 		</DropdownMenu.Item>
 		<DropdownMenu.Item class="capitalize">
 			{#snippet child({ props })}
 				<Button {...props} variant="default" onclick={exportCsv}>
-					<Grid3x3 class="size-4 text-white dark:text-black" /> Export to CSV
+					<Grid3x3 class="size-4 text-white dark:text-black" />
+					{m.tbl_export_csv()}
 				</Button>
 			{/snippet}
 		</DropdownMenu.Item>

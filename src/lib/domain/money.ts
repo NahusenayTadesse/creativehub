@@ -3,6 +3,7 @@
  * operator can correct them without a deploy; nothing in the app hard-codes a
  * second table.
  */
+import { intlLocale } from '$lib/locale';
 
 export type Rate = { code: string; symbol: string; flag: string; usdRate: number; name: string };
 
@@ -13,7 +14,13 @@ const FALLBACK: Rate = { code: 'USD', symbol: '$', flag: '🇺🇸', usdRate: 1,
 const ZERO_DECIMAL = new Set(['ETB', 'KES', 'NGN', 'RWF', 'UGX', 'TZS']);
 
 export function buildRates(
-	countries: { currencyCode: string; currencySymbol: string; flag: string; usdRate: number; name: string }[]
+	countries: {
+		currencyCode: string;
+		currencySymbol: string;
+		flag: string;
+		usdRate: number;
+		name: string;
+	}[]
 ): Record<string, Rate> {
 	const rates: Record<string, Rate> = { USD: FALLBACK };
 	for (const country of countries) {
@@ -45,7 +52,7 @@ export function convert(
 export function formatMoney(amount: number, code: string, rates: Record<string, Rate>): string {
 	const rate = rates[code] ?? FALLBACK;
 	const decimals = ZERO_DECIMAL.has(code) ? 0 : 2;
-	return `${rate.symbol} ${amount.toLocaleString(undefined, {
+	return `${rate.symbol} ${amount.toLocaleString(intlLocale(), {
 		minimumFractionDigits: decimals,
 		maximumFractionDigits: decimals
 	})}`;
@@ -53,7 +60,7 @@ export function formatMoney(amount: number, code: string, rates: Record<string, 
 
 /** "12,000 ETB" — the inline form the React cards use. */
 export function formatAmountWithCode(amount: number, code: string): string {
-	return `${Math.round(amount).toLocaleString()} ${code}`;
+	return `${Math.round(amount).toLocaleString(intlLocale())} ${code}`;
 }
 
 /** Compact audience numbers: 1.2M, 420K, 940. */

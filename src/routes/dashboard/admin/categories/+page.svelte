@@ -2,31 +2,37 @@
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import DynamicIcon, { iconNames } from '$lib/components/dynamic-icon.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let { data } = $props();
 
-	const fields: CrudField[] = [
-		{ name: 'name', label: 'Category name', required: true },
-		{ name: 'slug', label: 'URL slug', required: true, placeholder: 'beauty-fashion' },
-		{ name: 'description', label: 'Description', type: 'textarea', rows: 3 },
+	const fields: CrudField[] = $derived([
+		{ name: 'name', label: m.ca_name(), required: true },
+		{ name: 'slug', label: m.ca_slug(), required: true, placeholder: 'beauty-fashion' },
+		{ name: 'description', label: m.common_description(), type: 'textarea', rows: 3 },
 		{
 			name: 'icon',
-			label: 'Icon',
+			label: m.ca_icon(),
 			type: 'select',
 			items: iconNames.map((name) => ({ value: name, name }))
 		},
-		{ name: 'sortOrder', label: 'Sort order', type: 'number' },
-		{ name: 'isActive', label: 'Visible', type: 'checkboxSingle', placeholder: 'Show in filters' }
-	];
+		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
+		{
+			name: 'isActive',
+			label: m.common_visible(),
+			type: 'checkboxSingle',
+			placeholder: m.common_show_in_filters()
+		}
+	]);
 </script>
 
-<svelte:head><title>Categories — Creator Network</title></svelte:head>
+<svelte:head><title>{m.ca_meta_title()}</title></svelte:head>
 
 <CrudSection
-	eyebrow="Reference data"
-	title="Content categories"
-	description="Creators pick from this list and brands filter by it. Keeping it short is what stops the discovery filter panel becoming unusable."
-	label="Category"
+	eyebrow={m.sb_reference_data()}
+	title={m.ca_title()}
+	description={m.ca_description()}
+	label={m.ca_label()}
 	rows={data.rows}
 	{fields}
 	addForm={data.addForm}
@@ -45,7 +51,7 @@
 					<span
 						class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
 					>
-						Hidden
+						{m.common_hidden()}
 					</span>
 				{/if}
 			</div>

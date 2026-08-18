@@ -7,6 +7,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { cn } from '$lib/utils.js';
 	import { selectItem } from '$lib/global.svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let {
 		items,
@@ -36,7 +37,7 @@
 	const triggerContent = $derived(
 		// Use String coercion to ensure "1" matches 1
 		items.find((f: Item) => String(f.value) === String(value))?.name ??
-			'Select ' + name.replace(/([a-z])([A-Z])/g, '$1 $2')
+			m.form_select_placeholder({ field: name.replace(/([a-z])([A-Z])/g, '$1 $2') })
 	);
 
 	function getNameByValue(items: Item[], value: string | number): string | undefined {
@@ -74,12 +75,16 @@
 	<Popover.Content class="w-full p-0">
 		<Command.Root>
 			<Command.Input
-				placeholder="Search {name
-					.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-					.replace(/\b\w/g, (char) => char.toUpperCase())}..."
+				placeholder={m.form_search_placeholder({
+					field: name
+						.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+						.replace(/\b\w/g, (char: string) => char.toUpperCase())
+				})}
 			/>
 			<Command.List>
-				<Command.Empty>No {name.replace(/([a-z])([A-Z])/g, '$1 $2')} found.</Command.Empty>
+				<Command.Empty>
+					{m.form_none_found({ field: name.replace(/([a-z])([A-Z])/g, '$1 $2') })}
+				</Command.Empty>
 				<Command.Group>
 					{#each items as item}
 						<Command.Item

@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
@@ -33,15 +34,25 @@ export const actions: Actions = {
 		const user = requireRole(event, 'business', 'admin');
 		const form = await superValidate(event.request, zod4(organizationCreate));
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Check the form for errors' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
 		}
+
+		/* A `load` never runs before an action, so the redirect above cannot stop
+		   a double-submit from opening a second organisation. */
+		const already = await getOrganizationFor(user.id);
+		if (already) redirect(303, '/dashboard/organization');
 
 		/* Slugs must be unique; append a counter rather than rejecting the name. */
 		let slug = slugify(form.data.name);
 		let suffix = 1;
 		while (
-			(await db.select({ id: t.organizations.id }).from(t.organizations).where(eq(t.organizations.slug, slug)).limit(1))
-				.length
+			(
+				await db
+					.select({ id: t.organizations.id })
+					.from(t.organizations)
+					.where(eq(t.organizations.slug, slug))
+					.limit(1)
+			).length
 		) {
 			slug = `${slugify(form.data.name)}-${++suffix}`;
 		}
@@ -69,11 +80,7 @@ export const actions: Actions = {
 			});
 		} catch (err) {
 			console.error('Organisation creation failed:', err);
-			return message(
-				form,
-				{ type: 'error', text: 'Could not create the organisation.' },
-				{ status: 500 }
-			);
+			return message(form, { type: 'error', text: m.srv_org_create_failed() }, { status: 500 });
 		}
 
 		await recordAudit({

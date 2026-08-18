@@ -56,9 +56,8 @@ export const load: PageServerLoad = async ({ parent }) => {
 				held: held.reduce((sum, b) => sum + b.price, 0),
 				activeCampaigns: campaigns.filter((c) => c.status === 'published').length,
 				pendingApplications: applications.filter((a) => a.status === 'applied').length,
-				activeBookings: bookings.filter(
-					(b) => !['completed', 'cancelled'].includes(b.status)
-				).length
+				activeBookings: bookings.filter((b) => !['completed', 'cancelled'].includes(b.status))
+					.length
 			}
 		};
 	}
@@ -89,9 +88,8 @@ export const load: PageServerLoad = async ({ parent }) => {
 				pending: awaitingPayout.reduce((sum, b) => sum + b.creatorPayout, 0),
 				activeBookings: bookings.filter((b) => !['completed', 'cancelled'].includes(b.status))
 					.length,
-				openApplications: applications.filter((a) =>
-					['applied', 'shortlisted'].includes(a.status)
-				).length,
+				openApplications: applications.filter((a) => ['applied', 'shortlisted'].includes(a.status))
+					.length,
 				reviews: Number(reviewRows[0]?.n ?? 0)
 			}
 		};

@@ -13,18 +13,20 @@
 	let deleting = $state(false);
 	import { updateFlash } from 'sveltekit-flash-message';
 	import { page } from '$app/state';
+	import * as m from '$lib/paraglide/messages';
 </script>
 
 <Dialog.Root bind:open={isOpen}>
-	<Dialog.Trigger class={buttonVariants({ variant: 'destructive' })}
-		><Trash /> Delete
+	<Dialog.Trigger class={buttonVariants({ variant: 'destructive' })}>
+		<Trash />
+		{m.common_delete()}
 	</Dialog.Trigger>
 	<Dialog.Content class="w-full">
 		<Dialog.Header>
-			<Dialog.Title>Delete</Dialog.Title>
+			<Dialog.Title>{m.common_delete()}</Dialog.Title>
 		</Dialog.Header>
 		<ScrollArea class="h-auto rounded-md border p-2">
-			<h5 class="text-center">Are you sure you want to Delete? This action is irreversable</h5>
+			<h5 class="text-center">{m.del_confirm_irreversible()}</h5>
 			<div class="flex flex-row items-center justify-center gap-4 pt-4">
 				<form
 					method="post"
@@ -46,14 +48,15 @@
 				>
 					<Button type="submit" disabled={deleting} variant="destructive" size="lg">
 						{#if deleting}
-							<LoadingBtn name="Deleting" />
+							<LoadingBtn name={m.common_deleting()} />
 						{:else}
-							<Trash /> Delete
+							<Trash />
+							{m.common_delete()}
 						{/if}
 					</Button>
 				</form>
 
-				<Button onclick={() => (isOpen = false)} size="lg">Cancel</Button>
+				<Button onclick={() => (isOpen = false)} size="lg">{m.common_cancel()}</Button>
 			</div>
 		</ScrollArea>
 	</Dialog.Content>

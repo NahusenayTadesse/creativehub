@@ -1,24 +1,30 @@
 <script lang="ts">
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let { data } = $props();
 
-	const fields: CrudField[] = [
-		{ name: 'name', label: 'Language name', required: true },
-		{ name: 'code', label: 'ISO code', required: true, placeholder: 'am' },
-		{ name: 'sortOrder', label: 'Sort order', type: 'number' },
-		{ name: 'isActive', label: 'Visible', type: 'checkboxSingle', placeholder: 'Show in filters' }
-	];
+	const fields: CrudField[] = $derived([
+		{ name: 'name', label: m.la_name(), required: true },
+		{ name: 'code', label: m.co_iso(), required: true, placeholder: 'am' },
+		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
+		{
+			name: 'isActive',
+			label: m.common_visible(),
+			type: 'checkboxSingle',
+			placeholder: m.common_show_in_filters()
+		}
+	]);
 </script>
 
-<svelte:head><title>Languages — Creator Network</title></svelte:head>
+<svelte:head><title>{m.la_meta_title()}</title></svelte:head>
 
 <CrudSection
-	eyebrow="Reference data"
-	title="Languages"
-	description="The languages creators can list as working languages."
-	label="Language"
+	eyebrow={m.sb_reference_data()}
+	title={m.la_title()}
+	description={m.la_description()}
+	label={m.la_label()}
 	rows={data.rows}
 	{fields}
 	addForm={data.addForm}
@@ -35,7 +41,7 @@
 				<span
 					class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
 				>
-					Hidden
+					{m.common_hidden()}
 				</span>
 			{/if}
 		</div>

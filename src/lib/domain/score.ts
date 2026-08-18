@@ -1,16 +1,19 @@
+import * as m from '$lib/paraglide/messages';
+
 /**
  * The 0–100 Creator Network score. Derived from evidence only — no field on
  * the profile lets a creator set it, and the weights below are the ones the
  * public explainer modal shows.
  */
 
-export const SCORE_WEIGHTS = [
-	{ label: 'Profile completeness', weight: 30 },
-	{ label: 'Verification level', weight: 25 },
-	{ label: 'Engagement rate', weight: 15 },
-	{ label: 'Response rate', weight: 15 },
-	{ label: 'Completed bookings & ratings', weight: 15 }
-] as const;
+export const scoreWeights = () =>
+	[
+		{ label: m.score_profile_completeness(), weight: 30 },
+		{ label: m.score_verification_level(), weight: 25 },
+		{ label: m.score_engagement_rate(), weight: 15 },
+		{ label: m.score_response_rate(), weight: 15 },
+		{ label: m.score_completed_bookings(), weight: 15 }
+	] as const;
 
 export type ScoreInput = {
 	fullName?: string | null;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
@@ -25,11 +26,18 @@
 
 	const handler = () => {
 		return async ({ result, update }: any) => {
-			if (result.type === 'failure') toast.error(result.data?.message ?? 'Refused.');
-			else if (result.type === 'success') toast.success('Role updated');
+			if (result.type === 'failure') toast.error(result.data?.message ?? m.common_refused());
+			else if (result.type === 'success') toast.success(m.au_role_updated());
 			await update();
 		};
 	};
+
+	const tabs = $derived([
+		{ key: 'all', label: m.bl_tab_all() },
+		{ key: 'creator', label: m.au_tab_creators() },
+		{ key: 'business', label: m.au_tab_brands() },
+		{ key: 'admin', label: m.au_tab_operators() }
+	]);
 
 	const roleTone: Record<string, string> = {
 		admin: 'border-purple-500 bg-purple-100 text-purple-900',
@@ -38,18 +46,14 @@
 	};
 </script>
 
-<svelte:head><title>Users & roles — Creator Network</title></svelte:head>
+<svelte:head><title>{m.au_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
-	<PageHeader
-		eyebrow="Marketplace"
-		title="Users & roles"
-		description="A user holds exactly one access role. Operator access is granted here by an existing operator — it can never be self-selected at sign-up."
-	/>
+	<PageHeader eyebrow={m.sb_marketplace()} title={m.au_title()} description={m.au_description()} />
 
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div class="flex flex-wrap items-center gap-2">
-			{#each [{ key: 'all', label: 'All' }, { key: 'creator', label: 'Creators' }, { key: 'business', label: 'Brands' }, { key: 'admin', label: 'Operators' }] as tab (tab.key)}
+			{#each tabs as tab (tab.key)}
 				<button
 					type="button"
 					onclick={() => (roleFilter = tab.key)}
@@ -58,7 +62,7 @@
 						? 'bg-slate-900 text-white'
 						: 'bg-white text-slate-800 hover:bg-slate-100'}"
 				>
-					{tab.label} ({countFor(tab.key)})
+					{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
 				</button>
 			{/each}
 		</div>
@@ -68,7 +72,7 @@
 			<input
 				type="text"
 				bind:value={query}
-				placeholder="Search name or email…"
+				placeholder={m.au_search_placeholder()}
 				class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 pr-3 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] outline-none focus:ring-2 focus:ring-emerald-500"
 			/>
 		</div>
@@ -78,17 +82,25 @@
 		<table class="w-full min-w-[720px] text-sm">
 			<thead>
 				<tr class="border-b-2 border-slate-900 bg-slate-50">
-					<th class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase">
-						User
+					<th
+						class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+					>
+						{m.au_col_user()}
 					</th>
-					<th class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase">
-						Linked to
+					<th
+						class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+					>
+						{m.au_col_linked()}
 					</th>
-					<th class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase">
-						Role
+					<th
+						class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+					>
+						{m.au_col_role()}
 					</th>
-					<th class="px-4 py-3 text-right text-[11px] font-black tracking-wider text-slate-600 uppercase">
-						Change role
+					<th
+						class="px-4 py-3 text-right text-[11px] font-black tracking-wider text-slate-600 uppercase"
+					>
+						{m.au_col_change()}
 					</th>
 				</tr>
 			</thead>
@@ -101,7 +113,10 @@
 						</td>
 						<td class="px-4 py-3 text-[11px] font-bold text-slate-600">
 							{#if user.creatorUsername}
-								<a href="/creators/{user.creatorUsername}" class="hover:text-emerald-700 hover:underline">
+								<a
+									href="/creators/{user.creatorUsername}"
+									class="hover:text-emerald-700 hover:underline"
+								>
 									@{user.creatorUsername}
 								</a>
 							{:else if user.organizationName}
@@ -123,7 +138,11 @@
 								{:else}
 									<UserCheck class="h-3 w-3" />
 								{/if}
-								{user.role ?? 'creator'}
+								{user.role === 'admin'
+									? m.au_role_operator()
+									: user.role === 'business'
+										? m.au_role_brand()
+										: m.au_role_creator()}
 							</span>
 						</td>
 						<td class="px-4 py-3">
@@ -139,15 +158,15 @@
 									value={user.role ?? 'creator'}
 									class="rounded-lg border-2 border-slate-900 bg-white px-2 py-1 text-xs font-bold"
 								>
-									<option value="creator">Creator</option>
-									<option value="business">Brand</option>
-									<option value="admin">Operator</option>
+									<option value="creator">{m.au_role_creator()}</option>
+									<option value="business">{m.au_role_brand()}</option>
+									<option value="admin">{m.au_role_operator()}</option>
 								</select>
 								<button
 									type="submit"
 									class="rounded-lg border-2 border-slate-900 bg-emerald-600 px-3 py-1 text-xs font-black text-white hover:bg-emerald-700"
 								>
-									Save
+									{m.common_save()}
 								</button>
 							</form>
 						</td>

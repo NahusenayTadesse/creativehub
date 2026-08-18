@@ -1,13 +1,11 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Star, MapPin, Award, ArrowRight } from '@lucide/svelte';
 	import VerificationBadge from './verification-badge.svelte';
 	import { formatReach } from '$lib/domain/money';
 
-	let {
-		creator = null,
-		onClose
-	}: { creator: any | null; onClose: () => void } = $props();
+	let { creator = null, onClose }: { creator: any | null; onClose: () => void } = $props();
 
 	const open = $derived(creator !== null);
 </script>
@@ -29,7 +27,7 @@
 					class="absolute top-2.5 left-2.5 flex items-center gap-1 rounded-xl border border-slate-900 bg-slate-900 px-2.5 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_0px_rgba(16,185,129,1)]"
 				>
 					<Award class="h-3.5 w-3.5 text-emerald-400" />
-					<span>Score {creator.score}</span>
+					<span>{m.card_score({ score: creator.score })}</span>
 				</div>
 			</div>
 
@@ -70,26 +68,36 @@
 					class="grid grid-cols-4 gap-2 rounded-2xl border-2 border-slate-900 bg-[#fef9c3] p-3 text-center text-xs shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 				>
 					<div>
-						<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">Reach</div>
+						<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+							{m.card_reach()}
+						</div>
 						<div class="mt-0.5 text-sm font-black text-slate-900">
 							{formatReach(creator.totalReach)}
 						</div>
 					</div>
 					<div>
-						<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">Engage</div>
+						<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+							{m.quick_engage()}
+						</div>
 						<div class="mt-0.5 text-sm font-black text-slate-900">
 							{creator.engagementRate?.toFixed(1) ?? '—'}%
 						</div>
 					</div>
 					<div>
-						<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">Rating</div>
-						<div class="mt-0.5 flex items-center justify-center gap-0.5 text-sm font-black text-slate-900">
+						<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+							{m.card_rating()}
+						</div>
+						<div
+							class="mt-0.5 flex items-center justify-center gap-0.5 text-sm font-black text-slate-900"
+						>
 							<Star class="h-3 w-3 fill-amber-400 text-slate-900" />
 							{creator.averageRating?.toFixed(1)}
 						</div>
 					</div>
 					<div>
-						<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">Done</div>
+						<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+							{m.quick_done()}
+						</div>
 						<div class="mt-0.5 text-sm font-black text-slate-900">{creator.completedBookings}</div>
 					</div>
 				</div>
@@ -109,7 +117,7 @@
 				<div class="flex items-center justify-between gap-3 border-t-2 border-slate-900 pt-4">
 					<div>
 						<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
-							Starting from
+							{m.starting_from()}
 						</span>
 						<span class="text-sm font-black text-slate-900">
 							{creator.startingPrice?.toLocaleString()}
@@ -120,7 +128,7 @@
 						href="/creators/{creator.username}"
 						class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 					>
-						<span>Full profile & packages</span>
+						<span>{m.quick_full_profile()}</span>
 						<ArrowRight class="h-3.5 w-3.5" />
 					</a>
 				</div>

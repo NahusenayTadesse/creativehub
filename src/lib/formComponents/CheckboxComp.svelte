@@ -5,6 +5,7 @@
 	import { Badge, BadgeCheck } from '@lucide/svelte';
 
 	import { type Item } from '$lib/global.svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let { items = [], checkedValues = $bindable([]) }: { items: Item[]; checkedValues?: string[] } =
 		$props();
@@ -33,7 +34,7 @@
 
 <Button onclick={toggleSelectAll} size="icon" class="w-full lg:w-1/5">
 	<Icon />
-	{checkedValues.length === items.length ? 'Unselect' : 'Select'} All
+	{checkedValues.length === items.length ? m.form_unselect_all() : m.form_select_all()}
 </Button>
 <div
 	class="grid {items.length > 20

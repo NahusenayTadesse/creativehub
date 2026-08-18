@@ -1,6 +1,8 @@
 <script lang="ts">
 	import PageHeader from '$lib/components/page-header.svelte';
 	import { Star, Inbox } from '@lucide/svelte';
+	import * as m from '$lib/paraglide/messages';
+	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
 
@@ -16,23 +18,23 @@
 	);
 
 	const formatDate = (value: string | Date) =>
-		new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+		new Date(value).toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric'
+		});
 </script>
 
-<svelte:head><title>Reviews — Creator Network</title></svelte:head>
+<svelte:head><title>{m.rv_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
-	<PageHeader
-		eyebrow="Trust"
-		title="Reviews"
-		description="Every review here is attached to a booking that actually completed — which is what makes it worth reading."
-	/>
+	<PageHeader eyebrow={m.rv_eyebrow()} title={m.rv_title()} description={m.rv_description()} />
 
 	{#if received.length}
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 			<div class="bento-card-mint">
 				<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
-					Average rating
+					{m.rv_average_rating()}
 				</span>
 				<span class="flex items-center gap-1.5 text-3xl font-black text-slate-900">
 					<Star class="h-6 w-6 fill-amber-400 text-amber-500" />
@@ -41,13 +43,13 @@
 			</div>
 			<div class="bento-card bento-card-static">
 				<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
-					Reviews received
+					{m.rv_received_count()}
 				</span>
 				<span class="text-3xl font-black text-slate-900">{received.length}</span>
 			</div>
 			<div class="bento-card bento-card-static">
 				<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
-					Reviews written
+					{m.rv_written_count()}
 				</span>
 				<span class="text-3xl font-black text-slate-900">{given.length}</span>
 			</div>
@@ -57,10 +59,9 @@
 	{#if data.reviews.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">No reviews yet</h3>
+			<h3 class="text-base font-black text-slate-900">{m.rv_empty_title()}</h3>
 			<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
-				Reviews unlock once a booking reaches completed, so both sides are describing work that
-				actually happened.
+				{m.rv_empty_body()}
 			</p>
 		</div>
 	{:else}
@@ -72,7 +73,7 @@
 							<span
 								class="mb-1 inline-block rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-700 uppercase"
 							>
-								{received.includes(review) ? 'Received' : 'Written by you'}
+								{received.includes(review) ? m.rv_received() : m.rv_written_by_you()}
 							</span>
 							<a
 								href="/dashboard/bookings/{review.bookingId}"

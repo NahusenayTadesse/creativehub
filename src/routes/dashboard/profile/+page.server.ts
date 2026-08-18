@@ -1,7 +1,8 @@
+import * as m from '$lib/paraglide/messages';
 import { fail } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
@@ -9,6 +10,7 @@ import { requireCreator, recordAudit } from '$lib/server/guards';
 import { creatorSelfEdit } from '$lib/schemas';
 import { getReferenceData } from '$lib/server/queries';
 import { refreshCreatorScore } from '$lib/server/score-service';
+import { liveSocialFilter } from '$lib/server/db/rollups';
 
 export const load: PageServerLoad = async (event) => {
 	const { creator } = await requireCreator(event);
@@ -31,7 +33,7 @@ export const load: PageServerLoad = async (event) => {
 			db
 				.select({ n: sql<number>`count(*)` })
 				.from(t.socialAccounts)
-				.where(eq(t.socialAccounts.creatorId, creator.id))
+				.where(and(eq(t.socialAccounts.creatorId, creator.id), liveSocialFilter()))
 		])
 	]);
 
@@ -69,37 +71,70 @@ export const actions: Actions = {
 		const { user, creator } = await requireCreator(event);
 		const form = await superValidate(event.request, zod4(creatorSelfEdit));
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Check the form for errors' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
 		}
 
-		await db
-			.update(t.creators)
-			.set({
-				fullName: form.data.fullName,
-				bio: form.data.bio,
-				avatar: form.data.avatar || null,
-				cover: form.data.cover || null,
-				countryId: form.data.countryId ?? null,
-				regionId: form.data.regionId ?? null,
-				city: form.data.city,
-				primaryPlatformId: form.data.primaryPlatformId ?? null,
-				startingPrice: form.data.startingPrice,
-				currencyCode: form.data.currencyCode,
-				availability: form.data.availability,
-				updatedBy: user.id
-			})
-			// Scoped to the signed-in creator; the posted id is never trusted alone.
-			.where(eq(t.creators.id, creator.id));
+		/*
+		 * Only ids that actually exist. `categoryIds` and `languageIds` arrive as
+		 * bare numbers from the client, and one bad id used to raise a foreign-key
+		 * error partway through the loop below — after the delete had already run,
+		 * leaving the creator with a half-wiped list.
+		 */
+		const [validCategories, validLanguages] = await Promise.all([
+			form.data.categoryIds.length
+				? db
+						.select({ id: t.categories.id })
+						.from(t.categories)
+						.where(inArray(t.categories.id, form.data.categoryIds))
+				: [],
+			form.data.languageIds.length
+				? db
+						.select({ id: t.languages.id })
+						.from(t.languages)
+						.where(inArray(t.languages.id, form.data.languageIds))
+				: []
+		]);
 
-		await db.delete(t.creatorCategories).where(eq(t.creatorCategories.creatorId, creator.id));
-		for (const categoryId of form.data.categoryIds) {
-			await db.insert(t.creatorCategories).values({ creatorId: creator.id, categoryId });
-		}
+		/*
+		 * One transaction: the profile row, its categories and its languages move
+		 * together or not at all. Delete-then-insert across three statements with
+		 * no transaction could leave the lists empty if a later one failed.
+		 */
+		await db.transaction(async (tx) => {
+			await tx
+				.update(t.creators)
+				.set({
+					fullName: form.data.fullName,
+					bio: form.data.bio,
+					avatar: form.data.avatar || null,
+					cover: form.data.cover || null,
+					countryId: form.data.countryId ?? null,
+					regionId: form.data.regionId ?? null,
+					city: form.data.city,
+					primaryPlatformId: form.data.primaryPlatformId ?? null,
+					startingPrice: form.data.startingPrice,
+					currencyCode: form.data.currencyCode,
+					availability: form.data.availability,
+					updatedBy: user.id
+				})
+				// Scoped to the signed-in creator; the posted id is never trusted alone.
+				.where(eq(t.creators.id, creator.id));
 
-		await db.delete(t.creatorLanguages).where(eq(t.creatorLanguages.creatorId, creator.id));
-		for (const languageId of form.data.languageIds) {
-			await db.insert(t.creatorLanguages).values({ creatorId: creator.id, languageId });
-		}
+			await tx.delete(t.creatorCategories).where(eq(t.creatorCategories.creatorId, creator.id));
+			if (validCategories.length) {
+				/* One statement rather than one round trip per row. */
+				await tx
+					.insert(t.creatorCategories)
+					.values(validCategories.map((c) => ({ creatorId: creator.id, categoryId: c.id })));
+			}
+
+			await tx.delete(t.creatorLanguages).where(eq(t.creatorLanguages.creatorId, creator.id));
+			if (validLanguages.length) {
+				await tx
+					.insert(t.creatorLanguages)
+					.values(validLanguages.map((l) => ({ creatorId: creator.id, languageId: l.id })));
+			}
+		});
 
 		await refreshCreatorScore(creator.id);
 		await recordAudit({
@@ -110,7 +145,7 @@ export const actions: Actions = {
 			action: 'profile_updated'
 		});
 
-		return message(form, { type: 'success', text: 'Profile updated' });
+		return message(form, { type: 'success', text: m.srv_profile_updated() });
 	},
 
 	/**
@@ -125,7 +160,9 @@ export const actions: Actions = {
 				db
 					.select({ n: sql<number>`count(*)` })
 					.from(t.socialAccounts)
-					.where(eq(t.socialAccounts.creatorId, creator.id)),
+					/* Deleted channels used to satisfy this gate, so a creator could
+					   publish with no live channel at all (PRD FR-014). */
+					.where(and(eq(t.socialAccounts.creatorId, creator.id), liveSocialFilter())),
 				db
 					.select({ n: sql<number>`count(*)` })
 					.from(t.packages)
@@ -133,12 +170,15 @@ export const actions: Actions = {
 			]);
 
 			const missing: string[] = [];
-			if (!creator.bio || creator.bio.length < 20) missing.push('a bio');
-			if (Number(channels[0]?.n ?? 0) === 0) missing.push('at least one channel');
-			if (Number(packages[0]?.n ?? 0) === 0) missing.push('at least one package');
+			/* These are interpolated into a translated sentence, so they are
+			   translated too — English fragments inside an Amharic message read
+			   as a bug to the person being asked to fix their profile. */
+			if (!creator.bio || creator.bio.length < 20) missing.push(m.pub_needs_bio());
+			if (Number(channels[0]?.n ?? 0) === 0) missing.push(m.pub_needs_channel());
+			if (Number(packages[0]?.n ?? 0) === 0) missing.push(m.pub_needs_package());
 
 			if (missing.length) {
-				return fail(400, { message: `Add ${missing.join(', ')} before publishing.` });
+				return fail(400, { message: m.srv_add_before_publishing({ missing: missing.join(', ') }) });
 			}
 		}
 

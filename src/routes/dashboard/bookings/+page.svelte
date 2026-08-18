@@ -3,6 +3,8 @@
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import { Handshake, ArrowRight, Search, Inbox } from '@lucide/svelte';
+	import * as m from '$lib/paraglide/messages';
+	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
 
@@ -44,22 +46,35 @@
 			: data.bookings.filter((b) => GROUPS[key].includes(b.status)).length;
 
 	const formatDate = (value: string | Date | null) =>
-		value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
+		value
+			? new Date(value).toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
+					day: 'numeric',
+					month: 'short'
+				})
+			: '—';
+
+	const tabs = $derived([
+		{ key: 'all', label: m.bl_tab_all() },
+		{ key: 'negotiating', label: m.bl_tab_negotiating() },
+		{ key: 'active', label: m.bl_tab_active() },
+		{ key: 'completed', label: m.bl_tab_completed() },
+		{ key: 'closed', label: m.bl_tab_closed() }
+	]);
 </script>
 
-<svelte:head><title>Bookings — Creator Network</title></svelte:head>
+<svelte:head><title>{m.bl_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
 	<PageHeader
-		eyebrow={data.role === 'admin' ? 'Platform operations' : 'Deals'}
-		title="Bookings"
-		description="Every agreement, from the first proposal through delivery to settlement. Terms freeze the moment both sides accept."
+		eyebrow={data.role === 'admin' ? m.dash_platform_operations() : m.bl_eyebrow_deals()}
+		title={m.bl_title()}
+		description={m.bl_description()}
 	/>
 
 	<!-- Filters -->
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div class="flex flex-wrap items-center gap-2">
-			{#each [{ key: 'all', label: 'All' }, { key: 'negotiating', label: 'Negotiating' }, { key: 'active', label: 'In progress' }, { key: 'completed', label: 'Completed' }, { key: 'closed', label: 'Closed' }] as tab (tab.key)}
+			{#each tabs as tab (tab.key)}
 				<button
 					type="button"
 					onclick={() => (statusFilter = tab.key)}
@@ -68,7 +83,7 @@
 						? 'bg-slate-900 text-white'
 						: 'bg-white text-slate-800 hover:bg-slate-100'}"
 				>
-					{tab.label} ({countFor(tab.key)})
+					{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
 				</button>
 			{/each}
 		</div>
@@ -78,7 +93,7 @@
 			<input
 				type="text"
 				bind:value={query}
-				placeholder="Search by reference, creator, brand…"
+				placeholder={m.bl_search_placeholder()}
 				class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 pr-3 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] outline-none focus:ring-2 focus:ring-emerald-500"
 			/>
 		</div>
@@ -87,17 +102,15 @@
 	{#if filtered.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">No bookings here</h3>
+			<h3 class="text-base font-black text-slate-900">{m.bl_empty_title()}</h3>
 			<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
-				{data.role === 'creator'
-					? 'Bookings appear once a brand sends you a proposal or selects your application.'
-					: 'Book a creator from their profile, or select an applicant from one of your briefs.'}
+				{data.role === 'creator' ? m.bl_empty_creator() : m.bl_empty_brand()}
 			</p>
 			<a
 				href={data.role === 'creator' ? '/campaigns' : '/discover'}
 				class="inline-block rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 			>
-				{data.role === 'creator' ? 'Browse briefs' : 'Find creators'}
+				{data.role === 'creator' ? m.bl_browse_briefs() : m.bl_find_creators()}
 			</a>
 		</div>
 	{:else}
@@ -124,7 +137,9 @@
 								</div>
 								<h3 class="truncate text-sm font-black text-slate-900">{booking.title}</h3>
 								<p class="truncate text-[11px] font-bold text-slate-500">
-									{booking.creatorName} · {booking.organizationName} · due {formatDate(booking.deadline)}
+									{booking.creatorName} · {booking.organizationName} · {m.bk_due({
+										date: formatDate(booking.deadline)
+									})}
 								</p>
 							</div>
 						</div>
@@ -132,7 +147,7 @@
 						<div class="flex shrink-0 items-center gap-4">
 							<div class="text-right">
 								<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
-									{data.role === 'creator' ? 'Your payout' : 'Value'}
+									{data.role === 'creator' ? m.bl_your_payout() : m.bl_value()}
 								</span>
 								<span class="text-sm font-black text-slate-900">
 									{(data.role === 'creator'

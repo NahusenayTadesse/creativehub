@@ -20,6 +20,7 @@
 	import { Button, type ButtonVariant } from '$lib/components/ui/button/index.js';
 
 	import { buttonVariants } from '../ui/button/index.js';
+	import * as m from '$lib/paraglide/messages';
 </script>
 
 <Tooltip.Provider>
@@ -41,7 +42,7 @@
 			{/snippet}
 		</Tooltip.Trigger>
 		<Tooltip.Content class="left-0 justify-self-start">
-			<p class="text-[13px]!">Goto {name}</p>
+			<p class="text-[13px]!">{m.tbl_goto({ name })}</p>
 		</Tooltip.Content>
 	</Tooltip.Root>
 </Tooltip.Provider>

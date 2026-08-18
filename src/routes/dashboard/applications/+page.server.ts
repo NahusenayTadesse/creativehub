@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { fail, redirect } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
@@ -9,6 +10,7 @@ import { listApplications, getSettings } from '$lib/server/queries';
 import { requireUser, getCreatorFor, getOrganizationFor, recordAudit } from '$lib/server/guards';
 import { applicationDecision } from '$lib/schemas';
 import { bookingReference, splitFee } from '$lib/domain/booking';
+import { recalcCampaignApplications } from '$lib/server/db/rollups';
 
 export const load: PageServerLoad = async ({ parent }) => {
 	const { role, creator, organization } = await parent();
@@ -35,7 +37,7 @@ export const actions: Actions = {
 	decide: async (event) => {
 		const user = requireUser(event);
 		const form = await superValidate(event.request, zod4(applicationDecision));
-		if (!form.valid) return fail(400, { message: 'Invalid request' });
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 
 		const rows = await db
 			.select({
@@ -52,19 +54,19 @@ export const actions: Actions = {
 			.limit(1);
 
 		const row = rows.at(0);
-		if (!row) return fail(404, { message: 'Application not found' });
+		if (!row) return fail(404, { message: m.srv_application_not_found() });
 
 		/* Only the owning organisation, or an operator, may decide. */
 		const isOperator = (user as { role?: string }).role === 'admin';
 		if (!isOperator) {
 			const organization = await getOrganizationFor(user.id);
 			if (!organization || organization.id !== row.organization.id) {
-				return fail(403, { message: 'That application is not yours to decide.' });
+				return fail(403, { message: m.srv_not_yours_to_decide() });
 			}
 		}
 
 		if (row.application.status === 'selected') {
-			return fail(409, { message: 'This applicant has already been selected.' });
+			return fail(409, { message: m.srv_already_selected() });
 		}
 
 		await db
@@ -93,8 +95,8 @@ export const actions: Actions = {
 					userId: row.creator.userId,
 					title:
 						form.data.status === 'shortlisted'
-							? `You were shortlisted for ${row.campaign.title}`
-							: `Your application for ${row.campaign.title} was not taken forward`,
+							? m.notif_shortlisted_title({ campaign: row.campaign.title })
+							: m.notif_not_taken_forward_title({ campaign: row.campaign.title }),
 					body: form.data.decisionNote || '',
 					link: '/dashboard/applications',
 					kind: 'application'
@@ -113,8 +115,7 @@ export const actions: Actions = {
 		if (existing.length) redirect(303, `/dashboard/bookings/${existing[0].id}`);
 
 		const settings = await getSettings();
-		const price =
-			row.campaign.compensationType === 'paid' ? row.application.proposedPrice : 0;
+		const price = row.campaign.compensationType === 'paid' ? row.application.proposedPrice : 0;
 		const { platformFee, creatorPayout } = splitFee(price, settings?.platformFeePercent ?? 15);
 
 		const result: any = await db.insert(t.bookings).values({
@@ -123,7 +124,10 @@ export const actions: Actions = {
 			applicationId: row.application.id,
 			creatorId: row.creator.id,
 			organizationId: row.organization.id,
-			title: `${row.campaign.title} — ${row.creator.fullName}`,
+			title: m.booking_title_campaign_creator({
+				campaign: row.campaign.title,
+				creator: row.creator.fullName
+			}),
 			deliverables: row.campaign.deliverables,
 			compensationType: row.campaign.compensationType,
 			price,
@@ -155,8 +159,8 @@ export const actions: Actions = {
 		if (row.creator.userId) {
 			await db.insert(t.notifications).values({
 				userId: row.creator.userId,
-				title: `You were selected for ${row.campaign.title}`,
-				body: 'Review the proposed terms and accept or counter.',
+				title: m.notif_selected_title({ campaign: row.campaign.title }),
+				body: m.notif_selected_body(),
 				link: `/dashboard/bookings/${bookingId}`,
 				kind: 'booking'
 			});
@@ -179,7 +183,7 @@ export const actions: Actions = {
 	withdraw: async (event) => {
 		const user = requireUser(event);
 		const creator = await getCreatorFor(user.id);
-		if (!creator) return fail(403, { message: 'Creator accounts only' });
+		if (!creator) return fail(403, { message: m.srv_creators_only() });
 
 		const form = await event.request.formData();
 		const id = Number(form.get('id'));
@@ -190,15 +194,18 @@ export const actions: Actions = {
 			.where(and(eq(t.applications.id, id), eq(t.applications.creatorId, creator.id)))
 			.limit(1);
 
-		if (!rows.length) return fail(404, { message: 'Application not found' });
+		if (!rows.length) return fail(404, { message: m.srv_application_not_found() });
 		if (rows[0].status === 'selected') {
-			return fail(409, { message: 'You have already been selected — use the booking instead.' });
+			return fail(409, { message: m.srv_already_selected_use_booking() });
 		}
 
 		await db
 			.update(t.applications)
 			.set({ status: 'withdrawn', updatedBy: user.id })
 			.where(eq(t.applications.id, id));
+
+		/* The campaign's public tally must come down again. */
+		await recalcCampaignApplications(db, rows[0].campaignId);
 
 		await recordAudit({
 			actorId: user.id,

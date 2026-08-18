@@ -2,13 +2,16 @@
 	import { Dialog, DialogContent, DialogTrigger } from '$lib/components/ui/dialog';
 	import { ImageIcon } from '@lucide/svelte';
 	import { assetUrl } from '$lib/assets';
+	import * as m from '$lib/paraglide/messages';
 
 	interface Props {
 		src: string;
 		alt?: string;
 	}
 
-	const { src, alt = 'Image' }: Props = $props();
+	const { src, alt = undefined }: Props = $props();
+
+	const label = $derived(alt ?? m.img_default_alt());
 
 	let isOpen = $state(false);
 	let hasError = $state(false);
@@ -32,7 +35,7 @@
 				{:else}
 					<img
 						src={assetUrl(src)}
-						{alt}
+						alt={label}
 						class="size-full object-cover transition-transform group-hover:scale-110"
 						onerror={handleError}
 					/>
@@ -46,14 +49,19 @@
 				<div class="flex size-full items-center justify-center">
 					<div class="flex flex-col items-center gap-2 text-muted-foreground">
 						<ImageIcon class="size-12" />
-						<span class="text-sm">Failed to load image</span>
+						<span class="text-sm">{m.img_load_failed()}</span>
 					</div>
 				</div>
 			{:else}
-				<img src={assetUrl(src)} {alt} class="size-full object-contain" onerror={handleError} />
+				<img
+					src={assetUrl(src)}
+					alt={label}
+					class="size-full object-contain"
+					onerror={handleError}
+				/>
 			{/if}
 		</div>
-		{#if alt && alt !== 'Image'}
+		{#if alt}
 			<p class="mt-2 text-center text-sm text-muted-foreground">{alt}</p>
 		{/if}
 	</DialogContent>

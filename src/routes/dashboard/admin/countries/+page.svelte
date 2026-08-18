@@ -1,42 +1,48 @@
 <script lang="ts">
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let { data } = $props();
 
-	const fields: CrudField[] = [
-		{ name: 'name', label: 'Country name', required: true },
-		{ name: 'code', label: 'ISO code', required: true, placeholder: 'ET' },
-		{ name: 'flag', label: 'Flag emoji', placeholder: '🇪🇹' },
-		{ name: 'currencyCode', label: 'Currency code', required: true, placeholder: 'ETB' },
-		{ name: 'currencySymbol', label: 'Currency symbol', placeholder: 'ETB' },
+	const fields: CrudField[] = $derived([
+		{ name: 'name', label: m.co_name(), required: true },
+		{ name: 'code', label: m.co_iso(), required: true, placeholder: 'ET' },
+		{ name: 'flag', label: m.co_flag(), placeholder: '🇪🇹' },
+		{ name: 'currencyCode', label: m.co_currency_code(), required: true, placeholder: 'ETB' },
+		{ name: 'currencySymbol', label: m.co_currency_symbol(), placeholder: 'ETB' },
 		{
 			name: 'usdRate',
-			label: 'Units per 1 USD',
+			label: m.co_usd_rate(),
 			type: 'number',
 			required: true,
 			placeholder: '132.5'
 		},
 		{
 			name: 'paymentRails',
-			label: 'Payment rails (one per line)',
+			label: m.co_payment_rails(),
 			type: 'textarea',
 			rows: 4,
-			placeholder: 'Telebirr\nChapa\nCBE Birr'
+			placeholder: m.co_payment_rails_placeholder()
 		},
-		{ name: 'description', label: 'Description', type: 'textarea', rows: 3 },
-		{ name: 'sortOrder', label: 'Sort order', type: 'number' },
-		{ name: 'isActive', label: 'Visible', type: 'checkboxSingle', placeholder: 'Show in filters' }
-	];
+		{ name: 'description', label: m.common_description(), type: 'textarea', rows: 3 },
+		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
+		{
+			name: 'isActive',
+			label: m.common_visible(),
+			type: 'checkboxSingle',
+			placeholder: m.common_show_in_filters()
+		}
+	]);
 </script>
 
-<svelte:head><title>Countries — Creator Network</title></svelte:head>
+<svelte:head><title>{m.co_meta_title()}</title></svelte:head>
 
 <CrudSection
-	eyebrow="Reference data"
-	title="Countries & currencies"
-	description="The single source of truth for markets and exchange rates. Every price shown anywhere in the product converts through the rate stored here."
-	label="Country"
+	eyebrow={m.sb_reference_data()}
+	title={m.co_title()}
+	description={m.co_description()}
+	label={m.co_label()}
 	rows={data.rows}
 	{fields}
 	addForm={data.addForm}
@@ -57,7 +63,7 @@
 					<span
 						class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
 					>
-						Hidden
+						{m.common_hidden()}
 					</span>
 				{/if}
 			</div>
@@ -65,7 +71,7 @@
 			<div class="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
 				<span class="font-bold text-slate-600">{country.currencyCode}</span>
 				<span class="font-black text-slate-900">
-					{country.usdRate.toLocaleString()} per USD
+					{m.co_per_usd({ rate: country.usdRate.toLocaleString() })}
 				</span>
 			</div>
 

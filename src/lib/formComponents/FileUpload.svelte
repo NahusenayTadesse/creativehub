@@ -12,8 +12,11 @@
 	import { fileProxy } from 'sveltekit-superforms';
 	import { assetUrl } from '$lib/assets';
 	import imageCompression from 'browser-image-compression';
+	import * as m from '$lib/paraglide/messages';
 
-	let { form, name, placeholder = 'PDF or Images (Max 10MB)', image = '' } = $props();
+	let { form, name, placeholder = undefined, image = '' } = $props();
+
+	const hint = $derived(placeholder ?? m.up_default_hint());
 
 	let file = $state(fileProxy(form, name));
 	let isDragging = $state(false);
@@ -108,12 +111,12 @@
 				<div class="px-4">
 					<p class="text-sm font-medium">
 						{#if isProcessing}
-							Optimizing file...
+							{m.up_optimizing()}
 						{:else}
-							{isDragging ? 'Drop it here!' : 'Click to upload or drag and drop'}
+							{isDragging ? m.up_drop_here() : m.up_click_or_drag()}
 						{/if}
 					</p>
-					<p class="text-[12px]! text-muted-foreground">{placeholder}</p>
+					<p class="text-[12px]! text-muted-foreground">{hint}</p>
 				</div>
 			</div>
 		</Label>
@@ -154,7 +157,11 @@
 					<iframe src={assetUrl(image)} class="h-64 w-full" frameborder="0" title="pdf-preview"
 					></iframe>
 				{:else}
-					<img src={assetUrl(image)} class="max-h-80 w-full object-contain" alt="Preview" />
+					<img
+						src={assetUrl(image)}
+						class="max-h-80 w-full object-contain"
+						alt={m.up_preview_alt()}
+					/>
 				{/if}
 			</div>
 		</div>
@@ -176,7 +183,7 @@
 					<div class="flex flex-col truncate">
 						<span class="truncate text-sm font-medium">{$file[0]?.name}</span>
 						<span class="text-xs text-muted-foreground">
-							{($file[0]?.size / 1024 / 1024).toFixed(2)} MB (Optimized)
+							{m.up_optimized_size({ size: ($file[0]?.size / 1024 / 1024).toFixed(2) })}
 						</span>
 					</div>
 				</div>
@@ -202,7 +209,7 @@
 					<img
 						src={URL.createObjectURL($file[0])}
 						class="max-h-80 w-full object-contain"
-						alt="Preview"
+						alt={m.up_preview_alt()}
 					/>
 				{/if}
 			</div>

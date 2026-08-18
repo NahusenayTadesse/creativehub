@@ -20,7 +20,9 @@
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
-	import { PIPELINE_STEPS, stepIndex } from '$lib/domain/booking';
+	import { pipelineSteps, stepIndex } from '$lib/domain/booking';
+	import * as m from '$lib/paraglide/messages';
+	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
 
@@ -112,9 +114,11 @@
 	$effect(() => announce($ratingMessage));
 	$effect(() => announce($chatMessage));
 
+	const dateLocale = $derived(getLocale() === 'am' ? 'am-ET' : 'en-GB');
+
 	const formatDate = (value: string | Date | null) =>
 		value
-			? new Date(value).toLocaleDateString('en-GB', {
+			? new Date(value).toLocaleDateString(dateLocale, {
 					day: 'numeric',
 					month: 'short',
 					year: 'numeric'
@@ -122,7 +126,7 @@
 			: '—';
 
 	const formatTime = (value: string | Date) =>
-		new Date(value).toLocaleString('en-GB', {
+		new Date(value).toLocaleString(dateLocale, {
 			day: 'numeric',
 			month: 'short',
 			hour: '2-digit',
@@ -130,18 +134,18 @@
 		});
 
 	/** The four sub-scores, keyed so the star rows stay type-safe. */
-	const SUB_RATINGS = [
-		{ key: 'communication', label: '💬 Communication' },
-		{ key: 'quality', label: '✨ Content quality' },
-		{ key: 'timeliness', label: '⏱️ Timeliness' },
-		{ key: 'professionalism', label: '💼 Brief compliance' }
-	] as const;
+	const SUB_RATINGS = $derived([
+		{ key: 'communication', label: m.profile_rating_communication() },
+		{ key: 'quality', label: m.profile_rating_quality() },
+		{ key: 'timeliness', label: m.profile_rating_timeliness() },
+		{ key: 'professionalism', label: m.profile_rating_compliance() }
+	] as const);
 
 	/** Plain form posts share one handler so every outcome toasts consistently. */
 	const actionEnhance = (successText: string) => () => {
 		return async ({ result, update }: any) => {
 			if (result.type === 'failure') {
-				toast.error(result.data?.message ?? 'That action was refused.');
+				toast.error(result.data?.message ?? m.bk_action_refused());
 			} else if (result.type === 'success') {
 				toast.success(successText);
 			}
@@ -150,7 +154,7 @@
 	};
 </script>
 
-<svelte:head><title>{booking.reference} — Creator Network</title></svelte:head>
+<svelte:head><title>{m.bk_meta_title({ ref: booking.reference })}</title></svelte:head>
 
 <div class="space-y-6">
 	<a
@@ -158,7 +162,7 @@
 		class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
 	>
 		<ArrowLeft class="h-3.5 w-3.5" />
-		All bookings
+		{m.bk_all_bookings()}
 	</a>
 
 	<!-- ===== Header ===== -->
@@ -177,7 +181,7 @@
 					<a href="/creators/{booking.creatorUsername}" class="hover:underline">
 						{booking.creatorName}
 					</a>
-					· {booking.organizationName} · due {formatDate(booking.deadline)}
+					· {booking.organizationName} · {m.bk_due({ date: formatDate(booking.deadline) })}
 				</p>
 			</div>
 
@@ -188,12 +192,12 @@
 						onclick={() => (counterOpen = true)}
 						class="rounded-xl border-2 border-slate-900 bg-white px-4 py-2 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50"
 					>
-						Counter-offer
+						{m.bk_counter_offer()}
 					</button>
 				{/if}
 
 				{#if booking.status === 'booked' && (isBrand || isOperator) && booking.escrowStatus === 'unfunded'}
-					<form method="POST" action="?/fund" use:enhance={actionEnhance('Deposit recorded')}>
+					<form method="POST" action="?/fund" use:enhance={actionEnhance(m.bk_deposit_recorded())}>
 						<input type="hidden" name="bookingId" value={booking.id} />
 						<input type="hidden" name="paymentMethod" value="telebirr" />
 						<button
@@ -201,7 +205,7 @@
 							class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 						>
 							<Wallet class="h-3.5 w-3.5" />
-							Record deposit
+							{m.bk_record_deposit()}
 						</button>
 					</form>
 				{/if}
@@ -213,7 +217,7 @@
 						class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 					>
 						<Upload class="h-3.5 w-3.5" />
-						Submit work
+						{m.bk_submit_work()}
 					</button>
 				{/if}
 
@@ -224,19 +228,23 @@
 						class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 					>
 						<CircleCheckBig class="h-3.5 w-3.5" />
-						Review submission
+						{m.bk_review_submission()}
 					</button>
 				{/if}
 
 				{#if booking.status === 'awaiting_settlement' && (isBrand || isOperator)}
-					<form method="POST" action="?/settle" use:enhance={actionEnhance('Booking completed')}>
+					<form
+						method="POST"
+						action="?/settle"
+						use:enhance={actionEnhance(m.bk_booking_completed())}
+					>
 						<input type="hidden" name="bookingId" value={booking.id} />
 						<button
 							type="submit"
 							class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 						>
 							<CircleCheckBig class="h-3.5 w-3.5" />
-							Mark compensation fulfilled
+							{m.bk_mark_fulfilled()}
 						</button>
 					</form>
 				{/if}
@@ -248,7 +256,7 @@
 						class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-amber-500 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-amber-600"
 					>
 						<Star class="h-3.5 w-3.5 fill-white" />
-						Write a review
+						{m.bk_write_review()}
 					</button>
 				{/if}
 			</div>
@@ -257,8 +265,8 @@
 		<!-- Stepper -->
 		{#if currentStep >= 0}
 			<div class="overflow-x-auto border-t-2 border-slate-200 py-6">
-				<div class="relative mx-auto flex min-w-[560px] max-w-2xl items-center justify-between">
-					{#each PIPELINE_STEPS as step, index (step.status)}
+				<div class="relative mx-auto flex max-w-2xl min-w-[560px] items-center justify-between">
+					{#each pipelineSteps() as step, index (step.status)}
 						{@const done = index <= currentStep}
 						<div class="relative z-10 flex flex-col items-center">
 							<div
@@ -295,14 +303,14 @@
 				<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
 					<h2 class="flex items-center gap-1.5 text-sm font-black text-slate-900">
 						<Handshake class="h-4 w-4 text-emerald-600" />
-						Negotiation
+						{m.bk_negotiation()}
 					</h2>
 					{#if booking.termsFrozenAt}
 						<span
 							class="inline-flex items-center gap-1 rounded-lg border-2 border-emerald-600 bg-emerald-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-emerald-900 uppercase"
 						>
 							<Lock class="h-3 w-3" />
-							Terms frozen {formatDate(booking.termsFrozenAt)}
+							{m.bk_terms_frozen({ date: formatDate(booking.termsFrozenAt) })}
 						</span>
 					{/if}
 				</div>
@@ -334,7 +342,7 @@
 								<div class="mb-1 flex flex-wrap items-center justify-between gap-2">
 									<span class="text-xs font-black text-slate-900">
 										{prop.proposedBy === 'creator' ? booking.creatorName : booking.organizationName}
-										proposed
+										{m.bk_proposed()}
 									</span>
 									<span class="text-[10px] font-bold text-slate-400">
 										{formatTime(prop.createdAt)}
@@ -347,7 +355,10 @@
 										<span class="text-emerald-600">{prop.currencyCode}</span>
 									</span>
 									<span class="font-medium text-slate-600">
-										{prop.revisionsAllowed} revisions · due {formatDate(prop.deadline)}
+										{m.bk_revisions_due({
+											revisions: prop.revisionsAllowed,
+											date: formatDate(prop.deadline)
+										})}
 									</span>
 									<span
 										class="rounded-md border border-slate-400 bg-white px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase"
@@ -365,44 +376,54 @@
 								{/if}
 
 								{#if prop.note}
-									<p class="mt-2 rounded-lg bg-white/70 p-2 text-[11px] font-medium text-slate-700 italic">
+									<p
+										class="mt-2 rounded-lg bg-white/70 p-2 text-[11px] font-medium text-slate-700 italic"
+									>
 										"{prop.note}"
 									</p>
 								{/if}
 
 								{#if prop.status === 'pending' && canRespond}
 									<div class="mt-3 flex gap-2 border-t border-slate-200 pt-3">
-										<form method="POST" action="?/respond" use:enhance={actionEnhance('Terms agreed — they are now locked')}>
+										<form
+											method="POST"
+											action="?/respond"
+											use:enhance={actionEnhance(m.bk_terms_agreed_toast())}
+										>
 											<input type="hidden" name="proposalId" value={prop.id} />
 											<input type="hidden" name="decision" value="accept" />
 											<button
 												type="submit"
 												class="rounded-lg border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-[11px] font-black text-white hover:bg-emerald-700"
 											>
-												Accept these terms
+												{m.bk_accept_terms()}
 											</button>
 										</form>
-										<form method="POST" action="?/respond" use:enhance={actionEnhance('Proposal declined')}>
+										<form
+											method="POST"
+											action="?/respond"
+											use:enhance={actionEnhance(m.bk_proposal_declined_toast())}
+										>
 											<input type="hidden" name="proposalId" value={prop.id} />
 											<input type="hidden" name="decision" value="decline" />
 											<button
 												type="submit"
 												class="rounded-lg border-2 border-slate-900 bg-white px-3 py-1.5 text-[11px] font-black text-slate-900 hover:bg-slate-50"
 											>
-												Decline
+												{m.bk_decline()}
 											</button>
 										</form>
 									</div>
 								{:else if prop.status === 'pending' && !isOperator}
 									<p class="mt-2 text-[11px] font-bold text-slate-500">
-										Waiting on the other side to respond.
+										{m.bk_waiting_other_side()}
 									</p>
 								{/if}
 							</div>
 						</li>
 					{:else}
 						<p class="py-4 text-center text-xs font-medium text-slate-500">
-							No proposals recorded.
+							{m.bk_no_proposals()}
 						</p>
 					{/each}
 				</ol>
@@ -413,17 +434,16 @@
 				<div class="bento-card-mint space-y-3">
 					<div class="flex items-center gap-1.5">
 						<Lock class="h-4 w-4 text-emerald-800" />
-						<h2 class="text-sm font-black text-slate-900">Agreed terms</h2>
+						<h2 class="text-sm font-black text-slate-900">{m.bk_agreed_terms()}</h2>
 					</div>
 					<p class="text-[11px] font-medium text-emerald-900">
-						Written once when both sides accepted. Editing a profile, package or brief does not
-						change anything here.
+						{m.bk_agreed_terms_note()}
 					</p>
 
 					<div class="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
 						<div>
 							<span class="block text-[9px] font-black tracking-wider text-slate-600 uppercase">
-								Fee
+								{m.bk_fee()}
 							</span>
 							<span class="font-black text-slate-900">
 								{booking.termsSnapshot.price.toLocaleString()}
@@ -432,7 +452,7 @@
 						</div>
 						<div>
 							<span class="block text-[9px] font-black tracking-wider text-slate-600 uppercase">
-								Creator payout
+								{m.bk_creator_payout()}
 							</span>
 							<span class="font-black text-slate-900">
 								{booking.termsSnapshot.creatorPayout.toLocaleString()}
@@ -440,15 +460,18 @@
 						</div>
 						<div>
 							<span class="block text-[9px] font-black tracking-wider text-slate-600 uppercase">
-								Revisions
+								{m.bk_revisions()}
 							</span>
 							<span class="font-black text-slate-900">
-								{booking.revisionsUsed} of {booking.termsSnapshot.revisionsAllowed} used
+								{m.bk_revisions_used({
+									used: booking.revisionsUsed,
+									allowed: booking.termsSnapshot.revisionsAllowed
+								})}
 							</span>
 						</div>
 						<div>
 							<span class="block text-[9px] font-black tracking-wider text-slate-600 uppercase">
-								Deadline
+								{m.bk_deadline()}
 							</span>
 							<span class="font-black text-slate-900">
 								{formatDate(booking.termsSnapshot.deadline)}
@@ -458,8 +481,10 @@
 
 					{#if booking.termsSnapshot.deliverables?.length}
 						<div class="border-t border-emerald-300 pt-3">
-							<span class="mb-1 block text-[9px] font-black tracking-wider text-slate-600 uppercase">
-								Agreed deliverables
+							<span
+								class="mb-1 block text-[9px] font-black tracking-wider text-slate-600 uppercase"
+							>
+								{m.bk_agreed_deliverables()}
 							</span>
 							<ul class="space-y-1">
 								{#each booking.termsSnapshot.deliverables as item (item)}
@@ -478,7 +503,7 @@
 			{#if data.submissions.length}
 				<div class="bento-card bento-card-static space-y-3">
 					<h2 class="border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900">
-						Delivery history
+						{m.bk_delivery_history()}
 					</h2>
 
 					{#each data.submissions as sub (sub.id)}
@@ -491,7 +516,7 @@
 									class="inline-flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline"
 								>
 									<ExternalLink class="h-3.5 w-3.5" />
-									View submitted content
+									{m.bk_view_submitted()}
 								</a>
 								<div class="flex items-center gap-2">
 									<span
@@ -516,8 +541,10 @@
 
 							{#if sub.reviewNote}
 								<div class="mt-2 rounded-lg border border-orange-300 bg-orange-50 p-2">
-									<span class="block text-[9px] font-black tracking-wider text-orange-800 uppercase">
-										Feedback
+									<span
+										class="block text-[9px] font-black tracking-wider text-orange-800 uppercase"
+									>
+										{m.bk_feedback()}
 									</span>
 									<p class="text-[11px] font-medium text-orange-900">{sub.reviewNote}</p>
 								</div>
@@ -531,7 +558,7 @@
 			{#if data.reviews.length}
 				<div class="bento-card bento-card-static space-y-3">
 					<h2 class="border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900">
-						Reviews
+						{m.bk_reviews()}
 					</h2>
 					{#each data.reviews as review (review.id)}
 						<div class="rounded-2xl border-2 border-amber-200 bg-amber-50/70 p-3">
@@ -565,48 +592,52 @@
 		<div class="space-y-6">
 			<div class="bento-card bento-card-static space-y-3">
 				<h2 class="border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900">
-					Compensation
+					{m.bk_compensation()}
 				</h2>
 
 				<div class="flex items-center justify-between text-xs">
-					<span class="font-medium text-slate-600">Status</span>
+					<span class="font-medium text-slate-600">{m.bk_status()}</span>
 					<BookingStatusBadge status={booking.escrowStatus} kind="escrow" />
 				</div>
 				<div class="flex items-center justify-between text-xs">
-					<span class="font-medium text-slate-600">Agreed value</span>
+					<span class="font-medium text-slate-600">{m.bk_agreed_value()}</span>
 					<span class="font-black text-slate-900">
 						{booking.price.toLocaleString()}
 						{booking.currencyCode}
 					</span>
 				</div>
 				<div class="flex items-center justify-between border-t border-slate-200 pt-2 text-xs">
-					<span class="font-medium text-slate-500">Creator payout</span>
+					<span class="font-medium text-slate-500">{m.bk_creator_payout()}</span>
 					<span class="font-bold text-slate-800">{booking.creatorPayout.toLocaleString()}</span>
 				</div>
 				<div class="flex items-center justify-between text-[11px]">
-					<span class="text-slate-400">Marketplace fee</span>
+					<span class="text-slate-400">{m.bk_marketplace_fee()}</span>
 					<span class="text-slate-400">{booking.platformFee.toLocaleString()}</span>
 				</div>
 
 				{#if booking.paymentRef}
 					<p class="pt-1 font-mono text-[10px] text-slate-500">
-						Ref: {booking.paymentRef} ({booking.paymentMethod?.toUpperCase()})
+						{m.bk_payment_ref({
+							ref: booking.paymentRef,
+							method: booking.paymentMethod?.toUpperCase() ?? ''
+						})}
 					</p>
 				{/if}
 
 				<p
 					class="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-2 text-[10px] leading-relaxed font-medium text-amber-900"
 				>
-					Compensation is confirmed against this record before the booking can complete. The status
-					above reflects that confirmation, and it is kept separate from the delivery status.
+					{m.bk_compensation_note()}
 				</p>
 			</div>
 
 			<!-- Messages -->
 			<div class="bento-card bento-card-static flex flex-col gap-3">
-				<h2 class="flex items-center gap-1.5 border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900">
+				<h2
+					class="flex items-center gap-1.5 border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900"
+				>
 					<MessageSquare class="h-4 w-4 text-emerald-600" />
-					Conversation
+					{m.bk_conversation()}
 				</h2>
 
 				<div
@@ -614,8 +645,7 @@
 				>
 					<ShieldAlert class="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
 					<p>
-						Phone numbers, emails and messaging links are hidden automatically. Keeping the deal
-						here is what keeps the agreed terms and the delivery record attached to it.
+						{m.bk_masking_note()}
 					</p>
 				</div>
 
@@ -635,7 +665,7 @@
 										class="mt-1.5 flex items-center gap-1 border-t border-white/20 pt-1.5 text-[10px] font-semibold opacity-90"
 									>
 										<ShieldAlert class="h-3 w-3" />
-										<span>Contact details hidden</span>
+										<span>{m.bk_contact_hidden()}</span>
 									</div>
 								{/if}
 							</div>
@@ -643,7 +673,7 @@
 						</div>
 					{:else}
 						<p class="py-6 text-center text-xs font-medium text-slate-500">
-							No messages yet. Start the conversation.
+							{m.bk_no_messages()}
 						</p>
 					{/each}
 				</div>
@@ -659,13 +689,13 @@
 						type="text"
 						name="body"
 						bind:value={$chatForm.body}
-						placeholder="Type a message…"
+						placeholder={m.bk_message_placeholder()}
 						class="flex-1 rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500"
 					/>
 					<button
 						type="submit"
 						class="rounded-xl border-2 border-slate-900 bg-emerald-600 p-2 text-white hover:bg-emerald-700"
-						aria-label="Send message"
+						aria-label={m.bk_send_message()}
 					>
 						<Send class="h-4 w-4" />
 					</button>
@@ -680,10 +710,9 @@
 <Dialog.Root bind:open={counterOpen}>
 	<Dialog.Content class="w-lg! max-w-[95vw]!">
 		<Dialog.Header>
-			<Dialog.Title class="text-base font-black">Send a counter-offer</Dialog.Title>
+			<Dialog.Title class="text-base font-black">{m.bk_counter_dialog_title()}</Dialog.Title>
 			<Dialog.Description class="text-xs font-medium text-slate-600">
-				This replaces the offer currently on the table. Nothing is binding until the other side
-				accepts.
+				{m.bk_counter_dialog_body()}
 			</Dialog.Description>
 		</Dialog.Header>
 
@@ -693,7 +722,7 @@
 
 			<div class="grid grid-cols-3 gap-2">
 				<div class="col-span-2 space-y-1.5">
-					<label for="p-price" class="font-black text-slate-900">Fee</label>
+					<label for="p-price" class="font-black text-slate-900">{m.bk_fee()}</label>
 					<input
 						id="p-price"
 						name="price"
@@ -704,7 +733,7 @@
 					/>
 				</div>
 				<div class="space-y-1.5">
-					<label for="p-currency" class="font-black text-slate-900">Currency</label>
+					<label for="p-currency" class="font-black text-slate-900">{m.campaign_currency()}</label>
 					<select
 						id="p-currency"
 						name="currencyCode"
@@ -720,7 +749,8 @@
 
 			<div class="space-y-1.5">
 				<label for="p-deliverables" class="font-black text-slate-900">
-					Deliverables <span class="font-medium text-slate-500">(one per line)</span>
+					{m.profile_deliverables_label()}
+					<span class="font-medium text-slate-500">{m.profile_one_per_line()}</span>
 				</label>
 				<textarea
 					id="p-deliverables"
@@ -733,7 +763,7 @@
 
 			<div class="grid grid-cols-2 gap-2">
 				<div class="space-y-1.5">
-					<label for="p-deadline" class="font-black text-slate-900">Deadline</label>
+					<label for="p-deadline" class="font-black text-slate-900">{m.bk_deadline()}</label>
 					<input
 						id="p-deadline"
 						name="deadline"
@@ -743,7 +773,7 @@
 					/>
 				</div>
 				<div class="space-y-1.5">
-					<label for="p-revisions" class="font-black text-slate-900">Revisions</label>
+					<label for="p-revisions" class="font-black text-slate-900">{m.bk_revisions()}</label>
 					<input
 						id="p-revisions"
 						name="revisionsAllowed"
@@ -757,13 +787,13 @@
 			</div>
 
 			<div class="space-y-1.5">
-				<label for="p-note" class="font-black text-slate-900">Note</label>
+				<label for="p-note" class="font-black text-slate-900">{m.bk_note()}</label>
 				<textarea
 					id="p-note"
 					name="note"
 					rows="3"
 					bind:value={$proposalForm.note}
-					placeholder="Explain the change — it makes agreement faster."
+					placeholder={m.bk_note_placeholder()}
 					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
 				></textarea>
 			</div>
@@ -774,9 +804,9 @@
 				class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
 			>
 				{#if $proposalDelayed}
-					<LoadingBtn name="Sending" />
+					<LoadingBtn name={m.campaign_sending()} />
 				{:else}
-					Send counter-offer
+					{m.bk_send_counter()}
 				{/if}
 			</button>
 		</form>
@@ -786,7 +816,7 @@
 <Dialog.Root bind:open={submitOpen}>
 	<Dialog.Content class="w-lg! max-w-[95vw]!">
 		<Dialog.Header>
-			<Dialog.Title class="text-base font-black">Submit your work</Dialog.Title>
+			<Dialog.Title class="text-base font-black">{m.bk_submit_dialog_title()}</Dialog.Title>
 		</Dialog.Header>
 
 		<form method="POST" action="?/submit" use:submissionEnhance class="space-y-3 text-xs">
@@ -794,26 +824,26 @@
 			<input type="hidden" name="bookingId" value={booking.id} />
 
 			<div class="space-y-1.5">
-				<label for="s-url" class="font-black text-slate-900">Published content URL</label>
+				<label for="s-url" class="font-black text-slate-900">{m.bk_content_url()}</label>
 				<input
 					id="s-url"
 					name="contentUrl"
 					type="url"
 					required
 					bind:value={$submissionForm.contentUrl}
-					placeholder="https://www.tiktok.com/@you/video/…"
+					placeholder={m.bk_content_url_placeholder()}
 					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
 				/>
 			</div>
 
 			<div class="space-y-1.5">
-				<label for="s-notes" class="font-black text-slate-900">Notes for the brand</label>
+				<label for="s-notes" class="font-black text-slate-900">{m.bk_notes_for_brand()}</label>
 				<textarea
 					id="s-notes"
 					name="notes"
 					rows="4"
 					bind:value={$submissionForm.notes}
-					placeholder="Early performance, anything you would flag, what you would change."
+					placeholder={m.bk_notes_placeholder()}
 					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
 				></textarea>
 			</div>
@@ -824,9 +854,9 @@
 				class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
 			>
 				{#if $submissionDelayed}
-					<LoadingBtn name="Submitting" />
+					<LoadingBtn name={m.bk_submitting()} />
 				{:else}
-					Submit for review
+					{m.bk_submit_for_review()}
 				{/if}
 			</button>
 		</form>
@@ -836,9 +866,12 @@
 <Dialog.Root bind:open={reviewOpen}>
 	<Dialog.Content class="w-lg! max-w-[95vw]!">
 		<Dialog.Header>
-			<Dialog.Title class="text-base font-black">Review the submission</Dialog.Title>
+			<Dialog.Title class="text-base font-black">{m.bk_review_dialog_title()}</Dialog.Title>
 			<Dialog.Description class="text-xs font-medium text-slate-600">
-				{booking.revisionsUsed} of {booking.revisionsAllowed} agreed revisions used.
+				{m.bk_review_dialog_body({
+					used: booking.revisionsUsed,
+					allowed: booking.revisionsAllowed
+				})}
 			</Dialog.Description>
 		</Dialog.Header>
 
@@ -851,17 +884,21 @@
 					class="inline-flex items-center gap-1 font-black text-emerald-700 hover:underline"
 				>
 					<ExternalLink class="h-3.5 w-3.5" />
-					Open the submitted content
+					{m.bk_open_submitted()}
 				</a>
 
-				<form method="POST" action="?/review" use:enhance={actionEnhance('Submission approved')}>
+				<form
+					method="POST"
+					action="?/review"
+					use:enhance={actionEnhance(m.bk_submission_approved_toast())}
+				>
 					<input type="hidden" name="submissionId" value={openSubmission.id} />
 					<input type="hidden" name="decision" value="approve" />
 					<button
 						type="submit"
 						class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 					>
-						Approve — moves to settlement
+						{m.bk_approve()}
 					</button>
 				</form>
 
@@ -869,14 +906,14 @@
 					<form
 						method="POST"
 						action="?/review"
-						use:enhance={actionEnhance('Revision requested')}
+						use:enhance={actionEnhance(m.bk_revision_requested_toast())}
 						class="space-y-2"
 					>
 						<input type="hidden" name="submissionId" value={openSubmission.id} />
 						<input type="hidden" name="decision" value="revision" />
 
 						<label for="r-note" class="font-black text-slate-900">
-							Or request a revision — a reason is required
+							{m.bk_request_revision_label()}
 						</label>
 						<textarea
 							id="r-note"
@@ -884,7 +921,7 @@
 							rows="3"
 							bind:value={revisionNote}
 							required
-							placeholder="Be specific about what to change and why."
+							placeholder={m.bk_revision_placeholder()}
 							class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
 						></textarea>
 
@@ -892,7 +929,7 @@
 							type="submit"
 							class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 font-black text-slate-900 hover:bg-slate-50"
 						>
-							Request revision
+							{m.bk_request_revision()}
 						</button>
 					</form>
 				</div>
@@ -905,7 +942,9 @@
 	<Dialog.Content class="w-lg! max-w-[95vw]!">
 		<Dialog.Header>
 			<Dialog.Title class="text-base font-black">
-				Review {isCreator ? booking.organizationName : booking.creatorName}
+				{m.bk_rate_dialog_title({
+					name: isCreator ? booking.organizationName : booking.creatorName
+				})}
 			</Dialog.Title>
 		</Dialog.Header>
 
@@ -915,7 +954,7 @@
 
 			<div class="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-center">
 				<span class="block text-xs font-black tracking-wider text-slate-700 uppercase">
-					Overall rating
+					{m.bk_overall_rating()}
 				</span>
 				<div class="flex items-center justify-center gap-2">
 					{#each [1, 2, 3, 4, 5] as star (star)}
@@ -929,7 +968,7 @@
 								$ratingForm.quality = star;
 							}}
 							class="cursor-pointer p-1.5 transition-transform hover:scale-110"
-							aria-label="{star} star{star === 1 ? '' : 's'}"
+							aria-label={star === 1 ? m.bk_star_label_one() : m.bk_star_label({ count: star })}
 						>
 							<Star
 								class="h-8 w-8 {star <= $ratingForm.rating
@@ -944,7 +983,7 @@
 
 			<div class="space-y-2.5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
 				<span class="mb-1 block text-[11px] font-black tracking-wider text-slate-500 uppercase">
-					Detailed breakdown
+					{m.bk_detailed_breakdown()}
 				</span>
 
 				{#each SUB_RATINGS as row (row.key)}
@@ -956,7 +995,7 @@
 									type="button"
 									onclick={() => ($ratingForm[row.key] = s)}
 									class="p-0.5"
-									aria-label="{row.label}: {s}"
+									aria-label={m.bk_sub_rating_label({ label: row.label, value: s })}
 								>
 									<Star
 										class="h-4 w-4 {s <= $ratingForm[row.key]
@@ -972,14 +1011,14 @@
 			</div>
 
 			<div class="space-y-1.5">
-				<label for="rev-body" class="font-black text-slate-900">Written review</label>
+				<label for="rev-body" class="font-black text-slate-900">{m.bk_written_review()}</label>
 				<textarea
 					id="rev-body"
 					name="body"
 					rows="4"
 					required
 					bind:value={$ratingForm.body}
-					placeholder="What was it actually like to work together?"
+					placeholder={m.bk_written_review_placeholder()}
 					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
 				></textarea>
 			</div>
@@ -990,9 +1029,9 @@
 				class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
 			>
 				{#if $ratingDelayed}
-					<LoadingBtn name="Publishing" />
+					<LoadingBtn name={m.bk_publishing()} />
 				{:else}
-					Publish review
+					{m.bk_publish_review()}
 				{/if}
 			</button>
 		</form>

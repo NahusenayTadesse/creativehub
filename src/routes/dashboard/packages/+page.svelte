@@ -2,59 +2,64 @@
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
 	import { Check } from '@lucide/svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let { data } = $props();
 
-	const fields: CrudField[] = [
-		{ name: 'title', label: 'Package name', required: true, placeholder: 'TikTok product review' },
+	const fields: CrudField[] = $derived([
+		{ name: 'title', label: m.pk_name(), required: true, placeholder: m.pk_name_placeholder() },
 		{
 			name: 'platformId',
-			label: 'Platform',
+			label: m.pk_platform(),
 			type: 'select',
 			items: data.platforms.map((p) => ({ value: p.id, name: p.name }))
 		},
-		{ name: 'description', label: 'What the brand gets', type: 'textarea', rows: 3 },
+		{ name: 'description', label: m.pk_what_brand_gets(), type: 'textarea', rows: 3 },
 		{
 			name: 'deliverables',
-			label: 'Deliverables (one per line)',
+			label: m.pk_deliverables(),
 			type: 'textarea',
 			rows: 5,
-			placeholder: '1 x 60s dedicated video\nLink in bio for 7 days\nRaw file'
+			placeholder: m.pk_deliverables_placeholder()
 		},
-		{ name: 'price', label: 'Price', type: 'number', required: true },
+		{ name: 'price', label: m.pk_price(), type: 'number', required: true },
 		{
 			name: 'currencyCode',
-			label: 'Currency',
+			label: m.campaign_currency(),
 			type: 'select',
 			items: ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'].map((c) => ({
 				value: c,
 				name: c
 			}))
 		},
-		{ name: 'deliveryDays', label: 'Delivery time (days)', type: 'number' },
-		{ name: 'revisions', label: 'Revisions included', type: 'number' },
-		{ name: 'sortOrder', label: 'Sort order', type: 'number' },
-		{ name: 'isActive', label: 'Live', type: 'checkboxSingle', placeholder: 'Show on my profile' }
-	];
+		{ name: 'deliveryDays', label: m.pk_delivery_days(), type: 'number' },
+		{ name: 'revisions', label: m.pk_revisions(), type: 'number' },
+		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
+		{
+			name: 'isActive',
+			label: m.common_live(),
+			type: 'checkboxSingle',
+			placeholder: m.common_show_on_profile()
+		}
+	]);
 
-	const platformName = (id: number | null) =>
-		data.platforms.find((p) => p.id === id)?.name ?? null;
+	const platformName = (id: number | null) => data.platforms.find((p) => p.id === id)?.name ?? null;
 </script>
 
-<svelte:head><title>Packages — Creator Network</title></svelte:head>
+<svelte:head><title>{m.pk_meta_title()}</title></svelte:head>
 
 <CrudSection
-	eyebrow="Creator studio"
-	title="Packages & pricing"
-	description="Your rate card. Brands book these directly from your profile, so be specific about what is included — it becomes the agreed scope."
-	label="Package"
+	eyebrow={m.dashc_eyebrow()}
+	title={m.pk_title()}
+	description={m.pk_description()}
+	label={m.pk_label()}
 	rows={data.rows}
 	{fields}
 	addForm={data.addForm}
 	editForm={data.editForm}
 	deleteForm={data.deleteForm}
 	nameKey="title"
-	emptyMessage="No packages published yet"
+	emptyMessage={m.pk_empty()}
 >
 	{#snippet row(pkg)}
 		<div class="space-y-3">
@@ -72,7 +77,7 @@
 						<span
 							class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
 						>
-							Hidden
+							{m.common_hidden()}
 						</span>
 					{/if}
 				</div>
@@ -97,7 +102,7 @@
 				class="flex items-center justify-between rounded-xl border-2 border-slate-900 bg-[#dcfce7] px-3 py-2"
 			>
 				<div class="text-[10px] font-black tracking-wider text-emerald-900 uppercase">
-					{pkg.deliveryDays}d · {pkg.revisions} revisions
+					{m.pk_summary({ days: pkg.deliveryDays, revisions: pkg.revisions })}
 				</div>
 				<div class="text-sm font-black text-slate-900">
 					{pkg.price.toLocaleString()}

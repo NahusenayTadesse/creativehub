@@ -4,58 +4,73 @@
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
 	import { Users, Send, Calendar, ExternalLink } from '@lucide/svelte';
+	import * as m from '$lib/paraglide/messages';
+	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
 
-	const fields: CrudField[] = [
-		{ name: 'title', label: 'Campaign title', required: true },
+	const fields: CrudField[] = $derived([
+		/* A brand's campaigns are stamped from its session; only an operator,
+		   who acts across every organisation, has to name the owner. */
+		...(data.isOperator
+			? [
+					{
+						name: 'organizationId',
+						label: m.cf_organisation(),
+						type: 'select',
+						required: true,
+						items: data.organizations.map((o) => ({ value: o.id, name: o.name }))
+					} satisfies CrudField
+				]
+			: []),
+		{ name: 'title', label: m.cf_title(), required: true },
 		{
 			name: 'description',
-			label: 'The brief',
+			label: m.cf_brief(),
 			type: 'textarea',
 			rows: 6,
 			required: true,
-			placeholder: 'What you need made, for whom, and what good looks like.'
+			placeholder: m.cf_brief_placeholder()
 		},
-		{ name: 'objective', label: 'Objective', type: 'textarea', rows: 2 },
+		{ name: 'objective', label: m.cf_objective(), type: 'textarea', rows: 2 },
 		{
 			name: 'compensationType',
-			label: 'Compensation model',
+			label: m.cf_comp_model(),
 			type: 'select',
 			required: true,
 			items: [
-				{ value: 'paid', name: 'Paid — cash budget' },
-				{ value: 'barter', name: 'Barter — product or stay' },
-				{ value: 'event_pass', name: 'Event access pass' }
+				{ value: 'paid', name: m.cf_comp_paid() },
+				{ value: 'barter', name: m.cf_comp_barter() },
+				{ value: 'event_pass', name: m.cf_comp_event() }
 			]
 		},
 		{
 			name: 'categoryId',
-			label: 'Category',
+			label: m.cf_category(),
 			type: 'select',
 			items: data.reference.categories.map((c) => ({ value: c.id, name: c.name }))
 		},
 		{
 			name: 'countryId',
-			label: 'Primary market',
+			label: m.cf_primary_market(),
 			type: 'select',
 			items: data.reference.countries.map((c) => ({ value: c.id, name: `${c.flag} ${c.name}` }))
 		},
 		{
 			name: 'targetRegions',
-			label: 'Also target these markets (one per line)',
+			label: m.cf_target_regions(),
 			type: 'textarea',
 			rows: 3,
-			placeholder: 'Ethiopia\nKenya\nUnited Kingdom'
+			placeholder: m.cf_target_regions_placeholder()
 		},
-		{ name: 'creatorsNeeded', label: 'Creators needed', type: 'number' },
-		{ name: 'followerMin', label: 'Minimum audience', type: 'number' },
-		{ name: 'followerMax', label: 'Maximum audience (0 = no cap)', type: 'number' },
-		{ name: 'budgetMin', label: 'Budget from', type: 'number' },
-		{ name: 'budgetMax', label: 'Budget to', type: 'number' },
+		{ name: 'creatorsNeeded', label: m.cf_creators_needed(), type: 'number' },
+		{ name: 'followerMin', label: m.cf_follower_min(), type: 'number' },
+		{ name: 'followerMax', label: m.cf_follower_max(), type: 'number' },
+		{ name: 'budgetMin', label: m.cf_budget_from(), type: 'number' },
+		{ name: 'budgetMax', label: m.cf_budget_to(), type: 'number' },
 		{
 			name: 'currencyCode',
-			label: 'Currency',
+			label: m.campaign_currency(),
 			type: 'select',
 			items: ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'].map((c) => ({
 				value: c,
@@ -64,50 +79,55 @@
 		},
 		{
 			name: 'barterDetails',
-			label: 'Barter — what the creator receives',
+			label: m.cf_barter_details(),
 			type: 'textarea',
 			rows: 3,
-			placeholder: 'Required when the model is barter.'
+			placeholder: m.cf_barter_placeholder()
 		},
-		{ name: 'eventName', label: 'Event name', placeholder: 'Required for event access' },
-		{ name: 'eventDate', label: 'Event date', type: 'date' },
-		{ name: 'eventLocation', label: 'Event location' },
-		{ name: 'passType', label: 'Pass type & perks' },
+		{ name: 'eventName', label: m.cf_event_name(), placeholder: m.cf_event_name_placeholder() },
+		{ name: 'eventDate', label: m.cf_event_date(), type: 'date' },
+		{ name: 'eventLocation', label: m.cf_event_location() },
+		{ name: 'passType', label: m.cf_pass_type() },
 		{
 			name: 'deliverables',
-			label: 'Required deliverables (one per line)',
+			label: m.cf_deliverables(),
 			type: 'textarea',
 			rows: 4
 		},
-		{ name: 'deadline', label: 'Applications close', type: 'date' },
-		{ name: 'language', label: 'Content language' },
-		{ name: 'tags', label: 'Tags (one per line)', type: 'textarea', rows: 3 },
+		{ name: 'deadline', label: m.cf_deadline(), type: 'date' },
+		{ name: 'language', label: m.cf_language() },
+		{ name: 'tags', label: m.cf_tags(), type: 'textarea', rows: 3 },
 		{
 			name: 'status',
-			label: 'Status',
+			label: m.cf_status(),
 			type: 'select',
 			items: [
-				{ value: 'draft', name: 'Draft — not visible' },
-				{ value: 'published', name: 'Published — accepting applications' },
-				{ value: 'closed', name: 'Closed — no new applications' },
-				{ value: 'completed', name: 'Completed' },
-				{ value: 'cancelled', name: 'Cancelled' }
+				{ value: 'draft', name: m.cf_status_draft() },
+				{ value: 'published', name: m.cf_status_published() },
+				{ value: 'closed', name: m.cf_status_closed() },
+				{ value: 'completed', name: m.cf_status_completed() },
+				{ value: 'cancelled', name: m.cf_status_cancelled() }
 			]
 		},
-		{ name: 'sortOrder', label: 'Sort order', type: 'number' }
-	];
+		{ name: 'sortOrder', label: m.cf_sort_order(), type: 'number' }
+	]);
 
 	const countFor = (campaignId: number) =>
 		data.applications.filter((a) => a.campaignId === campaignId).length;
 
 	const formatDate = (value: string | Date | null) =>
 		value
-			? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-			: 'No deadline';
+			? new Date(value).toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
+					day: 'numeric',
+					month: 'short',
+					year: 'numeric'
+				})
+			: m.dc_no_deadline();
 
 	/** The edit dialog needs dates as yyyy-mm-dd and JSON arrays as lines. */
 	const editValues = (row: any) => ({
 		id: row.id,
+		organizationId: row.organizationId ?? undefined,
 		title: row.title,
 		description: row.description ?? '',
 		objective: row.objective ?? '',
@@ -135,13 +155,13 @@
 	});
 </script>
 
-<svelte:head><title>Campaigns — Creator Network</title></svelte:head>
+<svelte:head><title>{m.dc_meta_title()}</title></svelte:head>
 
 <CrudSection
 	eyebrow={data.organizationName}
-	title="Campaign briefs"
-	description="A campaign only appears publicly once its status is Published — and publishing is refused unless the terms for its compensation model are complete."
-	label="Campaign"
+	title={m.dc_title()}
+	description={m.dc_description()}
+	label={m.dc_label()}
 	rows={data.rows}
 	{fields}
 	addForm={data.addForm}
@@ -150,7 +170,7 @@
 	nameKey="title"
 	layout="list"
 	{editValues}
-	emptyMessage="No campaigns yet"
+	emptyMessage={m.dc_empty()}
 >
 	{#snippet row(campaign)}
 		<div class="space-y-3">
@@ -166,7 +186,7 @@
 								class="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 hover:underline"
 							>
 								<ExternalLink class="h-3 w-3" />
-								View public page
+								{m.dc_view_public()}
 							</a>
 						{/if}
 					</div>
@@ -179,16 +199,16 @@
 				<div class="shrink-0 text-right">
 					{#if campaign.compensationType === 'paid'}
 						<span class="block text-[10px] font-black tracking-wider text-slate-500 uppercase">
-							Budget
+							{m.dc_budget()}
 						</span>
 						<span class="text-sm font-black text-slate-900">
 							{campaign.budgetMin.toLocaleString()} – {campaign.budgetMax.toLocaleString()}
 							<span class="text-emerald-600">{campaign.currencyCode}</span>
 						</span>
 					{:else if campaign.compensationType === 'event_pass'}
-						<span class="text-xs font-black text-indigo-900">Event access</span>
+						<span class="text-xs font-black text-indigo-900">{m.dc_event_access()}</span>
 					{:else}
-						<span class="text-xs font-black text-amber-900">Barter</span>
+						<span class="text-xs font-black text-amber-900">{m.dc_barter()}</span>
 					{/if}
 				</div>
 			</div>
@@ -198,14 +218,14 @@
 					class="flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 font-bold text-slate-700"
 				>
 					<Users class="h-3 w-3 text-emerald-600" />
-					{campaign.creatorsNeeded} needed
+					{m.dc_needed({ count: campaign.creatorsNeeded })}
 				</span>
 				<a
 					href="/dashboard/applications"
 					class="flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 font-bold text-slate-700 hover:border-slate-900"
 				>
 					<Send class="h-3 w-3 text-emerald-600" />
-					{countFor(campaign.id)} applications
+					{m.dc_applications({ count: countFor(campaign.id) })}
 				</a>
 				<span
 					class="flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 font-bold text-slate-700"

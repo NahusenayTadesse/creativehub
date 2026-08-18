@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { fail } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
@@ -31,14 +32,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
 	/** Adds or removes a creator from the acting organisation's shortlist. */
 	toggleSave: async ({ request, locals }) => {
-		if (!locals.user) return fail(401, { message: 'Sign in to save creators' });
+		if (!locals.user) return fail(401, { message: m.srv_sign_in_to_save() });
 
 		const organization = await getOrganizationFor(locals.user.id);
-		if (!organization) return fail(403, { message: 'Only brand accounts keep shortlists' });
+		if (!organization) return fail(403, { message: m.srv_brands_only_shortlist() });
 
 		const form = await request.formData();
 		const creatorId = Number(form.get('creatorId'));
-		if (!creatorId) return fail(400, { message: 'Unknown creator' });
+		if (!creatorId) return fail(400, { message: m.srv_unknown_creator() });
 
 		const existing = await db
 			.select({ id: t.savedCreators.id })

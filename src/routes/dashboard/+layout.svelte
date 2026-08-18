@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import { LogOut, ExternalLink } from '@lucide/svelte';
@@ -12,13 +13,13 @@
 	 */
 	const crumb = $derived.by(() => {
 		const parts = page.url.pathname.split('/').filter(Boolean).slice(1);
-		if (!parts.length) return 'Overview';
+		if (!parts.length) return m.dash_crumb_overview();
 
 		const last = parts[parts.length - 1];
 		const label = /^\d+$/.test(last) ? (parts[parts.length - 2] ?? last) : last;
 		const title = label.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 
-		return /^\d+$/.test(last) ? title.replace(/s$/, '') + ' detail' : title;
+		return /^\d+$/.test(last) ? m.dash_crumb_detail({ name: title.replace(/s$/, '') }) : title;
 	});
 </script>
 
@@ -34,10 +35,10 @@
 				<div>
 					<span class="block text-[10px] font-black tracking-widest text-slate-500 uppercase">
 						{data.role === 'admin'
-							? 'Platform operations'
+							? m.dash_platform_operations()
 							: data.role === 'business'
-								? (data.organization?.name ?? 'Brand')
-								: (data.creator?.fullName ?? 'Creator studio')}
+								? (data.organization?.name ?? m.dash_brand())
+								: (data.creator?.fullName ?? m.dash_creator_studio())}
 					</span>
 					<h1 class="text-sm font-black text-slate-900">{crumb}</h1>
 				</div>
@@ -48,12 +49,12 @@
 						class="hidden items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 sm:flex"
 					>
 						<ExternalLink class="h-3.5 w-3.5" />
-						Public site
+						{m.dash_public_site()}
 					</a>
 					<form method="POST" action="/logout">
 						<button
 							type="submit"
-							title="Sign out"
+							title={m.nav_sign_out()}
 							class="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
 						>
 							<LogOut class="h-4 w-4" />

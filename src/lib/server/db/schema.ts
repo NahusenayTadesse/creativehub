@@ -170,7 +170,10 @@ export const organizations = mysqlTable(
 		...publishable(),
 		...audit()
 	},
-	(t) => [uniqueIndex('organizations_slug_idx').on(t.slug), index('organizations_owner_idx').on(t.ownerId)]
+	(t) => [
+		uniqueIndex('organizations_slug_idx').on(t.slug),
+		index('organizations_owner_idx').on(t.ownerId)
+	]
 );
 
 export const orgMemberRoleEnum = ['owner', 'admin', 'member'] as const;
@@ -238,6 +241,14 @@ export const creators = mysqlTable(
 	},
 	(t) => [
 		uniqueIndex('creators_username_idx').on(t.username),
+		/*
+		 * One profile per account. `getCreatorFor` assumes this everywhere, and
+		 * without it a double-submitted create form leaves the user with two
+		 * profiles and no defined answer to which one they are. Imported
+		 * profiles carry a null `userId`, and MySQL permits repeated nulls in a
+		 * unique index, so unclaimed supply is unaffected.
+		 */
+		uniqueIndex('creators_user_idx').on(t.userId),
 		index('creators_country_idx').on(t.countryId),
 		index('creators_reach_idx').on(t.totalReach),
 		index('creators_price_idx').on(t.startingPrice)
@@ -584,7 +595,10 @@ export const messages = mysqlTable(
 		...publishable(),
 		...audit()
 	},
-	(t) => [index('messages_booking_idx').on(t.bookingId), index('messages_app_idx').on(t.applicationId)]
+	(t) => [
+		index('messages_booking_idx').on(t.bookingId),
+		index('messages_app_idx').on(t.applicationId)
+	]
 );
 
 export const reviewDirectionEnum = ['brand_to_creator', 'creator_to_brand'] as const;
@@ -709,7 +723,9 @@ export const auditLog = mysqlTable(
 export const siteSettings = mysqlTable('site_settings', {
 	id: id(),
 	siteName: varchar('site_name', { length: 180 }).default('Creator Network').notNull(),
-	tagline: varchar('tagline', { length: 250 }).default("Connecting Ethiopia's digital influence.").notNull(),
+	tagline: varchar('tagline', { length: 250 })
+		.default("Connecting Ethiopia's digital influence.")
+		.notNull(),
 	heroTitle: varchar('hero_title', { length: 250 })
 		.default('Find the right creator. Build the right campaign.')
 		.notNull(),
@@ -719,6 +735,211 @@ export const siteSettings = mysqlTable('site_settings', {
 	supportEmail: varchar('support_email', { length: 200 }),
 	supportPhone: varchar('support_phone', { length: 60 }),
 	...audit()
+});
+
+/* ================================================================== *
+ * 8. TRENDING
+ *
+ * The trending strip used to be a single `creators.is_trending` checkbox: an
+ * operator ticked a box and nothing recorded why, when, or on what evidence.
+ * These five tables hold the whole mechanism instead —
+ *
+ *   trending_config     one row of knobs: which signals count and how much
+ *   trending_overrides  operator pins, boosts and blocks, optionally expiring
+ *   trending_entries    the board that is live right now, one row per slot
+ *   trending_cooldowns  who is resting, so the same faces cannot camp forever
+ *   trending_runs       append-only history of every recompute
+ *
+ * `creators.is_trending` is still the flag every card and query reads; a run
+ * rewrites it from the entries below, so the badge and the board cannot drift.
+ * ================================================================== */
+
+/**
+ * How the board is filled.
+ *
+ * `manual` keeps the old behaviour — only what an operator ticks. `automatic`
+ * ignores pins and ranks purely on the weighted signals. `hybrid` seats the
+ * pins first and lets the algorithm fill what is left.
+ */
+export const trendingModeEnum = ['manual', 'automatic', 'hybrid'] as const;
+
+/**
+ * How a raw signal becomes a 0–1 number before it is weighted.
+ *
+ * `percentile` ranks a creator against the rest of the candidate pool, so one
+ * account with ten million followers cannot flatten everyone else's reach
+ * score. `minmax` keeps the true distances between candidates, which is what
+ * you want when the pool is small and the gaps are real.
+ */
+export const trendingNormalizationEnum = ['percentile', 'minmax'] as const;
+
+export const trendingOverrideKindEnum = ['pin', 'boost', 'block'] as const;
+export const trendingEntrySourceEnum = ['pinned', 'algorithm', 'manual'] as const;
+export const trendingTriggerEnum = ['manual', 'auto', 'settings'] as const;
+
+/** One creator's contribution table, kept so a rank can always be explained. */
+export type TrendingBreakdown = {
+	components: {
+		key: string;
+		/** The measured value, in its own unit — followers, bookings, stars. */
+		raw: number;
+		/** That value mapped to 0–1 against the candidate pool. */
+		normalized: number;
+		/** The configured weight, as a share of the total weight. */
+		share: number;
+		/** normalized × share × 100 — what this signal added to the score. */
+		contribution: number;
+	}[];
+	/** Operator boost applied after the weighted sum. 1 means untouched. */
+	multiplier: number;
+	/** Score before the multiplier, so a boost is visible rather than baked in. */
+	baseScore: number;
+};
+
+export const trendingConfig = mysqlTable('trending_config', {
+	id: id(),
+	mode: mysqlEnum('mode', trendingModeEnum).default('hybrid').notNull(),
+	/** How many creators the board holds. */
+	slots: int('slots').default(12).notNull(),
+	/** Activity older than this is not counted at all. */
+	windowDays: int('window_days').default(30).notNull(),
+	/**
+	 * Days after which an event inside the window counts half as much. 0 turns
+	 * decay off and every event in the window counts the same — the difference
+	 * between "what is happening now" and "what happened this month".
+	 */
+	halfLifeDays: int('half_life_days').default(7).notNull(),
+	normalization: mysqlEnum('normalization', trendingNormalizationEnum)
+		.default('percentile')
+		.notNull(),
+
+	/* Weights. Relative, not percentages: the service divides by their sum, so
+	   an operator can raise one without having to rebalance the other nine. */
+	weightScore: int('weight_score').default(20).notNull(),
+	weightReach: int('weight_reach').default(10).notNull(),
+	weightEngagement: int('weight_engagement').default(15).notNull(),
+	weightBookings: int('weight_bookings').default(15).notNull(),
+	weightApplications: int('weight_applications').default(5).notNull(),
+	weightReviews: int('weight_reviews').default(5).notNull(),
+	weightRating: int('weight_rating').default(10).notNull(),
+	weightSaves: int('weight_saves').default(5).notNull(),
+	weightNewcomer: int('weight_newcomer').default(5).notNull(),
+	weightVerification: int('weight_verification').default(10).notNull(),
+
+	/* Eligibility — applied before ranking, so a weight can never promote a
+	   creator the platform is not willing to put on its homepage. */
+	minScore: int('min_score').default(0).notNull(),
+	minFollowers: int('min_followers').default(0).notNull(),
+	minRating: double('min_rating').default(0).notNull(),
+	minVerification: mysqlEnum('min_verification', verificationLevelEnum)
+		.default('unverified')
+		.notNull(),
+	requireAvailable: boolean('require_available').default(false).notNull(),
+	requireChannel: boolean('require_channel').default(true).notNull(),
+	/** Demands at least one booking, application, review or save in the window. */
+	requireActivity: boolean('require_activity').default(false).notNull(),
+
+	/* Diversity caps. 0 means no cap. */
+	maxPerCategory: int('max_per_category').default(0).notNull(),
+	maxPerCountry: int('max_per_country').default(0).notNull(),
+
+	/* Rotation. Without it the same handful of accounts hold every slot for as
+	   long as their numbers stay good, and new supply is never discovered. */
+	maxTenureDays: int('max_tenure_days').default(0).notNull(),
+	cooldownDays: int('cooldown_days').default(0).notNull(),
+
+	/** In hybrid mode, whether pins take the top slots or are merely guaranteed. */
+	pinnedFirst: boolean('pinned_first').default(true).notNull(),
+
+	autoRefresh: boolean('auto_refresh').default(false).notNull(),
+	refreshIntervalMinutes: int('refresh_interval_minutes').default(360).notNull(),
+	/** Holds the current board still — no run, manual or automatic, replaces it. */
+	isFrozen: boolean('is_frozen').default(false).notNull(),
+	lastRunAt: timestamp('last_run_at', { fsp: 3 }),
+	...audit()
+});
+
+export const trendingOverrides = mysqlTable(
+	'trending_overrides',
+	{
+		id: id(),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		kind: mysqlEnum('kind', trendingOverrideKindEnum).notNull(),
+		/** Requested slot for a pin, 1-based. 0 means "anywhere in the board". */
+		position: int('position').default(0).notNull(),
+		/** Multiplies the computed score for a boost. 1 leaves it untouched. */
+		multiplier: double('multiplier').default(1).notNull(),
+		/** Why — this is the sentence that justifies a hand-placed homepage slot. */
+		note: varchar('note', { length: 300 }),
+		/** Runs after this stop applying it. Null means it stands until removed. */
+		expiresAt: timestamp('expires_at', { fsp: 3 }),
+		...audit()
+	},
+	/* One standing instruction per creator: a pin and a block on the same row
+	   would have no defined winner. Removal is a real delete rather than a soft
+	   one, so the operator can re-add a creator they just unblocked. */
+	(t) => [uniqueIndex('trending_override_creator_idx').on(t.creatorId)]
+);
+
+export const trendingEntries = mysqlTable(
+	'trending_entries',
+	{
+		id: id(),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		/** 1-based slot on the board. */
+		rank: int('rank').notNull(),
+		trendingScore: double('trending_score').default(0).notNull(),
+		source: mysqlEnum('source', trendingEntrySourceEnum).default('algorithm').notNull(),
+		breakdown: json('breakdown').$type<TrendingBreakdown | null>(),
+		runId: int('run_id'),
+		/** Carried across runs, so tenure is measured from the first appearance. */
+		firstRankedAt: timestamp('first_ranked_at', { fsp: 3 }).defaultNow().notNull(),
+		computedAt: timestamp('computed_at', { fsp: 3 }).defaultNow().notNull()
+	},
+	(t) => [
+		uniqueIndex('trending_entry_creator_idx').on(t.creatorId),
+		index('trending_rank_idx').on(t.rank)
+	]
+);
+
+export const trendingCooldowns = mysqlTable(
+	'trending_cooldowns',
+	{
+		id: id(),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		restingUntil: timestamp('resting_until', { fsp: 3 }).notNull(),
+		reason: varchar('reason', { length: 200 }),
+		createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull()
+	},
+	(t) => [uniqueIndex('trending_cooldown_creator_idx').on(t.creatorId)]
+);
+
+/**
+ * Append-only history of recomputes. The config snapshot is stored with the
+ * run because the knobs change: without it, last week's board could not be
+ * explained with this week's settings.
+ */
+export const trendingRuns = mysqlTable('trending_runs', {
+	id: id(),
+	mode: mysqlEnum('mode', trendingModeEnum).notNull(),
+	trigger: mysqlEnum('trigger', trendingTriggerEnum).default('manual').notNull(),
+	actorId: userRef('actor_id'),
+	actorLabel: varchar('actor_label', { length: 180 }),
+	/** How many creators cleared eligibility, and how many made the board. */
+	candidateCount: int('candidate_count').default(0).notNull(),
+	entryCount: int('entry_count').default(0).notNull(),
+	/** Creators on the new board who were not on the previous one. */
+	changedCount: int('changed_count').default(0).notNull(),
+	durationMs: int('duration_ms').default(0).notNull(),
+	note: text('note'),
+	configSnapshot: json('config_snapshot').$type<Record<string, unknown>>(),
+	createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull()
 });
 
 /* ================================================================== *
@@ -833,7 +1054,10 @@ export const submissionsRelations = relations(submissions, ({ one }) => ({
 
 export const messagesRelations = relations(messages, ({ one }) => ({
 	booking: one(bookings, { fields: [messages.bookingId], references: [bookings.id] }),
-	application: one(applications, { fields: [messages.applicationId], references: [applications.id] }),
+	application: one(applications, {
+		fields: [messages.applicationId],
+		references: [applications.id]
+	}),
 	sender: one(user, { fields: [messages.senderId], references: [user.id] })
 }));
 
@@ -860,6 +1084,14 @@ export const savedCreatorsRelations = relations(savedCreators, ({ one }) => ({
 		references: [organizations.id]
 	}),
 	creator: one(creators, { fields: [savedCreators.creatorId], references: [creators.id] })
+}));
+
+export const trendingEntriesRelations = relations(trendingEntries, ({ one }) => ({
+	creator: one(creators, { fields: [trendingEntries.creatorId], references: [creators.id] })
+}));
+
+export const trendingOverridesRelations = relations(trendingOverrides, ({ one }) => ({
+	creator: one(creators, { fields: [trendingOverrides.creatorId], references: [creators.id] })
 }));
 
 export * from './auth.schema';

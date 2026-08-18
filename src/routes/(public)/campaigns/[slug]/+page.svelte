@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { superForm } from 'sveltekit-superforms';
+	import * as m from '$lib/paraglide/messages';
+	import { getLocale } from '$lib/paraglide/runtime';
 	import { toast } from 'svelte-sonner';
 	import {
 		ArrowLeft,
@@ -36,11 +38,15 @@
 	});
 
 	const formatDate = (value: string | Date | null) => {
-		if (!value) return 'Open';
+		if (!value) return m.campaign_open();
 		const date = typeof value === 'string' ? new Date(value) : value;
 		return Number.isNaN(date.getTime())
 			? String(value)
-			: date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+			: date.toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
+					day: 'numeric',
+					month: 'long',
+					year: 'numeric'
+				});
 	};
 
 	const platformNames = $derived(
@@ -51,7 +57,7 @@
 </script>
 
 <svelte:head>
-	<title>{campaign.title} — Creator Network</title>
+	<title>{m.campaign_meta_title({ title: campaign.title })}</title>
 	<meta name="description" content={campaign.description ?? ''} />
 </svelte:head>
 
@@ -61,7 +67,7 @@
 		class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-2xs hover:text-gray-900"
 	>
 		<ArrowLeft class="h-3.5 w-3.5" />
-		All campaigns
+		{m.campaign_all_campaigns()}
 	</a>
 
 	<!-- Header -->
@@ -83,7 +89,8 @@
 						</span>
 					</div>
 					<p class="text-xs font-bold text-slate-500">
-						{campaign.categoryName} · posted {formatDate(campaign.createdAt)}
+						{campaign.categoryName} · {m.campaign_posted()}
+						{formatDate(campaign.createdAt)}
 					</p>
 				</div>
 			</div>
@@ -97,19 +104,19 @@
 				class="flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-1.5 font-bold"
 			>
 				<span class="text-sm">{campaign.countryFlag ?? '🌍'}</span>
-				<span>{campaign.countryName ?? 'Pan-African'}</span>
+				<span>{campaign.countryName ?? m.campaign_pan_african()}</span>
 			</span>
 			<span
 				class="flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-1.5 font-bold"
 			>
 				<Users class="h-3.5 w-3.5 text-emerald-600" />
-				<span>{campaign.creatorsNeeded} creators needed</span>
+				<span>{m.campaign_creators_needed({ count: campaign.creatorsNeeded })}</span>
 			</span>
 			<span
 				class="flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-1.5 font-bold"
 			>
 				<Calendar class="h-3.5 w-3.5 text-emerald-600" />
-				<span>Closes {formatDate(campaign.deadline)}</span>
+				<span>{m.campaign_closes({ date: formatDate(campaign.deadline) })}</span>
 			</span>
 			<span
 				class="flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-1.5 font-bold"
@@ -121,7 +128,7 @@
 				class="flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-1.5 font-bold"
 			>
 				<Send class="h-3.5 w-3.5 text-emerald-600" />
-				<span>{campaign.applicationsCount} applications</span>
+				<span>{m.campaign_applications_count({ count: campaign.applicationsCount })}</span>
 			</span>
 		</div>
 	</div>
@@ -130,7 +137,9 @@
 		<!-- Brief -->
 		<div class="space-y-6 lg:col-span-2">
 			<div class="bento-card bento-card-static space-y-3">
-				<h3 class="text-xs font-black tracking-widest text-slate-500 uppercase">The brief</h3>
+				<h3 class="text-xs font-black tracking-widest text-slate-500 uppercase">
+					{m.campaign_the_brief()}
+				</h3>
 				<p class="text-sm leading-relaxed whitespace-pre-line text-slate-700">
 					{campaign.description}
 				</p>
@@ -139,7 +148,7 @@
 					<div class="rounded-2xl border-2 border-slate-900 bg-[#dcfce7] p-4">
 						<div class="mb-1 flex items-center gap-1.5 text-xs font-black text-emerald-950">
 							<Target class="h-4 w-4" />
-							Objective
+							{m.campaign_objective()}
 						</div>
 						<p class="text-xs font-medium text-emerald-900">{campaign.objective}</p>
 					</div>
@@ -149,7 +158,7 @@
 			{#if campaign.compensationType === 'barter' && campaign.barterDetails}
 				<div class="bento-card-yellow space-y-2">
 					<h3 class="text-xs font-black tracking-widest text-amber-950 uppercase">
-						🎁 What the creator receives
+						{m.campaign_barter_heading()}
 					</h3>
 					<p class="text-xs leading-relaxed font-medium text-amber-900">{campaign.barterDetails}</p>
 				</div>
@@ -158,13 +167,25 @@
 			{#if campaign.compensationType === 'event_pass' && campaign.eventName}
 				<div class="bento-card-indigo space-y-2">
 					<h3 class="text-xs font-black tracking-widest text-indigo-950 uppercase">
-						🎫 Event access
+						{m.campaign_event_heading()}
 					</h3>
 					<div class="grid grid-cols-1 gap-2 text-xs font-medium text-indigo-900 sm:grid-cols-2">
-						<div><strong class="font-black">Event:</strong> {campaign.eventName}</div>
-						<div><strong class="font-black">Date:</strong> {formatDate(campaign.eventDate)}</div>
-						<div><strong class="font-black">Location:</strong> {campaign.eventLocation}</div>
-						<div><strong class="font-black">Pass:</strong> {campaign.passType}</div>
+						<div>
+							<strong class="font-black">{m.campaign_event_label()}</strong>
+							{campaign.eventName}
+						</div>
+						<div>
+							<strong class="font-black">{m.campaign_date_label()}</strong>
+							{formatDate(campaign.eventDate)}
+						</div>
+						<div>
+							<strong class="font-black">{m.campaign_location_label()}</strong>
+							{campaign.eventLocation}
+						</div>
+						<div>
+							<strong class="font-black">{m.campaign_pass_label()}</strong>
+							{campaign.passType}
+						</div>
 					</div>
 				</div>
 			{/if}
@@ -172,7 +193,7 @@
 			{#if campaign.deliverables?.length}
 				<div class="bento-card bento-card-static space-y-3">
 					<h3 class="text-xs font-black tracking-widest text-slate-500 uppercase">
-						Required deliverables
+						{m.campaign_required_deliverables()}
 					</h3>
 					<ul class="space-y-2">
 						{#each campaign.deliverables as item (item)}
@@ -191,7 +212,7 @@
 			<div class="bento-card bento-card-static space-y-4">
 				<div>
 					<span class="block text-[10px] font-black tracking-wider text-slate-500 uppercase">
-						Compensation
+						{m.campaign_compensation()}
 					</span>
 					{#if campaign.compensationType === 'paid'}
 						<span class="text-xl font-black text-slate-900">
@@ -199,24 +220,24 @@
 						</span>
 						<span class="text-sm font-black text-emerald-600">{campaign.currencyCode}</span>
 						<p class="mt-1 text-[11px] font-medium text-slate-500">
-							Per creator. A 15% marketplace fee is deducted from the creator's payout.
+							{m.campaign_paid_note()}
 						</p>
 					{:else if campaign.compensationType === 'event_pass'}
-						<span class="text-base font-black text-indigo-900">VIP event access</span>
+						<span class="text-base font-black text-indigo-900">{m.campaign_event_access()}</span>
 						<p class="mt-1 text-[11px] font-medium text-slate-500">
-							The pass and its stated perks are the compensation. No cash fee.
+							{m.campaign_event_note()}
 						</p>
 					{:else}
-						<span class="text-base font-black text-amber-900">Product / voucher exchange</span>
+						<span class="text-base font-black text-amber-900">{m.campaign_barter_access()}</span>
 						<p class="mt-1 text-[11px] font-medium text-slate-500">
-							The item described above is the compensation. No cash fee.
+							{m.campaign_barter_note()}
 						</p>
 					{/if}
 				</div>
 
 				<div class="space-y-2 border-t-2 border-slate-900 pt-3 text-xs">
 					<div class="flex justify-between">
-						<span class="font-medium text-slate-500">Audience size</span>
+						<span class="font-medium text-slate-500">{m.campaign_audience_size()}</span>
 						<span class="font-black text-slate-900">
 							{campaign.followerMin.toLocaleString()}{campaign.followerMax
 								? ` – ${campaign.followerMax.toLocaleString()}`
@@ -225,14 +246,15 @@
 					</div>
 					{#if platformNames.length}
 						<div class="flex justify-between gap-2">
-							<span class="font-medium text-slate-500">Platforms</span>
+							<span class="font-medium text-slate-500">{m.campaign_platforms()}</span>
 							<span class="text-right font-black text-slate-900">{platformNames.join(', ')}</span>
 						</div>
 					{/if}
 					{#if campaign.targetRegions?.length}
 						<div class="flex justify-between gap-2">
 							<span class="flex items-center gap-1 font-medium text-slate-500">
-								<Globe class="h-3 w-3" /> Markets
+								<Globe class="h-3 w-3" />
+								{m.campaign_markets()}
 							</span>
 							<span class="text-right font-black text-slate-900">
 								{campaign.targetRegions.join(', ')}
@@ -247,40 +269,39 @@
 				{#if submitted || data.existingApplication}
 					<div class="space-y-2 text-center">
 						<CircleCheckBig class="mx-auto h-8 w-8 text-emerald-600" />
-						<h3 class="text-sm font-black text-slate-900">Application sent</h3>
+						<h3 class="text-sm font-black text-slate-900">{m.campaign_application_sent()}</h3>
 						<p class="text-xs font-medium text-slate-600">
-							{campaign.organizationName} can now shortlist or select you. You will be notified either
-							way.
+							{m.campaign_application_sent_body({ org: campaign.organizationName })}
 						</p>
 						<a
 							href="/dashboard/applications"
 							class="mt-2 inline-block rounded-xl border-2 border-slate-900 bg-white px-4 py-2 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50"
 						>
-							Track your applications
+							{m.campaign_track_applications()}
 						</a>
 					</div>
 				{:else if !data.user}
 					<div class="space-y-2 text-center">
-						<h3 class="text-sm font-black text-slate-900">Sign in to pitch</h3>
+						<h3 class="text-sm font-black text-slate-900">{m.campaign_sign_in_to_pitch()}</h3>
 						<p class="text-xs font-medium text-slate-600">
-							You need a creator profile to apply to this brief.
+							{m.campaign_sign_in_body()}
 						</p>
 						<a
 							href="/login?next=/campaigns/{campaign.slug}"
 							class="mt-1 inline-block rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 						>
-							Sign in
+							{m.nav_sign_in()}
 						</a>
 					</div>
 				{:else if !data.creator}
 					<div class="space-y-2 text-center">
-						<h3 class="text-sm font-black text-slate-900">Creator profiles only</h3>
+						<h3 class="text-sm font-black text-slate-900">{m.campaign_creators_only()}</h3>
 						<p class="text-xs font-medium text-slate-600">
-							Applications come from creator accounts. Brands book creators directly instead.
+							{m.campaign_creators_only_body()}
 						</p>
 					</div>
 				{:else}
-					<h3 class="text-sm font-black text-slate-900">Pitch for this brief</h3>
+					<h3 class="text-sm font-black text-slate-900">{m.campaign_pitch_heading()}</h3>
 
 					<form method="POST" action="?/apply" use:enhance class="space-y-3 text-xs">
 						<Errors allErrors={$allErrors} />
@@ -289,7 +310,9 @@
 						{#if campaign.compensationType === 'paid'}
 							<div class="grid grid-cols-3 gap-2">
 								<div class="col-span-2 space-y-1.5">
-									<label for="proposedPrice" class="font-black text-slate-900">Your rate</label>
+									<label for="proposedPrice" class="font-black text-slate-900"
+										>{m.campaign_your_rate()}</label
+									>
 									<input
 										id="proposedPrice"
 										name="proposedPrice"
@@ -300,7 +323,9 @@
 									/>
 								</div>
 								<div class="space-y-1.5">
-									<label for="currencyCode" class="font-black text-slate-900">Currency</label>
+									<label for="currencyCode" class="font-black text-slate-900"
+										>{m.campaign_currency()}</label
+									>
 									<select
 										id="currencyCode"
 										name="currencyCode"
@@ -322,14 +347,14 @@
 						{/if}
 
 						<div class="space-y-1.5">
-							<label for="pitch" class="font-black text-slate-900">Your pitch</label>
+							<label for="pitch" class="font-black text-slate-900">{m.campaign_your_pitch()}</label>
 							<textarea
 								id="pitch"
 								name="pitch"
 								rows="6"
 								bind:value={$form.pitch}
 								required
-								placeholder="Why is your audience the right fit? What would you actually make?"
+								placeholder={m.campaign_pitch_placeholder()}
 								class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
 							></textarea>
 							{#if $errors.pitch}<p class="font-bold text-red-600">{$errors.pitch}</p>{/if}
@@ -341,15 +366,15 @@
 							class="flex w-full items-center justify-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
 						>
 							{#if $delayed}
-								<LoadingBtn name="Sending" />
+								<LoadingBtn name={m.campaign_sending()} />
 							{:else}
 								<Send class="h-3.5 w-3.5" />
-								Submit pitch
+								{m.campaign_submit_pitch()}
 							{/if}
 						</button>
 
 						<p class="text-center text-[11px] font-medium text-slate-500">
-							Applying is not a contract. Terms are only fixed when both sides agree.
+							{m.campaign_pitch_disclaimer()}
 						</p>
 					</form>
 				{/if}

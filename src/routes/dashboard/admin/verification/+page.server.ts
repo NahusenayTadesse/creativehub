@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { fail } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
@@ -19,7 +20,7 @@ export const actions: Actions = {
 	decide: async (event) => {
 		const user = requireRole(event, 'admin');
 		const form = await superValidate(event.request, zod4(verificationDecision));
-		if (!form.valid) return fail(400, { message: 'Invalid request' });
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 
 		const rows = await db
 			.select()
@@ -27,17 +28,17 @@ export const actions: Actions = {
 			.where(eq(t.verificationRequests.id, form.data.id))
 			.limit(1);
 		const request = rows.at(0);
-		if (!request) return fail(404, { message: 'Case not found' });
+		if (!request) return fail(404, { message: m.srv_case_not_found() });
 
 		if (['approved', 'rejected'].includes(request.status)) {
-			return fail(409, { message: 'This case is already closed.' });
+			return fail(409, { message: m.srv_case_closed() });
 		}
 		/* Rejection has to say why — the subject sees this note. */
 		if (
 			(form.data.status === 'rejected' || form.data.status === 'more_info') &&
 			!form.data.adminNotes.trim()
 		) {
-			return fail(400, { message: 'Say why, so they know what to fix.' });
+			return fail(400, { message: m.srv_need_reason() });
 		}
 
 		await db

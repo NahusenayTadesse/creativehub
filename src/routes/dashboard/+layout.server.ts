@@ -26,7 +26,9 @@ export const load: LayoutServerLoad = async (event) => {
 			db
 				.select({ n: sql<number>`count(*)` })
 				.from(t.bookings)
-				.where(and(isNull(t.bookings.deletedAt), inArray(t.bookings.status, ['submitted', 'revision']))),
+				.where(
+					and(isNull(t.bookings.deletedAt), inArray(t.bookings.status, ['submitted', 'revision']))
+				),
 			countPendingVerifications()
 		]);
 		counts.bookings = Number(bookings[0]?.n ?? 0);
@@ -47,7 +49,10 @@ export const load: LayoutServerLoad = async (event) => {
 				.select({ n: sql<number>`count(*)` })
 				.from(t.applications)
 				.where(
-					and(eq(t.applications.creatorId, creator.id), inArray(t.applications.status, ['applied', 'shortlisted']))
+					and(
+						eq(t.applications.creatorId, creator.id),
+						inArray(t.applications.status, ['applied', 'shortlisted'])
+					)
 				)
 		]);
 		counts.bookings = Number(bookings[0]?.n ?? 0);

@@ -1,9 +1,25 @@
+import * as m from '$lib/paraglide/messages';
 import { error, redirect } from '@sveltejs/kit';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { RequestEvent } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import type { Role } from '$lib/server/auth';
+
+/**
+ * The `?next=` destination, if it is somewhere on this site.
+ *
+ * The parameter is attacker-controlled, and it is consumed at the highest-trust
+ * moment in the flow — the redirect straight after a successful sign-in. Only a
+ * single-slash absolute path is accepted: `//evil.example` and
+ * `https://evil.example` are both browser-honoured absolute URLs, and a
+ * backslash is normalised to a slash by some browsers.
+ */
+export function safeNext(next: string | null | undefined, fallback = '/dashboard'): string {
+	if (!next || !next.startsWith('/')) return fallback;
+	if (next.startsWith('//') || next.startsWith('/\\')) return fallback;
+	return next;
+}
 
 /** The signed-in user, or a redirect to the login page carrying the return path. */
 export function requireUser(event: RequestEvent) {
@@ -20,7 +36,7 @@ export function requireRole(event: RequestEvent, ...roles: Role[]) {
 	const user = requireUser(event);
 	const role = (user.role ?? 'creator') as Role;
 	if (!roles.includes(role)) {
-		error(403, 'You do not have permission to view this page.');
+		error(403, m.srv_no_permission());
 	}
 	return user;
 }
@@ -36,6 +52,8 @@ export async function getCreatorFor(userId: string) {
 		.select()
 		.from(t.creators)
 		.where(and(eq(t.creators.userId, userId), isNull(t.creators.deletedAt)))
+		/* Oldest first, so "which profile am I" has one answer across requests. */
+		.orderBy(asc(t.creators.id))
 		.limit(1);
 	return rows.at(0);
 }
@@ -59,6 +77,8 @@ export async function getOrganizationFor(userId: string) {
 		.select()
 		.from(t.organizations)
 		.where(and(eq(t.organizations.ownerId, userId), isNull(t.organizations.deletedAt)))
+		/* Oldest first, so the acting organisation is stable across requests. */
+		.orderBy(asc(t.organizations.id))
 		.limit(1);
 	if (owned.length) return owned[0];
 
@@ -66,7 +86,8 @@ export async function getOrganizationFor(userId: string) {
 		.select({ org: t.organizations })
 		.from(t.organizationMembers)
 		.innerJoin(t.organizations, eq(t.organizations.id, t.organizationMembers.organizationId))
-		.where(eq(t.organizationMembers.userId, userId))
+		.where(and(eq(t.organizationMembers.userId, userId), isNull(t.organizations.deletedAt)))
+		.orderBy(asc(t.organizationMembers.id))
 		.limit(1);
 
 	return member.at(0)?.org;
@@ -86,7 +107,7 @@ export async function requireBookingAccess(event: RequestEvent, bookingId: numbe
 	const user = requireUser(event);
 	const rows = await db.select().from(t.bookings).where(eq(t.bookings.id, bookingId)).limit(1);
 	const booking = rows.at(0);
-	if (!booking) error(404, 'Booking not found');
+	if (!booking) error(404, m.srv_booking_not_found());
 
 	if (isAdmin(user)) return { user, booking, side: 'admin' as const };
 
@@ -100,7 +121,7 @@ export async function requireBookingAccess(event: RequestEvent, bookingId: numbe
 		return { user, booking, side: 'organization' as const };
 	}
 
-	error(403, 'This booking is not yours.');
+	error(403, m.srv_booking_not_yours());
 }
 
 /** Appends to the audit log. Never throws into the caller's happy path. */

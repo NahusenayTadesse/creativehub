@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
 	import { UserCheck, Briefcase } from '@lucide/svelte';
@@ -14,7 +15,7 @@
 	});
 </script>
 
-<svelte:head><title>Create an account — Creator Network</title></svelte:head>
+<svelte:head><title>{m.register_meta_title()}</title></svelte:head>
 
 <div class="flex min-h-screen items-center justify-center px-4 py-12">
 	<div class="w-full max-w-md space-y-6">
@@ -24,13 +25,15 @@
 			>
 				ET
 			</div>
-			<span class="text-xl font-black tracking-tight text-slate-900">Creator Network</span>
+			<span class="text-xl font-black tracking-tight text-slate-900">{m.brand_name()}</span>
 		</a>
 
 		<div class="bento-card bento-card-static space-y-5">
 			<div class="border-b-2 border-slate-900 pb-4">
-				<span class="text-xs font-black tracking-widest text-slate-500 uppercase">Get started</span>
-				<h1 class="text-2xl font-black text-slate-900">Create your account</h1>
+				<span class="text-xs font-black tracking-widest text-slate-500 uppercase"
+					>{m.register_eyebrow()}</span
+				>
+				<h1 class="text-2xl font-black text-slate-900">{m.register_title()}</h1>
 			</div>
 
 			<form method="POST" action="?/register" use:enhance class="space-y-4">
@@ -38,7 +41,7 @@
 
 				<!-- Role picker -->
 				<fieldset class="space-y-2">
-					<legend class="text-xs font-black text-slate-900">I am joining as</legend>
+					<legend class="text-xs font-black text-slate-900">{m.register_joining_as()}</legend>
 					<div class="grid grid-cols-2 gap-3">
 						<label
 							class="flex cursor-pointer flex-col gap-1 rounded-2xl border-2 p-3 transition-all {$form.role ===
@@ -46,11 +49,17 @@
 								? 'border-slate-900 bg-[#dcfce7] shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]'
 								: 'border-slate-300 bg-white hover:border-slate-900'}"
 						>
-							<input type="radio" name="role" value="creator" bind:group={$form.role} class="sr-only" />
+							<input
+								type="radio"
+								name="role"
+								value="creator"
+								bind:group={$form.role}
+								class="sr-only"
+							/>
 							<UserCheck class="h-5 w-5 text-emerald-700" />
-							<span class="text-sm font-black text-slate-900">A creator</span>
+							<span class="text-sm font-black text-slate-900">{m.register_as_creator()}</span>
 							<span class="text-[11px] font-medium text-slate-600">
-								Publish packages and take bookings
+								{m.register_as_creator_note()}
 							</span>
 						</label>
 
@@ -60,18 +69,26 @@
 								? 'border-slate-900 bg-[#e0e7ff] shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]'
 								: 'border-slate-300 bg-white hover:border-slate-900'}"
 						>
-							<input type="radio" name="role" value="business" bind:group={$form.role} class="sr-only" />
+							<input
+								type="radio"
+								name="role"
+								value="business"
+								bind:group={$form.role}
+								class="sr-only"
+							/>
 							<Briefcase class="h-5 w-5 text-indigo-700" />
-							<span class="text-sm font-black text-slate-900">A brand</span>
+							<span class="text-sm font-black text-slate-900">{m.register_as_brand()}</span>
 							<span class="text-[11px] font-medium text-slate-600">
-								Post briefs and book creators
+								{m.register_as_brand_note()}
 							</span>
 						</label>
 					</div>
 				</fieldset>
 
 				<div class="space-y-1.5">
-					<label for="name" class="text-xs font-black text-slate-900">Your name</label>
+					<label for="name" class="text-xs font-black text-slate-900"
+						>{m.register_your_name()}</label
+					>
 					<input
 						id="name"
 						name="name"
@@ -85,7 +102,7 @@
 				</div>
 
 				<div class="space-y-1.5">
-					<label for="email" class="text-xs font-black text-slate-900">Email</label>
+					<label for="email" class="text-xs font-black text-slate-900">{m.login_email()}</label>
 					<input
 						id="email"
 						name="email"
@@ -100,7 +117,9 @@
 
 				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 					<div class="space-y-1.5">
-						<label for="password" class="text-xs font-black text-slate-900">Password</label>
+						<label for="password" class="text-xs font-black text-slate-900"
+							>{m.login_password()}</label
+						>
 						<input
 							id="password"
 							name="password"
@@ -110,11 +129,15 @@
 							required
 							class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
 						/>
-						{#if $errors.password}<p class="text-xs font-bold text-red-600">{$errors.password}</p>{/if}
+						{#if $errors.password}<p class="text-xs font-bold text-red-600">
+								{$errors.password}
+							</p>{/if}
 					</div>
 
 					<div class="space-y-1.5">
-						<label for="confirm" class="text-xs font-black text-slate-900">Confirm</label>
+						<label for="confirm" class="text-xs font-black text-slate-900"
+							>{m.register_confirm()}</label
+						>
 						<input
 							id="confirm"
 							name="confirm"
@@ -124,7 +147,9 @@
 							required
 							class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
 						/>
-						{#if $errors.confirm}<p class="text-xs font-bold text-red-600">{$errors.confirm}</p>{/if}
+						{#if $errors.confirm}<p class="text-xs font-bold text-red-600">
+								{$errors.confirm}
+							</p>{/if}
 					</div>
 				</div>
 
@@ -134,16 +159,16 @@
 					class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700 disabled:opacity-60"
 				>
 					{#if $delayed}
-						<LoadingBtn name="Creating account" />
+						<LoadingBtn name={m.register_creating()} />
 					{:else}
-						Create account
+						{m.register_create_account()}
 					{/if}
 				</button>
 			</form>
 
 			<p class="text-center text-xs font-medium text-slate-600">
-				Already registered?
-				<a href="/login" class="font-black text-emerald-700 hover:underline">Sign in</a>
+				{m.register_already()}
+				<a href="/login" class="font-black text-emerald-700 hover:underline">{m.login_title()}</a>
 			</p>
 		</div>
 	</div>

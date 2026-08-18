@@ -3,63 +3,75 @@
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
 	import { CircleCheckBig, ExternalLink } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
+	import * as m from '$lib/paraglide/messages';
 
 	let { data } = $props();
 
-	const fields: CrudField[] = [
+	const fields: CrudField[] = $derived([
 		{
 			name: 'platformId',
-			label: 'Platform',
+			label: m.pk_platform(),
 			type: 'select',
 			required: true,
 			items: data.platforms.map((p) => ({ value: p.id, name: p.name }))
 		},
-		{ name: 'handle', label: 'Handle', required: true, placeholder: '@yourhandle' },
-		{ name: 'followers', label: 'Followers', type: 'number', required: true },
+		{
+			name: 'handle',
+			label: m.ch_handle(),
+			required: true,
+			placeholder: m.ch_handle_placeholder()
+		},
+		{ name: 'followers', label: m.ch_followers(), type: 'number', required: true },
 		{
 			name: 'engagementRate',
-			label: 'Engagement rate (%)',
+			label: m.ch_engagement_rate(),
 			type: 'number',
 			placeholder: '6.8'
 		},
-		{ name: 'profileUrl', label: 'Channel URL', placeholder: 'https://…' },
+		{ name: 'profileUrl', label: m.ch_channel_url(), placeholder: 'https://…' },
 		{
 			name: 'isVerified',
-			label: 'Ownership confirmed',
+			label: m.ch_ownership_confirmed(),
 			type: 'checkboxSingle',
-			placeholder: 'An operator has confirmed I own this channel'
+			placeholder: m.ch_ownership_note()
 		},
-		{ name: 'sortOrder', label: 'Sort order', type: 'number' },
-		{ name: 'isActive', label: 'Live', type: 'checkboxSingle', placeholder: 'Show on my profile' }
-	];
+		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
+		{
+			name: 'isActive',
+			label: m.common_live(),
+			type: 'checkboxSingle',
+			placeholder: m.common_show_on_profile()
+		}
+	]);
 
-	const platformName = (id: number) => data.platforms.find((p) => p.id === id)?.name ?? 'Channel';
+	const platformName = (id: number) =>
+		data.platforms.find((p) => p.id === id)?.name ?? m.ch_fallback_name();
 
 	const totalReach = $derived(
 		data.rows.filter((r) => r.isActive).reduce((sum, r) => sum + r.followers, 0)
 	);
 </script>
 
-<svelte:head><title>Channels — Creator Network</title></svelte:head>
+<svelte:head><title>{m.ch_meta_title()}</title></svelte:head>
 
 <CrudSection
-	eyebrow="Creator studio"
-	title="Linked channels"
-	description="Your audience across platforms. Total reach on your profile is the sum of the live channels here, so keep the numbers honest — brands compare them against your delivered results."
-	label="Channel"
+	eyebrow={m.dashc_eyebrow()}
+	title={m.ch_title()}
+	description={m.ch_description()}
+	label={m.ch_label()}
 	rows={data.rows}
 	{fields}
 	addForm={data.addForm}
 	editForm={data.editForm}
 	deleteForm={data.deleteForm}
 	nameKey="handle"
-	emptyMessage="No channels linked yet"
+	emptyMessage={m.ch_empty()}
 >
 	{#snippet extraActions()}
 		<span
 			class="rounded-2xl border-2 border-slate-900 bg-[#fef9c3] px-4 py-2.5 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]"
 		>
-			{formatReach(totalReach)} total reach
+			{m.ch_total_reach({ reach: formatReach(totalReach) })}
 		</span>
 	{/snippet}
 
@@ -76,14 +88,14 @@
 							class="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800"
 						>
 							<CircleCheckBig class="h-3 w-3" />
-							Confirmed
+							{m.ch_confirmed()}
 						</span>
 					{/if}
 					{#if !account.isActive}
 						<span
 							class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
 						>
-							Hidden
+							{m.common_hidden()}
 						</span>
 					{/if}
 				</div>
@@ -92,13 +104,13 @@
 			<div class="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
 				<div>
 					<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
-						Followers
+						{m.ch_followers()}
 					</span>
 					<span class="font-black text-slate-900">{formatReach(account.followers)}</span>
 				</div>
 				<div class="text-right">
 					<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
-						Engagement
+						{m.profile_engagement()}
 					</span>
 					<span class="font-black text-emerald-700">{account.engagementRate.toFixed(1)}%</span>
 				</div>
@@ -112,7 +124,7 @@
 					class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline"
 				>
 					<ExternalLink class="h-3 w-3" />
-					Open channel
+					{m.ch_open_channel()}
 				</a>
 			{/if}
 		</div>

@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
@@ -20,7 +21,7 @@ export const actions: Actions = {
 	register: async (event) => {
 		const form = await superValidate(event.request, zod4(registerSchema));
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Check the form for errors' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
 		}
 
 		try {
@@ -39,16 +40,12 @@ export const actions: Actions = {
 			if (err instanceof APIError) {
 				const text =
 					err.body?.code === 'USER_ALREADY_EXISTS'
-						? 'An account already uses that email. Sign in instead.'
-						: (err.body?.message ?? 'Could not create the account.');
+						? m.srv_email_in_use()
+						: (err.body?.message ?? m.srv_account_create_failed());
 				return message(form, { type: 'error', text }, { status: 400 });
 			}
 			console.error('Sign-up failed:', err);
-			return message(
-				form,
-				{ type: 'error', text: 'Something went wrong creating your account.' },
-				{ status: 500 }
-			);
+			return message(form, { type: 'error', text: m.srv_signup_failed() }, { status: 500 });
 		}
 
 		/* New accounts land on the step that finishes their profile. */

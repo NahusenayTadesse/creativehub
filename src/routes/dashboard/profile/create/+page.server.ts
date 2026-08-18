@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
@@ -17,7 +18,10 @@ export const load: PageServerLoad = async (event) => {
 
 	const form = await superValidate(zod4(creatorCreateProfile));
 	form.data.fullName = user.name;
-	form.data.username = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_.]/g, '');
+	form.data.username = user.email
+		.split('@')[0]
+		.toLowerCase()
+		.replace(/[^a-z0-9_.]/g, '');
 
 	return { form, reference: await getReferenceData() };
 };
@@ -27,8 +31,17 @@ export const actions: Actions = {
 		const user = requireRole(event, 'creator', 'admin');
 		const form = await superValidate(event.request, zod4(creatorCreateProfile));
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Check the form for errors' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
 		}
+
+		/*
+		 * The `load` above redirects when a profile already exists, but a `load`
+		 * never runs before an action — a double-submit or a direct POST would
+		 * otherwise leave this account with two profiles and no defined answer to
+		 * which one it is. The unique index on `creators.userId` is the backstop.
+		 */
+		const already = await getCreatorFor(user.id);
+		if (already) redirect(303, '/dashboard/profile');
 
 		const taken = await db
 			.select({ id: t.creators.id })
@@ -37,11 +50,7 @@ export const actions: Actions = {
 			.limit(1);
 
 		if (taken.length) {
-			return message(
-				form,
-				{ type: 'error', text: 'That handle is already taken. Try another.' },
-				{ status: 409 }
-			);
+			return message(form, { type: 'error', text: m.srv_handle_taken() }, { status: 409 });
 		}
 
 		let creatorId: number;
@@ -64,11 +73,7 @@ export const actions: Actions = {
 			creatorId = Number(result.insertId ?? result[0]?.insertId);
 		} catch (err) {
 			console.error('Creator profile creation failed:', err);
-			return message(
-				form,
-				{ type: 'error', text: 'Could not create your profile.' },
-				{ status: 500 }
-			);
+			return message(form, { type: 'error', text: m.srv_profile_create_failed() }, { status: 500 });
 		}
 
 		await refreshCreatorScore(creatorId);

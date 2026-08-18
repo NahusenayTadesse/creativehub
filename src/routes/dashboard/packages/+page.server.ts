@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { asc } from 'drizzle-orm';
 import type { RequestEvent } from '@sveltejs/kit';
 import { contentCrud } from '$lib/server/crud';
@@ -15,7 +16,7 @@ import { refreshCreatorScore } from '$lib/server/score-service';
 const crudFor = (creatorId: number) =>
 	contentCrud({
 		table: t.packages,
-		label: 'Package',
+		label: () => m.pk_label(),
 		addSchema: packageAdd,
 		editSchema: packageEdit,
 		listFields: ['deliverables'],

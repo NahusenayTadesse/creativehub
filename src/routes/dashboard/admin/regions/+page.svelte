@@ -1,39 +1,45 @@
 <script lang="ts">
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let { data } = $props();
 
-	const fields: CrudField[] = [
+	const fields: CrudField[] = $derived([
 		{
 			name: 'countryId',
-			label: 'Country',
+			label: m.pf_country(),
 			type: 'select',
 			required: true,
 			items: data.countries.map((c) => ({ value: c.id, name: `${c.flag} ${c.name}` }))
 		},
-		{ name: 'name', label: 'Region name', required: true },
+		{ name: 'name', label: m.re_name(), required: true },
 		{
 			name: 'majorCities',
-			label: 'Major cities (one per line)',
+			label: m.re_major_cities(),
 			type: 'textarea',
 			rows: 4,
-			placeholder: 'Bole\nKazanchis\nPiassa'
+			placeholder: m.re_major_cities_placeholder()
 		},
-		{ name: 'sortOrder', label: 'Sort order', type: 'number' },
-		{ name: 'isActive', label: 'Visible', type: 'checkboxSingle', placeholder: 'Show in filters' }
-	];
+		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
+		{
+			name: 'isActive',
+			label: m.common_visible(),
+			type: 'checkboxSingle',
+			placeholder: m.common_show_in_filters()
+		}
+	]);
 
 	const countryFor = (id: number) => data.countries.find((c) => c.id === id);
 </script>
 
-<svelte:head><title>Regions — Creator Network</title></svelte:head>
+<svelte:head><title>{m.re_meta_title()}</title></svelte:head>
 
 <CrudSection
-	eyebrow="Reference data"
-	title="Regions & cities"
-	description="Sub-national regions used by the discovery filters, each belonging to one country."
-	label="Region"
+	eyebrow={m.sb_reference_data()}
+	title={m.re_title()}
+	description={m.re_description()}
+	label={m.re_label()}
 	rows={data.rows}
 	{fields}
 	addForm={data.addForm}
@@ -48,14 +54,14 @@
 					<h3 class="text-sm font-black text-slate-900">{region.name}</h3>
 					<p class="text-[11px] font-bold text-slate-500">
 						{country?.flag}
-						{country?.name ?? 'Unknown country'}
+						{country?.name ?? m.re_unknown_country()}
 					</p>
 				</div>
 				{#if !region.isActive}
 					<span
 						class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
 					>
-						Hidden
+						{m.common_hidden()}
 					</span>
 				{/if}
 			</div>

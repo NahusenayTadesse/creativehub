@@ -1,15 +1,19 @@
+import * as m from '$lib/paraglide/messages';
 import { asc } from 'drizzle-orm';
 import { contentCrud } from '$lib/server/crud';
+import { requireRole } from '$lib/server/guards';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { regionAdd, regionEdit } from '$lib/schemas';
 
 const crud = contentCrud({
 	table: t.regions,
-	label: 'Region',
+	label: () => m.re_label(),
 	addSchema: regionAdd,
 	editSchema: regionEdit,
-	listFields: ['majorCities']
+	listFields: ['majorCities'],
+	/* Actions run before any `load`, so the admin layout guard cannot cover them. */
+	guard: (event) => requireRole(event, 'admin')
 });
 
 /** Regions need their country list so the form can offer a dropdown. */

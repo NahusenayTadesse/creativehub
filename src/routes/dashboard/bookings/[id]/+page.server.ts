@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { error, fail } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
@@ -7,7 +8,7 @@ import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { getBookingDetail, getSettings } from '$lib/server/queries';
 import { requireBookingAccess, recordAudit } from '$lib/server/guards';
-import { refreshCreatorRating } from '$lib/server/score-service';
+import { refreshCreatorCompletedBookings, refreshCreatorRating } from '$lib/server/score-service';
 import { canTransition, splitFee, type BookingStatus } from '$lib/domain/booking';
 import { maskContact } from '$lib/domain/mask';
 import {
@@ -29,11 +30,11 @@ const toLines = (value: string) =>
 
 export const load: PageServerLoad = async (event) => {
 	const id = Number(event.params.id);
-	if (!Number.isFinite(id)) error(404, 'Booking not found');
+	if (!Number.isFinite(id)) error(404, m.srv_booking_not_found());
 
 	const { side } = await requireBookingAccess(event, id);
 	const detail = await getBookingDetail(id);
-	if (!detail) error(404, 'Booking not found');
+	if (!detail) error(404, m.srv_booking_not_found());
 
 	const [proposalForm, submitForm, reviewForm, messageForm] = await Promise.all([
 		superValidate(zod4(proposalSchema), { id: 'proposal' }),
@@ -73,7 +74,7 @@ async function transition(
 	reason?: string
 ) {
 	if (!canTransition(from, to)) {
-		return { ok: false as const, text: `A ${from} booking cannot move to ${to}.` };
+		return { ok: false as const, text: m.srv_bad_transition({ from, to }) };
 	}
 
 	await db
@@ -95,7 +96,12 @@ async function transition(
 	return { ok: true as const };
 }
 
-async function notify(userId: string | null | undefined, title: string, body: string, link: string) {
+async function notify(
+	userId: string | null | undefined,
+	title: string,
+	body: string,
+	link: string
+) {
 	if (!userId) return;
 	await db.insert(t.notifications).values({ userId, title, body, link, kind: 'booking' });
 }
@@ -109,17 +115,17 @@ export const actions: Actions = {
 		const form = await superValidate(event.request, zod4(proposalSchema), { id: 'proposal' });
 
 		if (side === 'admin') {
-			return message(form, { type: 'error', text: 'Operators do not negotiate on behalf of a party.' }, { status: 403 });
-		}
-		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Check the form for errors' }, { status: 400 });
-		}
-		if (!['proposed', 'negotiating'].includes(booking.status)) {
 			return message(
 				form,
-				{ type: 'error', text: 'Terms are already agreed — they cannot be renegotiated.' },
-				{ status: 409 }
+				{ type: 'error', text: m.srv_operators_no_negotiate() },
+				{ status: 403 }
 			);
+		}
+		if (!form.valid) {
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
+		}
+		if (!['proposed', 'negotiating'].includes(booking.status)) {
+			return message(form, { type: 'error', text: m.srv_terms_already_agreed() }, { status: 409 });
 		}
 
 		/* Any earlier open offer is superseded by this counter. */
@@ -154,7 +160,7 @@ export const actions: Actions = {
 			reason: `${side} proposed ${form.data.price} ${form.data.currencyCode}`
 		});
 
-		return message(form, { type: 'success', text: 'Counter-offer sent.' });
+		return message(form, { type: 'success', text: m.srv_counter_sent() });
 	},
 
 	/**
@@ -166,8 +172,8 @@ export const actions: Actions = {
 		const { booking, side } = await requireBookingAccess(event, id);
 		const form = await superValidate(event.request, zod4(proposalRespond));
 
-		if (!form.valid) return fail(400, { message: 'Invalid request' });
-		if (side === 'admin') return fail(403, { message: 'Operators cannot accept on a party’s behalf' });
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
+		if (side === 'admin') return fail(403, { message: m.srv_operators_no_accept() });
 
 		const rows = await db
 			.select()
@@ -177,14 +183,14 @@ export const actions: Actions = {
 		const proposal = rows.at(0);
 
 		if (!proposal || proposal.status !== 'pending') {
-			return fail(409, { message: 'That proposal is no longer open.' });
+			return fail(409, { message: m.srv_proposal_closed() });
 		}
 		/* The side that made the offer cannot accept its own. */
 		const proposedBySelf =
 			(side === 'creator' && proposal.proposedBy === 'creator') ||
 			(side === 'organization' && proposal.proposedBy === 'organization');
 		if (proposedBySelf) {
-			return fail(403, { message: 'You cannot accept your own proposal.' });
+			return fail(403, { message: m.srv_no_self_accept() });
 		}
 
 		if (form.data.decision === 'decline') {
@@ -259,8 +265,8 @@ export const actions: Actions = {
 
 		await notify(
 			side === 'creator' ? orgRows.at(0)?.ownerId : creatorRows.at(0)?.userId,
-			'Terms agreed',
-			`${booking.title} is now booked. The agreed terms are locked.`,
+			m.notif_terms_agreed_title(),
+			m.notif_terms_agreed_body({ title: booking.title }),
 			`/dashboard/bookings/${id}`
 		);
 
@@ -274,17 +280,26 @@ export const actions: Actions = {
 		const { booking, side } = await requireBookingAccess(event, id);
 		const form = await superValidate(event.request, zod4(fundEscrowSchema));
 
-		if (side === 'creator') return fail(403, { message: 'Only the brand funds a booking' });
-		if (!form.valid) return fail(400, { message: 'Invalid request' });
+		if (side === 'creator') return fail(403, { message: m.srv_only_brand_funds() });
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
+		/* There is no deposit to record against barter or an event pass, and
+		   `settle` only requires one for a paid booking. */
+		if (booking.compensationType !== 'paid') {
+			return fail(400, { message: m.srv_only_paid_funded() });
+		}
 		if (booking.escrowStatus !== 'unfunded') {
-			return fail(409, { message: 'This booking is already funded.' });
+			return fail(409, { message: m.srv_already_funded() });
 		}
 
 		/*
 		 * No payment provider is connected yet, so this records an operator-marked
 		 * deposit rather than moving money. The reference makes that explicit.
+		 *
+		 * `escrow_status` is re-tested in the WHERE clause rather than trusted from
+		 * the read above: two concurrent posts both passed that check and both
+		 * wrote a deposit record. Zero rows here means the other one won.
 		 */
-		await db
+		const funded: any = await db
 			.update(t.bookings)
 			.set({
 				escrowStatus: 'held',
@@ -292,7 +307,11 @@ export const actions: Actions = {
 				paymentRef: `MANUAL-${Date.now().toString(36).toUpperCase()}`,
 				updatedBy: event.locals.user?.id
 			})
-			.where(eq(t.bookings.id, id));
+			.where(and(eq(t.bookings.id, id), eq(t.bookings.escrowStatus, 'unfunded')));
+
+		if ((funded?.rowsAffected ?? funded?.[0]?.affectedRows ?? 1) === 0) {
+			return fail(409, { message: m.srv_already_funded() });
+		}
 
 		if (booking.status === 'booked') {
 			await transition(event, id, 'booked', 'in_production', {}, 'Compensation recorded as held');
@@ -317,13 +336,13 @@ export const actions: Actions = {
 		const { booking, side } = await requireBookingAccess(event, id);
 		const form = await superValidate(event.request, zod4(bookingIdSchema));
 
-		if (side === 'creator') return fail(403, { message: 'Only the brand or an operator settles' });
-		if (!form.valid) return fail(400, { message: 'Invalid request' });
+		if (side === 'creator') return fail(403, { message: m.srv_only_brand_settles() });
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 
 		/* PRD FR-083: completion requires the compensation obligation to be met. */
 		if (booking.compensationType === 'paid' && booking.escrowStatus !== 'held') {
 			return fail(409, {
-				message: 'Record the deposit before marking this fulfilled.'
+				message: m.srv_record_deposit_first()
 			});
 		}
 
@@ -337,10 +356,7 @@ export const actions: Actions = {
 		);
 		if (!result.ok) return fail(409, { message: result.text });
 
-		await db
-			.update(t.creators)
-			.set({ completedBookings: sql`${t.creators.completedBookings} + 1` })
-			.where(eq(t.creators.id, booking.creatorId));
+		await refreshCreatorCompletedBookings(booking.creatorId);
 
 		const creatorRows = await db
 			.select({ userId: t.creators.userId })
@@ -350,8 +366,8 @@ export const actions: Actions = {
 
 		await notify(
 			creatorRows.at(0)?.userId,
-			'Booking completed',
-			`${booking.title} is complete and compensation is marked fulfilled.`,
+			m.notif_booking_completed_title(),
+			m.notif_booking_completed_body({ title: booking.title }),
 			`/dashboard/bookings/${id}`
 		);
 
@@ -366,15 +382,15 @@ export const actions: Actions = {
 		const form = await superValidate(event.request, zod4(submissionSchema), { id: 'submission' });
 
 		if (side !== 'creator') {
-			return message(form, { type: 'error', text: 'Only the creator submits work.' }, { status: 403 });
+			return message(form, { type: 'error', text: m.srv_only_creator_submits() }, { status: 403 });
 		}
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Paste the published link' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_paste_link() }, { status: 400 });
 		}
 		if (!['in_production', 'revision'].includes(booking.status)) {
 			return message(
 				form,
-				{ type: 'error', text: 'This booking is not open for submissions right now.' },
+				{ type: 'error', text: m.srv_not_open_for_submission() },
 				{ status: 409 }
 			);
 		}
@@ -407,12 +423,12 @@ export const actions: Actions = {
 
 		await notify(
 			orgRows.at(0)?.ownerId,
-			'Work submitted for review',
+			m.notif_work_submitted_title(),
 			booking.title,
 			`/dashboard/bookings/${id}`
 		);
 
-		return message(form, { type: 'success', text: 'Submitted for review.' });
+		return message(form, { type: 'success', text: m.srv_submitted_for_review() });
 	},
 
 	review: async (event) => {
@@ -420,8 +436,8 @@ export const actions: Actions = {
 		const { booking, side } = await requireBookingAccess(event, id);
 		const form = await superValidate(event.request, zod4(reviewSubmission));
 
-		if (side === 'creator') return fail(403, { message: 'Only the brand reviews a submission' });
-		if (!form.valid) return fail(400, { message: 'Invalid request' });
+		if (side === 'creator') return fail(403, { message: m.srv_only_brand_reviews() });
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 
 		const rows = await db
 			.select()
@@ -430,7 +446,7 @@ export const actions: Actions = {
 			.limit(1);
 		const submission = rows.at(0);
 		if (!submission || submission.status !== 'submitted') {
-			return fail(409, { message: 'That submission has already been reviewed.' });
+			return fail(409, { message: m.srv_already_reviewed() });
 		}
 
 		if (form.data.decision === 'approve') {
@@ -454,18 +470,33 @@ export const actions: Actions = {
 			);
 			if (!result.ok) return fail(409, { message: result.text });
 
-			await transition(event, id, 'approved', 'awaiting_settlement', {}, 'Awaiting compensation');
+			/*
+			 * `approved` is a transient step. Its result used to be discarded, and
+			 * a booking left stranded there cannot move again: `canTransition`
+			 * allows approved → awaiting_settlement only, and `settle` transitions
+			 * from whatever the current status is.
+			 */
+			const settled = await transition(
+				event,
+				id,
+				'approved',
+				'awaiting_settlement',
+				{},
+				'Awaiting compensation'
+			);
+			if (!settled.ok) return fail(409, { message: settled.text });
+
 			return { approved: true };
 		}
 
 		/* Revision: the reason is required and the allowance is consumed. */
 		if (booking.revisionsUsed >= booking.revisionsAllowed) {
 			return fail(409, {
-				message: `The agreed allowance of ${booking.revisionsAllowed} revisions is used up. Approve, or open a dispute.`
+				message: m.srv_revisions_used_up({ allowed: booking.revisionsAllowed })
 			});
 		}
 		if (!form.data.reviewNote?.trim()) {
-			return fail(400, { message: 'A revision request needs a reason.' });
+			return fail(400, { message: m.srv_revision_needs_reason() });
 		}
 
 		await db
@@ -483,7 +514,10 @@ export const actions: Actions = {
 			id,
 			booking.status as BookingStatus,
 			'revision',
-			{ revisionsUsed: booking.revisionsUsed + 1 },
+			/* Incremented in SQL, not from the value read earlier in this request:
+			   two concurrent revision requests each computed the same successor and
+			   one increment was lost, letting the allowance be exceeded. */
+			{ revisionsUsed: sql`${t.bookings.revisionsUsed} + 1` },
 			form.data.reviewNote
 		);
 		if (!result.ok) return fail(409, { message: result.text });
@@ -496,7 +530,7 @@ export const actions: Actions = {
 
 		await notify(
 			creatorRows.at(0)?.userId,
-			'Revision requested',
+			m.notif_revision_requested_title(),
 			form.data.reviewNote,
 			`/dashboard/bookings/${id}`
 		);
@@ -512,18 +546,18 @@ export const actions: Actions = {
 		const form = await superValidate(event.request, zod4(reviewSchema), { id: 'review' });
 
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Check the form for errors' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
 		}
 		/* PRD AC-11: reviews exist only for completed bookings. */
 		if (booking.status !== 'completed') {
 			return message(
 				form,
-				{ type: 'error', text: 'Reviews can only be written once a booking is complete.' },
+				{ type: 'error', text: m.srv_reviews_after_complete() },
 				{ status: 409 }
 			);
 		}
 		if (side === 'admin') {
-			return message(form, { type: 'error', text: 'Operators do not review on a party’s behalf.' }, { status: 403 });
+			return message(form, { type: 'error', text: m.srv_operators_no_review() }, { status: 403 });
 		}
 
 		const direction = side === 'creator' ? 'creator_to_brand' : 'brand_to_creator';
@@ -537,7 +571,7 @@ export const actions: Actions = {
 		if (existing.length) {
 			return message(
 				form,
-				{ type: 'error', text: 'You have already reviewed this booking.' },
+				{ type: 'error', text: m.srv_already_reviewed_booking() },
 				{ status: 409 }
 			);
 		}
@@ -561,7 +595,7 @@ export const actions: Actions = {
 			await refreshCreatorRating(booking.creatorId);
 		}
 
-		return message(form, { type: 'success', text: 'Review published.' });
+		return message(form, { type: 'success', text: m.srv_review_published() });
 	},
 
 	message: async (event) => {
@@ -570,7 +604,7 @@ export const actions: Actions = {
 		const form = await superValidate(event.request, zod4(messageSchema), { id: 'message' });
 
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Write something first' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_write_something() }, { status: 400 });
 		}
 
 		/* Contact details are stripped before the message is stored, not after. */
@@ -587,8 +621,8 @@ export const actions: Actions = {
 		return message(
 			form,
 			masked
-				? { type: 'warning', text: 'Sent — contact details were hidden.' }
-				: { type: 'success', text: 'Sent.' }
+				? { type: 'warning', text: m.srv_sent_masked() }
+				: { type: 'success', text: m.srv_sent() }
 		);
 	}
 };

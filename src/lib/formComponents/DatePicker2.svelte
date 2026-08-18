@@ -1,5 +1,5 @@
 <script lang="ts">
-	import {  buttonVariants } from '$lib/components/ui/button/index.js';
+	import { buttonVariants } from '$lib/components/ui/button/index.js';
 	import { Calendar } from '$lib/components/ui/calendar';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { cn } from '$lib/utils.js';
@@ -28,8 +28,6 @@
 		data = form.toString();
 	});
 
-
-
 	const formatDate = (date: CalendarDate | undefined): string => {
 		if (!date) return '';
 
@@ -55,13 +53,11 @@
 	>
 		<div class="flex items-center gap-2">
 			<CalendarIcon />
-			{formatDate(form)} 
+			{formatDate(form)}
 		</div>
 	</Popover.Trigger>
 
 	<Popover.Content class="flex flex-wrap gap-2 border-t p-0 px-2 py-4!">
-		
-
 		<Calendar
 			type="single"
 			captionLayout={year ? 'dropdown-years' : 'label'}

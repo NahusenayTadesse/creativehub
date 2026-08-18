@@ -6,6 +6,8 @@
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import { Inbox, Award, Users, ExternalLink } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
+	import * as m from '$lib/paraglide/messages';
+	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
 
@@ -24,35 +26,37 @@
 			? data.applications.length
 			: data.applications.filter((a) => a.status === status).length;
 
-	const tabs = [
-		{ key: 'all', label: 'All' },
-		{ key: 'applied', label: 'New' },
-		{ key: 'shortlisted', label: 'Shortlisted' },
-		{ key: 'selected', label: 'Selected' },
-		{ key: 'rejected', label: 'Rejected' }
-	];
+	const tabs = $derived([
+		{ key: 'all', label: m.bl_tab_all() },
+		{ key: 'applied', label: m.ap_tab_new() },
+		{ key: 'shortlisted', label: m.ap_tab_shortlisted() },
+		{ key: 'selected', label: m.ap_tab_selected() },
+		{ key: 'rejected', label: m.ap_tab_rejected() }
+	]);
 
 	const handle = (message: string) => () => {
 		return async ({ result, update }: any) => {
-			if (result.type === 'failure') toast.error(result.data?.message ?? 'That was refused.');
+			if (result.type === 'failure') toast.error(result.data?.message ?? m.ap_refused());
 			else if (result.type === 'success' || result.type === 'redirect') toast.success(message);
 			await update();
 		};
 	};
 
 	const formatDate = (value: string | Date) =>
-		new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+		new Date(value).toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric'
+		});
 </script>
 
-<svelte:head><title>Applications — Creator Network</title></svelte:head>
+<svelte:head><title>{m.ap_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
 	<PageHeader
-		eyebrow={isCreatorView ? 'Creator studio' : 'Campaign operations'}
-		title={isCreatorView ? 'Your applications' : 'Applications received'}
-		description={isCreatorView
-			? 'Every brief you have pitched on, and where each one stands.'
-			: 'Shortlist, reject, or select. Selecting opens a booking with the terms still to be agreed — it is not a contract on its own.'}
+		eyebrow={isCreatorView ? m.dashc_eyebrow() : m.ap_eyebrow_campaign_ops()}
+		title={isCreatorView ? m.ap_title_creator() : m.ap_title_brand()}
+		description={isCreatorView ? m.ap_description_creator() : m.ap_description_brand()}
 	/>
 
 	<div class="flex flex-wrap items-center gap-2">
@@ -65,7 +69,7 @@
 					? 'bg-slate-900 text-white'
 					: 'bg-white text-slate-800 hover:bg-slate-100'}"
 			>
-				{tab.label} ({countFor(tab.key)})
+				{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
 			</button>
 		{/each}
 	</div>
@@ -73,17 +77,15 @@
 	{#if filtered.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">Nothing here</h3>
+			<h3 class="text-base font-black text-slate-900">{m.ap_empty_title()}</h3>
 			<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
-				{isCreatorView
-					? 'Pitch on a live brief and it will appear here.'
-					: 'Applications from creators appear here once your campaign is published.'}
+				{isCreatorView ? m.ap_empty_creator() : m.ap_empty_brand()}
 			</p>
 			<a
 				href={isCreatorView ? '/campaigns' : '/dashboard/campaigns'}
 				class="inline-block rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 			>
-				{isCreatorView ? 'Browse briefs' : 'Manage campaigns'}
+				{isCreatorView ? m.bl_browse_briefs() : m.ap_manage_campaigns()}
 			</a>
 		</div>
 	{:else}
@@ -126,16 +128,18 @@
 										{application.creatorName}
 									</a>
 									<p class="text-[11px] font-bold text-slate-500">
-										for {application.campaignTitle}
+										{m.ap_for_campaign({ title: application.campaignTitle })}
 									</p>
-									<div class="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-600">
+									<div
+										class="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-600"
+									>
 										<span class="flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5">
 											<Award class="h-3 w-3 text-emerald-600" />
-											Score {application.creatorScore}
+											{m.card_score({ score: application.creatorScore })}
 										</span>
 										<span class="flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5">
 											<Users class="h-3 w-3 text-emerald-600" />
-											{formatReach(application.creatorReach)} reach
+											{m.ap_reach_suffix({ reach: formatReach(application.creatorReach) })}
 										</span>
 									</div>
 								{/if}
@@ -145,14 +149,14 @@
 						<div class="shrink-0 text-right">
 							{#if application.compensationType === 'paid'}
 								<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
-									Proposed rate
+									{m.ap_proposed_rate()}
 								</span>
 								<span class="text-sm font-black text-slate-900">
 									{application.proposedPrice.toLocaleString()}
 									<span class="text-emerald-600">{application.currencyCode}</span>
 								</span>
 							{:else}
-								<span class="text-xs font-black text-slate-600">Non-cash compensation</span>
+								<span class="text-xs font-black text-slate-600">{m.ap_non_cash()}</span>
 							{/if}
 						</div>
 					</div>
@@ -165,21 +169,27 @@
 
 					{#if application.decisionNote}
 						<p class="text-[11px] font-medium text-slate-500 italic">
-							Note: {application.decisionNote}
+							{m.ap_note_prefix({ note: application.decisionNote })}
 						</p>
 					{/if}
 
 					<!-- Actions -->
-					<div class="flex flex-wrap items-center justify-end gap-2 border-t-2 border-slate-200 pt-3">
+					<div
+						class="flex flex-wrap items-center justify-end gap-2 border-t-2 border-slate-200 pt-3"
+					>
 						{#if isCreatorView}
 							{#if ['applied', 'shortlisted'].includes(application.status)}
-								<form method="POST" action="?/withdraw" use:enhance={handle('Application withdrawn')}>
+								<form
+									method="POST"
+									action="?/withdraw"
+									use:enhance={handle(m.ap_withdrawn_toast())}
+								>
 									<input type="hidden" name="id" value={application.id} />
 									<button
 										type="submit"
 										class="rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-slate-900 hover:bg-slate-50"
 									>
-										Withdraw
+										{m.ap_withdraw()}
 									</button>
 								</form>
 							{/if}
@@ -188,41 +198,45 @@
 								class="inline-flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-slate-900 hover:bg-slate-50"
 							>
 								<ExternalLink class="h-3 w-3" />
-								View brief
+								{m.ap_view_brief()}
 							</a>
 						{:else if application.status !== 'selected' && application.status !== 'withdrawn'}
-							<form method="POST" action="?/decide" use:enhance={handle('Applicant rejected')}>
+							<form method="POST" action="?/decide" use:enhance={handle(m.ap_rejected_toast())}>
 								<input type="hidden" name="id" value={application.id} />
 								<input type="hidden" name="status" value="rejected" />
 								<button
 									type="submit"
 									class="rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-slate-900 hover:bg-red-50"
 								>
-									Reject
+									{m.ap_reject()}
 								</button>
 							</form>
 
 							{#if application.status !== 'shortlisted'}
-								<form method="POST" action="?/decide" use:enhance={handle('Added to shortlist')}>
+								<form
+									method="POST"
+									action="?/decide"
+									use:enhance={handle(m.ap_shortlisted_toast())}
+								>
 									<input type="hidden" name="id" value={application.id} />
 									<input type="hidden" name="status" value="shortlisted" />
 									<button
 										type="submit"
 										class="rounded-xl border-2 border-slate-900 bg-[#e0e7ff] px-3 py-1.5 text-xs font-black text-indigo-950 hover:bg-indigo-200"
 									>
-										Shortlist
+										{m.ap_shortlist()}
 									</button>
 								</form>
 							{/if}
 
-							<form method="POST" action="?/decide" use:enhance={handle('Selected — booking opened')}>
+							<form method="POST" action="?/decide" use:enhance={handle(m.ap_selected_toast())}>
 								<input type="hidden" name="id" value={application.id} />
 								<input type="hidden" name="status" value="selected" />
 								<button
 									type="submit"
 									class="rounded-xl border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 								>
-									Select & open booking
+									{m.ap_select_open()}
 								</button>
 							</form>
 						{/if}

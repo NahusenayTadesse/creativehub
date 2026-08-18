@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
@@ -26,7 +27,15 @@
 	let matchCampaignId = $state(String(data.campaigns[0]?.id ?? ''));
 	let matchFilterOn = $state(false);
 	let quickView = $state<any>(null);
-	let savedIds = $state<number[]>(data.savedIds);
+	/* Optimistic shortlist state, re-seeded whenever the server sends a new list.
+	   A plain `$state(data.savedIds)` captured the first render only, so the
+	   badges kept showing stale state after an invalidation or a navigation. */
+	let savedOverride = $state<number[] | null>(null);
+	const savedIds = $derived(savedOverride ?? data.savedIds);
+	$effect(() => {
+		data.savedIds;
+		savedOverride = null;
+	});
 
 	const isBusiness = $derived(data.user?.role === 'business' || data.user?.role === 'admin');
 
@@ -50,9 +59,7 @@
 		education: ['technology', 'business', 'finance']
 	};
 
-	const categoryById = $derived(
-		new Map(data.reference.categories.map((c) => [c.id, c] as const))
-	);
+	const categoryById = $derived(new Map(data.reference.categories.map((c) => [c.id, c] as const)));
 
 	const matchScores = $derived.by(() => {
 		const map = new Map<number, number>();
@@ -202,26 +209,26 @@
 		matchFilterOn = false;
 	}
 
-	const sortLabels: Record<string, string> = {
-		match: '✨ AI match score',
-		score: 'Creator score',
-		reach: 'Total reach',
-		price_low: 'Price: low to high',
-		price_high: 'Price: high to low',
-		rating: 'Rating'
-	};
+	const sortLabels: Record<string, string> = $derived({
+		match: m.discover_sort_match(),
+		score: m.discover_sort_score(),
+		reach: m.discover_sort_reach(),
+		price_low: m.discover_sort_price_low(),
+		price_high: m.discover_sort_price_high(),
+		rating: m.discover_sort_rating()
+	});
 
-	const verificationLabels: Record<string, string> = {
-		all: 'Any verification level',
-		cn_verified: 'CN Verified (highest)',
-		identity_verified: 'Identity verified',
-		social_verified: 'Social verified',
-		unverified: 'Unverified'
-	};
+	const verificationLabels: Record<string, string> = $derived({
+		all: m.discover_verif_all(),
+		cn_verified: m.discover_verif_cn(),
+		identity_verified: m.discover_verif_identity(),
+		social_verified: m.discover_verif_social(),
+		unverified: m.discover_verif_unverified()
+	});
 </script>
 
 <svelte:head>
-	<title>Discover creators — Creator Network</title>
+	<title>{m.discover_meta_title()}</title>
 </svelte:head>
 
 <div id="discovery-view-container" class="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
@@ -232,18 +239,21 @@
 		<div>
 			<div class="mb-1 flex items-center gap-2">
 				<span class="text-xs font-black tracking-widest text-slate-500 uppercase">
-					Marketplace directory
+					{m.discover_eyebrow()}
 				</span>
 				<span
 					class="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-900"
 				>
 					<Globe class="h-3 w-3 text-emerald-700" />
-					Pan-African & global
+					{m.discover_global_badge()}
 				</span>
 			</div>
-			<h1 class="text-2xl font-black text-slate-900 sm:text-3xl">Discover creators</h1>
+			<h1 class="text-2xl font-black text-slate-900 sm:text-3xl">{m.discover_title()}</h1>
 			<p class="mt-1 text-xs font-medium text-slate-600">
-				{data.creators.length} published creators across {data.reference.countries.length} markets.
+				{m.discover_subtitle({
+					creators: data.creators.length,
+					markets: data.reference.countries.length
+				})}
 			</p>
 		</div>
 
@@ -253,7 +263,7 @@
 				<input
 					type="text"
 					bind:value={query}
-					placeholder="Search by name, country, city, topic…"
+					placeholder={m.discover_search_placeholder()}
 					class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 pr-3 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] outline-none focus:ring-2 focus:ring-emerald-500"
 				/>
 			</div>
@@ -280,13 +290,14 @@
 		>
 			<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 				<div class="space-y-1">
-					<span class="flex items-center gap-1.5 text-xs font-black tracking-widest text-emerald-400 uppercase">
+					<span
+						class="flex items-center gap-1.5 text-xs font-black tracking-widest text-emerald-400 uppercase"
+					>
 						<Sparkles class="h-3.5 w-3.5" />
-						Match creators to a brief
+						{m.discover_match_eyebrow()}
 					</span>
 					<p class="max-w-xl text-xs font-medium text-slate-300">
-						Scores five factors — niche, audience geography, past performance, platform fit and
-						budget headroom — and shows the arithmetic on each profile. No black box.
+						{m.discover_match_body()}
 					</p>
 				</div>
 
@@ -295,7 +306,7 @@
 						<Select.Trigger
 							class="min-w-56 cursor-pointer rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-black text-slate-900"
 						>
-							{selectedCampaign?.title ?? 'Choose a campaign'}
+							{selectedCampaign?.title ?? m.discover_choose_campaign()}
 						</Select.Trigger>
 						<Select.Content>
 							{#each data.campaigns as campaign (campaign.id)}
@@ -316,7 +327,7 @@
 							? 'border-slate-900 bg-emerald-500 text-slate-950'
 							: 'border-white bg-transparent text-white hover:bg-white/10'}"
 					>
-						{matchFilterOn ? 'Showing top 10 matches' : 'Show top 10 matches'}
+						{matchFilterOn ? m.discover_showing_top_matches() : m.discover_show_top_matches()}
 					</button>
 				</div>
 			</div>
@@ -328,9 +339,11 @@
 		class="bento-card bento-card-static border-2 border-slate-900 bg-gradient-to-r from-emerald-50/50 via-white to-slate-50 p-4 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] sm:p-5"
 	>
 		<div class="mb-3 flex items-center justify-between">
-			<span class="flex items-center gap-1.5 text-xs font-black tracking-wider text-slate-900 uppercase">
+			<span
+				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-slate-900 uppercase"
+			>
 				<Globe class="h-3.5 w-3.5 text-emerald-600" />
-				Filter by market
+				{m.discover_filter_by_market()}
 			</span>
 			{#if selectedCountryIds.length}
 				<button
@@ -338,7 +351,7 @@
 					onclick={() => (selectedCountryIds = [])}
 					class="cursor-pointer text-[10px] font-bold text-rose-600 hover:underline"
 				>
-					Clear ({selectedCountryIds.length})
+					{m.discover_clear_count({ count: selectedCountryIds.length })}
 				</button>
 			{/if}
 		</div>
@@ -367,9 +380,11 @@
 		<!-- Sidebar -->
 		<aside class="bento-card bento-card-static sticky top-24 h-fit space-y-6 p-5 lg:col-span-1">
 			<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
-				<span class="flex items-center gap-1.5 text-xs font-black tracking-wider text-slate-900 uppercase">
+				<span
+					class="flex items-center gap-1.5 text-xs font-black tracking-wider text-slate-900 uppercase"
+				>
 					<SlidersHorizontal class="h-4 w-4 text-emerald-600" />
-					<span>Filters</span>
+					<span>{m.discover_filters()}</span>
 				</span>
 				<button
 					type="button"
@@ -377,20 +392,25 @@
 					class="flex cursor-pointer items-center gap-1 rounded-md border border-slate-900 bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-500 hover:text-emerald-700"
 				>
 					<RotateCcw class="h-3 w-3" />
-					<span>Reset</span>
+					<span>{m.discover_reset()}</span>
 				</button>
 			</div>
 
 			<div>
-				<label for="filter-category" class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase">
-					Category
+				<label
+					for="filter-category"
+					class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase"
+				>
+					{m.discover_category()}
 				</label>
 				<select
 					id="filter-category"
 					bind:value={categorySlug}
 					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
 				>
-					<option value="all">All categories ({data.reference.categories.length})</option>
+					<option value="all"
+						>{m.discover_all_categories({ count: data.reference.categories.length })}</option
+					>
 					{#each data.reference.categories as category (category.id)}
 						<option value={category.slug}>{category.name}</option>
 					{/each}
@@ -399,15 +419,18 @@
 
 			{#if ethiopiaActive && visibleRegions.length}
 				<div>
-					<label for="filter-region" class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase">
-						Ethiopian region
+					<label
+						for="filter-region"
+						class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase"
+					>
+						{m.discover_ethiopian_region()}
 					</label>
 					<select
 						id="filter-region"
 						bind:value={regionId}
 						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
 					>
-						<option value="all">All regions</option>
+						<option value="all">{m.discover_all_regions()}</option>
 						{#each visibleRegions as region (region.id)}
 							<option value={String(region.id)}>{region.name}</option>
 						{/each}
@@ -416,15 +439,18 @@
 			{/if}
 
 			<div>
-				<label for="filter-platform" class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase">
-					Primary platform
+				<label
+					for="filter-platform"
+					class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase"
+				>
+					{m.discover_primary_platform()}
 				</label>
 				<select
 					id="filter-platform"
 					bind:value={platformId}
 					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
 				>
-					<option value="all">All platforms</option>
+					<option value="all">{m.discover_all_platforms()}</option>
 					{#each data.reference.platforms as platform (platform.id)}
 						<option value={String(platform.id)}>{platform.name}</option>
 					{/each}
@@ -433,8 +459,11 @@
 
 			<div>
 				<div class="mb-1 flex items-center justify-between text-xs">
-					<label for="filter-price" class="text-[11px] font-black tracking-wider text-slate-900 uppercase">
-						Max starting price
+					<label
+						for="filter-price"
+						class="text-[11px] font-black tracking-wider text-slate-900 uppercase"
+					>
+						{m.discover_max_starting_price()}
 					</label>
 					<span
 						class="rounded border border-slate-900 bg-[#dcfce7] px-2 py-0.5 text-xs font-black text-emerald-800"
@@ -452,13 +481,16 @@
 					class="w-full cursor-pointer accent-emerald-600"
 				/>
 				<p class="mt-1 text-right text-[10px] font-bold text-slate-500">
-					In each creator's own currency
+					{m.discover_own_currency_note()}
 				</p>
 			</div>
 
 			<div>
-				<label for="filter-verification" class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase">
-					Verification level
+				<label
+					for="filter-verification"
+					class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase"
+				>
+					{m.discover_verification_level()}
 				</label>
 				<select
 					id="filter-verification"
@@ -472,7 +504,9 @@
 			</div>
 
 			<div class="flex items-center justify-between border-t-2 border-slate-900 pt-3 text-xs">
-				<label for="filter-available" class="font-black text-slate-900">Only available now</label>
+				<label for="filter-available" class="font-black text-slate-900"
+					>{m.discover_only_available()}</label
+				>
 				<input
 					id="filter-available"
 					type="checkbox"
@@ -484,15 +518,21 @@
 
 		<!-- Results -->
 		<div class="space-y-4 lg:col-span-3">
-			<div class="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-600">
+			<div
+				class="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-600"
+			>
 				<div class="flex items-center gap-2">
-					<span>Showing <strong class="text-slate-900">{filtered.length}</strong> creators</span>
+					<span>
+						{m.discover_showing_creators()}
+						<strong class="text-slate-900">{filtered.length}</strong>
+						{m.discover_creators_word()}
+					</span>
 					{#if sortBy === 'match'}
 						<span
 							class="flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-black text-emerald-800"
 						>
 							<Sparkles class="h-3 w-3" />
-							<span>Sorted by match score</span>
+							<span>{m.discover_sorted_by_match()}</span>
 						</span>
 					{/if}
 				</div>
@@ -504,7 +544,7 @@
 							onclick={() => (matchFilterOn = false)}
 							class="flex cursor-pointer items-center gap-1 rounded-full border border-slate-900 bg-indigo-100 px-2.5 py-0.5 text-[11px] font-black text-indigo-900 hover:bg-indigo-200"
 						>
-							<span>Top matches ({topMatchIds.length})</span>
+							<span>{m.discover_top_matches_count({ count: topMatchIds.length })}</span>
 							<X class="h-3 w-3" />
 						</button>
 					{/if}
@@ -533,16 +573,16 @@
 			{#if filtered.length === 0}
 				<div class="bento-card bento-card-static space-y-3 p-12 text-center">
 					<Search class="mx-auto h-10 w-10 text-slate-400" />
-					<h3 class="text-base font-black text-slate-900">No creators match these filters</h3>
+					<h3 class="text-base font-black text-slate-900">{m.discover_empty_title()}</h3>
 					<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
-						Try widening the price range, clearing a market, or searching for a broader topic.
+						{m.discover_empty_body()}
 					</p>
 					<button
 						type="button"
 						onclick={reset}
 						class="cursor-pointer rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 					>
-						Reset all filters
+						{m.discover_reset_all()}
 					</button>
 				</div>
 			{:else}
@@ -550,7 +590,9 @@
 					{#each filtered as creator (creator.id)}
 						<CreatorCard
 							{creator}
-							matchScore={sortBy === 'match' || matchFilterOn ? matchScores.get(creator.id) : undefined}
+							matchScore={sortBy === 'match' || matchFilterOn
+								? matchScores.get(creator.id)
+								: undefined}
 							saved={savedIds.includes(creator.id)}
 							onQuickView={(c) => (quickView = c)}
 							onSave={isBusiness
@@ -581,12 +623,14 @@
 							(document.getElementById('save-form') as HTMLFormElement).creatorId.value
 						);
 						const nowSaved = (result.data as { saved?: boolean })?.saved;
-						savedIds = nowSaved
+						savedOverride = nowSaved
 							? [...savedIds, creatorId]
 							: savedIds.filter((id) => id !== creatorId);
-						toast.success(nowSaved ? 'Saved to shortlist' : 'Removed from shortlist');
+						toast.success(nowSaved ? m.discover_saved_toast() : m.discover_removed_toast());
 					} else if (result.type === 'failure') {
-						toast.error((result.data as { message?: string })?.message ?? 'Could not update');
+						toast.error(
+							(result.data as { message?: string })?.message ?? m.common_could_not_update()
+						);
 					}
 					await update({ reset: false, invalidateAll: false });
 				};

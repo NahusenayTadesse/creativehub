@@ -1,5 +1,6 @@
-import { asc, eq, ne, and } from 'drizzle-orm';
-import { redirect } from '@sveltejs/kit';
+import * as m from '$lib/paraglide/messages';
+import { asc, eq, ne, and, inArray, isNull } from 'drizzle-orm';
+import { fail, redirect } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { contentCrud } from '$lib/server/crud';
 import { db } from '$lib/server/db';
@@ -26,7 +27,11 @@ async function uniqueSlug(title: string, ignoreId = 0) {
 		const clash = await db
 			.select({ id: t.campaigns.id })
 			.from(t.campaigns)
-			.where(ignoreId ? and(eq(t.campaigns.slug, candidate), ne(t.campaigns.id, ignoreId)) : eq(t.campaigns.slug, candidate))
+			.where(
+				ignoreId
+					? and(eq(t.campaigns.slug, candidate), ne(t.campaigns.id, ignoreId))
+					: eq(t.campaigns.slug, candidate)
+			)
 			.limit(1);
 		if (!clash.length) return candidate;
 		candidate = `${base}-${++suffix}`;
@@ -54,7 +59,7 @@ async function context(event: RequestEvent) {
 function buildCrud(organizationId: number | null, defaults: Record<string, unknown> = {}) {
 	return contentCrud({
 		table: t.campaigns,
-		label: 'Campaign',
+		label: () => m.dc_label(),
 		addSchema: campaignAdd,
 		editSchema: campaignEdit,
 		listFields: ['deliverables', 'tags', 'targetRegions'],
@@ -73,41 +78,88 @@ function buildCrud(organizationId: number | null, defaults: Record<string, unkno
 }
 
 export const load = async (event: RequestEvent) => {
-	const { organization } = await context(event);
+	const { isOperator, organization } = await context(event);
 	const crud = buildCrud(organization?.id ?? null);
 
-	const [base, reference, applications] = await Promise.all([
+	const [base, reference, organizations] = await Promise.all([
 		crud.load(),
 		getReferenceData(),
-		db
-			.select({ campaignId: t.applications.campaignId, status: t.applications.status })
-			.from(t.applications)
+		/* Operators post on behalf of an organisation, so they need to pick one. */
+		isOperator
+			? db
+					.select({ id: t.organizations.id, name: t.organizations.name })
+					.from(t.organizations)
+					.where(isNull(t.organizations.deletedAt))
+					.orderBy(asc(t.organizations.name))
+			: Promise.resolve([])
 	]);
+
+	/*
+	 * Application counts for the campaigns on this page only. Selecting the whole
+	 * table handed every brand the application ids and statuses of every campaign
+	 * on the platform.
+	 */
+	const campaignIds = base.rows.map((row) => row.id as number);
+	const applications = campaignIds.length
+		? await db
+				.select({ campaignId: t.applications.campaignId, status: t.applications.status })
+				.from(t.applications)
+				.where(
+					and(inArray(t.applications.campaignId, campaignIds), isNull(t.applications.deletedAt))
+				)
+		: [];
 
 	return {
 		...base,
 		reference,
 		applications,
-		organizationName: organization?.name ?? 'All organisations'
+		isOperator,
+		organizations,
+		organizationName: organization?.name ?? m.dc_all_organisations()
 	};
 };
 
+/**
+ * Whether a crud action succeeded. `message(form, …, { status: 4xx })` returns an
+ * `ActionFailure`; a success returns a plain `{ form }`. The audit log used to be
+ * written either way, so a failed write still recorded a `created` entry.
+ */
+const succeeded = (result: unknown): boolean =>
+	!(result && typeof result === 'object' && 'status' in result && (result as any).status >= 400);
+
 export const actions = {
 	add: async (event: RequestEvent) => {
-		const { user, organization } = await context(event);
+		const { user, isOperator, organization } = await context(event);
 		const form = await event.request.clone().formData();
 		const slug = await uniqueSlug(String(form.get('title') ?? ''));
 
-		const result = await buildCrud(organization?.id ?? null, { slug }).actions.add(event);
+		/*
+		 * `campaigns.organizationId` is NOT NULL, and only a brand's crud scope
+		 * stamps it. An operator has no scope, so they must name the organisation
+		 * they are posting for — otherwise the insert failed on a constraint and
+		 * surfaced as an opaque 500.
+		 */
+		let owner: number | null = organization?.id ?? null;
+		if (isOperator) {
+			owner = Number(form.get('organizationId') ?? 0) || null;
+			if (!owner) return fail(400, { message: m.dc_pick_organisation() });
+		}
 
-		await recordAudit({
-			actorId: user.id,
-			actorLabel: organization?.name ?? 'Operator',
-			entity: 'campaign',
-			action: 'created',
-			toState: String(form.get('status') ?? 'draft'),
-			reason: String(form.get('title') ?? '')
-		});
+		const result = await buildCrud(organization?.id ?? null, {
+			slug,
+			...(owner ? { organizationId: owner } : {})
+		}).actions.add(event);
+
+		if (succeeded(result)) {
+			await recordAudit({
+				actorId: user.id,
+				actorLabel: organization?.name ?? 'Operator',
+				entity: 'campaign',
+				action: 'created',
+				toState: String(form.get('status') ?? 'draft'),
+				reason: String(form.get('title') ?? '')
+			});
+		}
 
 		return result;
 	},
@@ -120,20 +172,37 @@ export const actions = {
 
 		const result = await buildCrud(organization?.id ?? null, { slug }).actions.edit(event);
 
-		await recordAudit({
-			actorId: user.id,
-			actorLabel: organization?.name ?? 'Operator',
-			entity: 'campaign',
-			entityId: id,
-			action: 'updated',
-			toState: String(form.get('status') ?? '')
-		});
+		if (succeeded(result)) {
+			await recordAudit({
+				actorId: user.id,
+				actorLabel: organization?.name ?? 'Operator',
+				entity: 'campaign',
+				entityId: id,
+				action: 'updated',
+				toState: String(form.get('status') ?? '')
+			});
+		}
 
 		return result;
 	},
 
 	delete: async (event: RequestEvent) => {
-		const { organization } = await context(event);
-		return buildCrud(organization?.id ?? null).actions.delete(event);
+		const { user, organization } = await context(event);
+		const form = await event.request.clone().formData();
+		const id = Number(form.get('id') ?? 0);
+
+		const result = await buildCrud(organization?.id ?? null).actions.delete(event);
+
+		if (succeeded(result)) {
+			await recordAudit({
+				actorId: user.id,
+				actorLabel: organization?.name ?? 'Operator',
+				entity: 'campaign',
+				entityId: id,
+				action: 'deleted'
+			});
+		}
+
+		return result;
 	}
 };

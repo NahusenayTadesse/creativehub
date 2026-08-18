@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { asc } from 'drizzle-orm';
 import type { RequestEvent } from '@sveltejs/kit';
 import { contentCrud } from '$lib/server/crud';
@@ -10,7 +11,7 @@ import { refreshCreatorScore } from '$lib/server/score-service';
 const crudFor = (creatorId: number) =>
 	contentCrud({
 		table: t.portfolioItems,
-		label: 'Portfolio item',
+		label: () => m.po_label(),
 		addSchema: portfolioAdd,
 		editSchema: portfolioEdit,
 		scope: { column: t.portfolioItems.creatorId, key: 'creatorId', value: creatorId },

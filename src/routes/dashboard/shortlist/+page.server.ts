@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { fail } from '@sveltejs/kit';
 import { and, desc, eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
@@ -44,7 +45,7 @@ export const actions: Actions = {
 		const { organization } = await requireOrganization(event);
 		const form = await event.request.formData();
 		const creatorId = Number(form.get('creatorId'));
-		if (!creatorId) return fail(400, { message: 'Unknown creator' });
+		if (!creatorId) return fail(400, { message: m.srv_unknown_creator() });
 
 		await db
 			.delete(t.savedCreators)

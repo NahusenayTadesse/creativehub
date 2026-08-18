@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import { superForm } from 'sveltekit-superforms';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
@@ -37,11 +38,11 @@
 	const currencyItems = ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'].map(
 		(c) => ({ value: c, name: c })
 	);
-	const availabilityItems = [
-		{ value: 'available', name: 'Available for work' },
-		{ value: 'busy', name: 'Currently busy' },
-		{ value: 'away', name: 'Away' }
-	];
+	const availabilityItems = $derived([
+		{ value: 'available', name: m.pf_avail_available() },
+		{ value: 'busy', name: m.pf_avail_busy() },
+		{ value: 'away', name: m.pf_avail_away() }
+	]);
 
 	/* CheckboxComp works in strings; the schema coerces back to numbers. */
 	const categoryStrings = $derived(($form.categoryIds ?? []).map(String));
@@ -49,31 +50,27 @@
 
 	const blockers = $derived.by(() => {
 		const list: string[] = [];
-		if (!creator.bio || creator.bio.length < 20) list.push('a bio of at least a sentence or two');
-		if (data.readiness.channels === 0) list.push('at least one linked channel');
-		if (data.readiness.packages === 0) list.push('at least one package');
+		if (!creator.bio || creator.bio.length < 20) list.push(m.pf_blocker_bio());
+		if (data.readiness.channels === 0) list.push(m.pf_blocker_channels());
+		if (data.readiness.packages === 0) list.push(m.pf_blocker_packages());
 		return list;
 	});
 
 	const publishHandler = () => {
 		return async ({ result, update }: any) => {
-			if (result.type === 'failure') toast.error(result.data?.message ?? 'Could not publish.');
+			if (result.type === 'failure') toast.error(result.data?.message ?? m.pf_could_not_publish());
 			else if (result.type === 'success') {
-				toast.success(creator.isPublished ? 'Profile hidden' : 'Profile is now live');
+				toast.success(creator.isPublished ? m.pf_hidden_toast() : m.pf_live_toast());
 			}
 			await update();
 		};
 	};
 </script>
 
-<svelte:head><title>Profile — Creator Network</title></svelte:head>
+<svelte:head><title>{m.pf_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
-	<PageHeader
-		eyebrow="Creator studio"
-		title="Your profile"
-		description="What a brand sees before deciding whether to book you."
-	>
+	<PageHeader eyebrow={m.dashc_eyebrow()} title={m.pf_title()} description={m.pf_description()}>
 		{#snippet actions()}
 			{#if creator.isPublished}
 				<a
@@ -82,7 +79,7 @@
 					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-white px-4 py-2.5 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50"
 				>
 					<ExternalLink class="h-4 w-4 text-emerald-600" />
-					View public profile
+					{m.pf_view_public()}
 				</a>
 			{/if}
 			<form method="POST" action="?/togglePublish" use:enhance={publishHandler}>
@@ -94,10 +91,10 @@
 				>
 					{#if creator.isPublished}
 						<EyeOff class="h-4 w-4" />
-						Hide from discovery
+						{m.pf_hide()}
 					{:else}
 						<Eye class="h-4 w-4" />
-						Publish profile
+						{m.pf_publish()}
 					{/if}
 				</button>
 			</form>
@@ -108,15 +105,15 @@
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 		<div class="bento-card-mint">
 			<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
-				Visibility
+				{m.pf_visibility()}
 			</span>
 			<span class="text-lg font-black text-slate-900">
-				{creator.isPublished ? 'Live in discovery' : 'Not published'}
+				{creator.isPublished ? m.pf_live_in_discovery() : m.pf_not_published()}
 			</span>
 		</div>
 		<div class="bento-card bento-card-static">
 			<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
-				Creator score
+				{m.pf_creator_score()}
 			</span>
 			<span class="flex items-center gap-1.5 text-lg font-black text-slate-900">
 				<Award class="h-4 w-4 text-emerald-600" />
@@ -125,13 +122,13 @@
 		</div>
 		<div class="bento-card bento-card-static">
 			<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
-				Total reach
+				{m.pf_total_reach()}
 			</span>
 			<span class="text-lg font-black text-slate-900">{formatReach(creator.totalReach)}</span>
 		</div>
 		<div class="bento-card bento-card-static">
 			<span class="mb-1 block text-[10px] font-black tracking-widest text-slate-600 uppercase">
-				Verification
+				{m.pf_verification()}
 			</span>
 			<VerificationBadge level={creator.verificationLevel} />
 		</div>
@@ -143,21 +140,21 @@
 			<h3 class="flex items-center gap-1.5 text-sm font-black text-slate-900">
 				{#if blockers.length}
 					<CircleAlert class="h-4 w-4 text-amber-700" />
-					Before you can publish
+					{m.pf_before_publish()}
 				{:else}
 					<CircleCheckBig class="h-4 w-4 text-emerald-700" />
-					Ready to publish
+					{m.pf_ready()}
 				{/if}
 			</h3>
 			{#if blockers.length}
 				<ul class="space-y-1">
 					{#each blockers as item (item)}
-						<li class="text-xs font-medium text-amber-900">· You still need {item}.</li>
+						<li class="text-xs font-medium text-amber-900">{m.pf_blocker_line({ item })}</li>
 					{/each}
 				</ul>
 			{:else}
 				<p class="text-xs font-medium text-amber-900">
-					Everything a brand needs is in place. Publish when you are ready to be found.
+					{m.pf_ready_body()}
 				</p>
 			{/if}
 		</div>
@@ -165,56 +162,82 @@
 
 	<!-- Edit form -->
 	<div class="bento-card bento-card-static">
-		<form method="POST" action="?/save" use:formEnhance enctype="multipart/form-data" class="space-y-2">
+		<form
+			method="POST"
+			action="?/save"
+			use:formEnhance
+			enctype="multipart/form-data"
+			class="space-y-2"
+		>
 			<Errors allErrors={$allErrors} />
 			<input type="hidden" name="id" value={creator.id} />
 
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-				<InputComp {form} {errors} label="Display name" name="fullName" type="text" required />
 				<InputComp
 					{form}
 					{errors}
-					label="Availability"
+					label={m.pf_display_name()}
+					name="fullName"
+					type="text"
+					required
+				/>
+				<InputComp
+					{form}
+					{errors}
+					label={m.pf_availability()}
 					name="availability"
 					type="select"
 					items={availabilityItems}
 				/>
 			</div>
 
-			<InputComp {form} {errors} label="Bio" name="bio" type="textarea" rows={4} />
+			<InputComp {form} {errors} label={m.pf_bio()} name="bio" type="textarea" rows={4} />
 
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-				<InputComp {form} {errors} label="Avatar URL" name="avatar" type="text" />
-				<InputComp {form} {errors} label="Cover image URL" name="cover" type="text" />
+				<InputComp {form} {errors} label={m.pf_avatar_url()} name="avatar" type="text" />
+				<InputComp {form} {errors} label={m.pf_cover_url()} name="cover" type="text" />
 			</div>
 
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
 				<InputComp
 					{form}
 					{errors}
-					label="Country"
+					label={m.pf_country()}
 					name="countryId"
 					type="select"
 					items={countryItems}
 				/>
-				<InputComp {form} {errors} label="Region" name="regionId" type="select" items={regionItems} />
-				<InputComp {form} {errors} label="City" name="city" type="text" />
+				<InputComp
+					{form}
+					{errors}
+					label={m.pf_region()}
+					name="regionId"
+					type="select"
+					items={regionItems}
+				/>
+				<InputComp {form} {errors} label={m.pf_city()} name="city" type="text" />
 			</div>
 
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
 				<InputComp
 					{form}
 					{errors}
-					label="Primary platform"
+					label={m.pf_primary_platform()}
 					name="primaryPlatformId"
 					type="select"
 					items={platformItems}
 				/>
-				<InputComp {form} {errors} label="Starting price" name="startingPrice" type="number" />
 				<InputComp
 					{form}
 					{errors}
-					label="Currency"
+					label={m.pf_starting_price()}
+					name="startingPrice"
+					type="number"
+				/>
+				<InputComp
+					{form}
+					{errors}
+					label={m.campaign_currency()}
 					name="currencyCode"
 					type="select"
 					items={currencyItems}
@@ -222,9 +245,9 @@
 			</div>
 
 			<div class="space-y-1 pt-2">
-				<span class="text-xs font-black text-slate-900">Categories</span>
+				<span class="text-xs font-black text-slate-900">{m.pf_categories()}</span>
 				<p class="text-[11px] font-medium text-slate-500">
-					Brands filter discovery by these, so pick the ones you genuinely make work in.
+					{m.pf_categories_note()}
 				</p>
 				<div class="flex flex-wrap gap-2 pt-1">
 					{#each categoryItems as item (item.value)}
@@ -254,7 +277,7 @@
 			</div>
 
 			<div class="space-y-1 pt-2">
-				<span class="text-xs font-black text-slate-900">Working languages</span>
+				<span class="text-xs font-black text-slate-900">{m.pf_working_languages()}</span>
 				<div class="flex flex-wrap gap-2 pt-1">
 					{#each languageItems as item (item.value)}
 						{@const selected = languageStrings.includes(String(item.value))}
@@ -288,9 +311,9 @@
 				class="mt-4 w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
 			>
 				{#if $delayed}
-					<LoadingBtn name="Saving" />
+					<LoadingBtn name={m.common_saving()} />
 				{:else}
-					Save profile
+					{m.pf_save()}
 				{/if}
 			</button>
 		</form>

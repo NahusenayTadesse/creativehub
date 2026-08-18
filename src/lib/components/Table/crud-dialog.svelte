@@ -24,6 +24,7 @@
 	import { Save, Plus, SquarePen } from '@lucide/svelte';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
+	import * as m from '$lib/paraglide/messages';
 
 	let {
 		title,
@@ -135,9 +136,10 @@
 
 					<Button type="submit" form={formId} class="mt-4">
 						{#if $delayed}
-							<LoadingBtn name="Saving" />
+							<LoadingBtn name={m.common_saving()} />
 						{:else}
-							<Save class="size-4" /> {editing ? 'Save Changes' : 'Add'}
+							<Save class="size-4" />
+							{editing ? m.common_save_changes() : m.common_add()}
 						{/if}
 					</Button>
 				</form>

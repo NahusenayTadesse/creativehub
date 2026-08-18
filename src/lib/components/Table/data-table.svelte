@@ -40,6 +40,7 @@
 	import * as Resizable from '$lib/components/ui/resizable/index.js';
 	import ResizableHandle from '../ui/resizable/resizable-handle.svelte';
 	import { isMobile } from '$lib/global.svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: data.length });
 	let columnFilters = $state<ColumnFiltersState>([]);
@@ -175,83 +176,82 @@
 	>
 		<ScrollArea orientation="vertical" class="w-full rounded-lg p-2">
 			<div class="flex min-w-full flex-col gap-2 rounded-md border-0 px-1">
-				
-					<ScrollArea
-						orientation="horizontal"
-						class="flex w-full flex-row rounded-md border whitespace-nowrap"
-					>
-						<div
-							class="flex w-full space-x-4 p-4
+				<ScrollArea
+					orientation="horizontal"
+					class="flex w-full flex-row rounded-md border whitespace-nowrap"
+				>
+					<div
+						class="flex w-full space-x-4 p-4
 						"
-						>
+					>
 						{#if search}
 							<Input
 								type="search"
-								placeholder="Search Table..."
+								placeholder={m.tbl_search_placeholder()}
 								class="w-64 lg:w-full"
 								bind:value={globalFilter}
 								oninput={() => table.setGlobalFilter(globalFilter)}
 							/>
-							{/if}
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger>
-									{#snippet child({ props })}
-										<Button {...props} variant="outline" class="ml-auto"
-											>Columns <ChevronDownIcon class="size-5" />
-										</Button>
-									{/snippet}
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content align="end">
-									{#each table.getAllColumns().filter((col) => col.getCanHide()) as column (column)}
-										<DropdownMenu.CheckboxItem
-											class="capitalize"
-											bind:checked={
-												() => column.getIsVisible(), (v) => column.toggleVisibility(!!v)
-											}
-										>
-											{column.id.replace(/([a-z])([A-Z])/g, '$1 $2')}
-										</DropdownMenu.CheckboxItem>
-									{/each}
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
+						{/if}
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger>
+								{#snippet child({ props })}
+									<Button {...props} variant="outline" class="ml-auto">
+										{m.tbl_columns()}
+										<ChevronDownIcon class="size-5" />
+									</Button>
+								{/snippet}
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="end">
+								{#each table.getAllColumns().filter((col) => col.getCanHide()) as column (column)}
+									<DropdownMenu.CheckboxItem
+										class="capitalize"
+										bind:checked={() => column.getIsVisible(), (v) => column.toggleVisibility(!!v)}
+									>
+										{column.id.replace(/([a-z])([A-Z])/g, '$1 $2')}
+									</DropdownMenu.CheckboxItem>
+								{/each}
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
 
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger>
-									{#snippet child({ props })}
-										<Button {...props} variant="outline" class="ml-auto"
-											>Pages <ChevronDownIcon class="size-5" />
-										</Button>
-									{/snippet}
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content align="center" class="flex w-4! flex-col">
-									{#each getTableBreakpoints(data) as column (column)}
-										<DropdownMenu.Item
-											class="w-4! capitalize"
-											onclick={() => {
-												table.setPageSize(column);
-											}}
-										>
-											{#snippet child({ props })}
-												<Button
-													{...props}
-													variant={pagination.pageSize === column ? 'default' : 'ghost'}
-													size="icon"
-													class="max-w-16"
-													>{column}
-												</Button>
-											{/snippet}
-										</DropdownMenu.Item>
-									{/each}
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
-							<TableExport {fileName} tableId="#{uniqueTableId}" />
-							<Button variant="outline">
-								<ListOrdered />
-								{table.getFilteredRowModel().rows.length} Results
-							</Button>
-						</div>
-					</ScrollArea>
-				
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger>
+								{#snippet child({ props })}
+									<Button {...props} variant="outline" class="ml-auto">
+										{m.tbl_pages()}
+										<ChevronDownIcon class="size-5" />
+									</Button>
+								{/snippet}
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="center" class="flex w-4! flex-col">
+								{#each getTableBreakpoints(data) as column (column)}
+									<DropdownMenu.Item
+										class="w-4! capitalize"
+										onclick={() => {
+											table.setPageSize(column);
+										}}
+									>
+										{#snippet child({ props })}
+											<Button
+												{...props}
+												variant={pagination.pageSize === column ? 'default' : 'ghost'}
+												size="icon"
+												class="max-w-16"
+												>{column}
+											</Button>
+										{/snippet}
+									</DropdownMenu.Item>
+								{/each}
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+						<TableExport {fileName} tableId="#{uniqueTableId}" />
+						<Button variant="outline">
+							<ListOrdered />
+							{m.tbl_results({ count: table.getFilteredRowModel().rows.length })}
+						</Button>
+					</div>
+				</ScrollArea>
+
 				<div class="rounded-md border">
 					<Table.Root id={uniqueTableId} class="relative max-h-96">
 						<Table.Header>
@@ -293,9 +293,10 @@
 								</Table.Row>
 							{:else}
 								<Table.Row>
-									<Table.Cell colspan={columns.length} class="text-center font-2xl">
+									<Table.Cell colspan={columns.length} class="font-2xl text-center">
 										<div class="flex flex-row items-center justify-center gap-2">
-											<Frown class="animate-bounce" /> Nothing found here.
+											<Frown class="animate-bounce" />
+											{m.tbl_nothing_found()}
 										</div>
 									</Table.Cell>
 								</Table.Row>
@@ -313,7 +314,7 @@
 								onclick={() => table.previousPage()}
 								disabled={!table.getCanPreviousPage()}
 							>
-								Previous
+								{m.tbl_previous()}
 							</Button>
 							<Button
 								variant="outline"
@@ -321,7 +322,7 @@
 								onclick={() => table.nextPage()}
 								disabled={!table.getCanNextPage()}
 							>
-								Next
+								{m.tbl_next()}
 							</Button>
 						</div>
 					{/if}

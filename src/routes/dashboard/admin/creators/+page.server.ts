@@ -1,4 +1,6 @@
+import * as m from '$lib/paraglide/messages';
 import { contentCrud } from '$lib/server/crud';
+import { requireRole } from '$lib/server/guards';
 import * as t from '$lib/server/db/schema';
 import { creatorAdd, creatorEdit } from '$lib/schemas';
 import { getReferenceData } from '$lib/server/queries';
@@ -10,11 +12,13 @@ import type { RequestEvent } from '@sveltejs/kit';
  */
 const crud = contentCrud({
 	table: t.creators,
-	label: 'Creator',
+	label: () => m.ac_label(),
 	addSchema: creatorAdd,
 	editSchema: creatorEdit,
 	listFields: ['topCountries'],
-	excludeDeleted: true
+	excludeDeleted: true,
+	/* Actions run before any `load`, so the admin layout guard cannot cover them. */
+	guard: (event) => requireRole(event, 'admin')
 });
 
 export const load = async () => {

@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { eq } from 'drizzle-orm';
@@ -33,7 +34,7 @@ export const actions: Actions = {
 		const user = requireRole(event, 'admin');
 		const form = await superValidate(event.request, zod4(settingsSchema));
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Check the form for errors' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
 		}
 
 		const { id, ...values } = form.data;
@@ -56,6 +57,6 @@ export const actions: Actions = {
 			reason: `Fee set to ${values.platformFeePercent}%`
 		});
 
-		return message(form, { type: 'success', text: 'Settings saved' });
+		return message(form, { type: 'success', text: m.srv_settings_saved() });
 	}
 };

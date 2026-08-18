@@ -3,6 +3,7 @@
  * factors. It is arithmetic an operator can argue with, not a model — which is
  * what a marketplace needs when the number decides who gets paid.
  */
+import * as m from '$lib/paraglide/messages';
 
 export type MatchInput = {
 	campaign: {
@@ -46,7 +47,10 @@ export type MatchBreakdown = {
 	platform: number;
 	budget: number;
 	total: number;
-	tier: 'Exceptional Fit' | 'Strong Fit' | 'Moderate Fit' | 'Low Fit';
+	/** Stable key — compare against this, never against the localised label. */
+	tier: 'exceptional' | 'strong' | 'moderate' | 'low';
+	/** The tier in the request's locale, for display. */
+	tierLabel: string;
 	tierClass: string;
 	synergies: string[];
 	predictedReach: string;
@@ -59,7 +63,8 @@ export function calculateMatch({
 	adjacentCategoryIds = []
 }: MatchInput): MatchBreakdown {
 	/* 1. Niche alignment — 25 */
-	const directMatch = campaign.categoryId !== null && creator.categoryIds.includes(campaign.categoryId);
+	const directMatch =
+		campaign.categoryId !== null && creator.categoryIds.includes(campaign.categoryId);
 	const adjacentMatch = creator.categoryIds.some((id) => adjacentCategoryIds.includes(id));
 	const niche = directMatch ? 25 : adjacentMatch ? 18 : 8;
 
@@ -141,41 +146,58 @@ export function calculateMatch({
 		Math.max(15, Math.round(niche + demographics + performance + platform + budget))
 	);
 
-	let tier: MatchBreakdown['tier'] = 'Moderate Fit';
+	let tier: MatchBreakdown['tier'] = 'moderate';
 	let tierClass = 'text-amber-800 bg-amber-100 border-amber-400';
 	if (total >= 90) {
-		tier = 'Exceptional Fit';
+		tier = 'exceptional';
 		tierClass = 'text-emerald-900 bg-emerald-100 border-emerald-400';
 	} else if (total >= 80) {
-		tier = 'Strong Fit';
+		tier = 'strong';
 		tierClass = 'text-indigo-900 bg-indigo-100 border-indigo-400';
 	} else if (total < 65) {
-		tier = 'Low Fit';
+		tier = 'low';
 		tierClass = 'text-slate-700 bg-slate-100 border-slate-400';
 	}
+
+	const tierLabel = {
+		exceptional: m.match_tier_exceptional(),
+		strong: m.match_tier_strong(),
+		moderate: m.match_tier_moderate(),
+		low: m.match_tier_low()
+	}[tier];
 
 	const synergies: string[] = [];
 	if (directMatch) {
 		synergies.push(
-			`Direct niche match in ${campaign.categoryName ?? 'this category'} with a verified portfolio.`
+			m.match_direct_niche({ category: campaign.categoryName ?? m.match_this_category() })
 		);
 	} else {
 		synergies.push(
-			`Adjacent authority in ${creator.categories.join(' & ') || 'their categories'} that reaches the same audience.`
+			m.match_adjacent({
+				categories: creator.categories.join(' & ') || m.match_their_categories()
+			})
 		);
 	}
 	if (engagement >= 6) {
 		synergies.push(
-			`${engagement.toFixed(1)}% engagement on ${creator.platformName ?? 'their main channel'}, above the usual benchmark.`
+			m.match_engagement({
+				rate: engagement.toFixed(1),
+				channel: creator.platformName ?? m.match_main_channel()
+			})
 		);
 	}
 	if (creator.overseasPercentage >= 20 && creator.topCountries.length) {
 		synergies.push(
-			`${creator.overseasPercentage}% of audience in ${creator.topCountries.slice(0, 3).join(', ')}.`
+			m.match_overseas({
+				percent: creator.overseasPercentage,
+				countries: creator.topCountries.slice(0, 3).join(', ')
+			})
 		);
 	} else {
 		synergies.push(
-			`Concentrated local audience in ${creator.city ?? creator.regionName ?? 'their home market'}.`
+			m.match_local_audience({
+				place: creator.city ?? creator.regionName ?? m.match_home_market()
+			})
 		);
 	}
 
@@ -190,12 +212,16 @@ export function calculateMatch({
 		budget,
 		total,
 		tier,
+		tierLabel,
 		tierClass,
 		synergies: synergies.slice(0, 3),
-		predictedReach: `${Math.round(minImpressions / 1000)}K – ${Math.round(maxImpressions / 1000)}K est. impressions`,
+		predictedReach: m.match_predicted_reach({
+			min: Math.round(minImpressions / 1000),
+			max: Math.round(maxImpressions / 1000)
+		}),
 		recommendedAngle:
 			campaign.compensationType === 'barter'
-				? `Experiential barter package showcased natively on ${creator.platformName ?? 'their main channel'}.`
-				: `One dedicated ${creator.platformName ?? 'channel'} breakdown plus a tracked call-to-action link.`
+				? m.match_angle_barter({ channel: creator.platformName ?? m.match_main_channel() })
+				: m.match_angle_paid({ channel: creator.platformName ?? m.match_channel() })
 	};
 }

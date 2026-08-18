@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
@@ -23,46 +24,42 @@
 		name: `${c.flag} ${c.name}`
 	}));
 
-	const orgTypes = [
-		{ value: 'company', name: 'Company' },
-		{ value: 'startup', name: 'Startup' },
-		{ value: 'agency', name: 'Agency' },
-		{ value: 'ngo', name: 'NGO / non-profit' },
-		{ value: 'government', name: 'Government / public sector' },
-		{ value: 'event_organizer', name: 'Event organiser' }
-	];
+	const orgTypes = $derived([
+		{ value: 'company', name: m.og_type_company() },
+		{ value: 'startup', name: m.og_type_startup() },
+		{ value: 'agency', name: m.og_type_agency() },
+		{ value: 'ngo', name: m.og_type_ngo() },
+		{ value: 'government', name: m.og_type_government() },
+		{ value: 'event_organizer', name: m.og_type_event() }
+	]);
 </script>
 
-<svelte:head><title>Organisation — Creator Network</title></svelte:head>
+<svelte:head><title>{m.og_meta_title()}</title></svelte:head>
 
 <div class="mx-auto max-w-3xl space-y-6">
-	<PageHeader
-		eyebrow="Brand operations"
-		title="Organisation settings"
-		description="Campaigns, bookings and shortlists all belong to this organisation rather than to any one person."
-	/>
+	<PageHeader eyebrow={m.dashb_eyebrow()} title={m.og_title()} description={m.og_description()} />
 
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 		<div class="bento-card bento-card-static">
 			<span class="mb-1 block text-[10px] font-black tracking-widest text-slate-600 uppercase">
-				Verification
+				{m.pf_verification()}
 			</span>
 			<VerificationBadge level={data.organization.verificationLevel} />
 		</div>
 		<div class="bento-card-mint">
 			<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
-				Team members
+				{m.og_team_members()}
 			</span>
 			<span class="text-lg font-black text-slate-900">{data.members.length}</span>
 		</div>
 		<div class="bento-card-yellow">
 			<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
-				Monthly cap
+				{m.og_monthly_cap()}
 			</span>
 			<span class="text-lg font-black text-slate-900">
 				{data.organization.monthlyBudgetCap
 					? data.organization.monthlyBudgetCap.toLocaleString()
-					: 'None set'}
+					: m.og_none_set()}
 			</span>
 		</div>
 	</div>
@@ -72,35 +69,42 @@
 			<Errors allErrors={$allErrors} />
 			<input type="hidden" name="id" value={data.organization.id} />
 
-			<InputComp {form} {errors} label="Organisation name" name="name" type="text" required />
-			<InputComp {form} {errors} label="Type" name="orgType" type="select" items={orgTypes} />
+			<InputComp {form} {errors} label={m.og_name()} name="name" type="text" required />
+			<InputComp
+				{form}
+				{errors}
+				label={m.og_type()}
+				name="orgType"
+				type="select"
+				items={orgTypes}
+			/>
 
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 				<InputComp
 					{form}
 					{errors}
-					label="Country"
+					label={m.pf_country()}
 					name="countryId"
 					type="select"
 					items={countryItems}
 				/>
-				<InputComp {form} {errors} label="City" name="city" type="text" />
+				<InputComp {form} {errors} label={m.pf_city()} name="city" type="text" />
 			</div>
 
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-				<InputComp {form} {errors} label="Website" name="website" type="text" />
-				<InputComp {form} {errors} label="Logo URL" name="logo" type="text" />
+				<InputComp {form} {errors} label={m.og_website()} name="website" type="text" />
+				<InputComp {form} {errors} label={m.og_logo_url()} name="logo" type="text" />
 			</div>
 
-			<InputComp {form} {errors} label="About" name="bio" type="textarea" rows={4} />
+			<InputComp {form} {errors} label={m.og_about()} name="bio" type="textarea" rows={4} />
 
 			<InputComp
 				{form}
 				{errors}
-				label="Monthly budget cap (optional)"
+				label={m.og_budget_cap()}
 				name="monthlyBudgetCap"
 				type="number"
-				placeholder="A guardrail your team can see when opening bookings"
+				placeholder={m.og_budget_cap_placeholder()}
 			/>
 
 			<button
@@ -109,21 +113,25 @@
 				class="mt-4 w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
 			>
 				{#if $delayed}
-					<LoadingBtn name="Saving" />
+					<LoadingBtn name={m.common_saving()} />
 				{:else}
-					Save organisation
+					{m.og_save()}
 				{/if}
 			</button>
 		</form>
 	</div>
 
 	<div class="bento-card bento-card-static space-y-3">
-		<h2 class="flex items-center gap-1.5 border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900">
+		<h2
+			class="flex items-center gap-1.5 border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900"
+		>
 			<Users class="h-4 w-4 text-emerald-600" />
-			Team
+			{m.og_team()}
 		</h2>
 		{#each data.members as member (member.id)}
-			<div class="flex items-center justify-between rounded-xl border-2 border-slate-200 bg-slate-50 p-3">
+			<div
+				class="flex items-center justify-between rounded-xl border-2 border-slate-200 bg-slate-50 p-3"
+			>
 				<div>
 					<p class="text-xs font-black text-slate-900">{member.name}</p>
 					<p class="text-[11px] font-bold text-slate-500">{member.email}</p>

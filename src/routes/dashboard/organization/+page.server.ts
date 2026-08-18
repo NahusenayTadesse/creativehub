@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { eq } from 'drizzle-orm';
@@ -46,7 +47,7 @@ export const actions: Actions = {
 		const { user, organization } = await requireOrganization(event);
 		const form = await superValidate(event.request, zod4(organizationSelfEdit));
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Check the form for errors' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
 		}
 
 		await db
@@ -73,6 +74,6 @@ export const actions: Actions = {
 			action: 'updated'
 		});
 
-		return message(form, { type: 'success', text: 'Organisation updated' });
+		return message(form, { type: 'success', text: m.srv_org_updated() });
 	}
 };

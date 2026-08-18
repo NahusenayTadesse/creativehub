@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { STATUS_LABELS, ESCROW_LABELS } from '$lib/domain/booking';
+	import { statusLabel, escrowLabel, applicationLabel, campaignLabel } from '$lib/domain/booking';
 
 	let {
 		status,
@@ -40,10 +40,12 @@
 
 	const label = $derived(
 		kind === 'escrow'
-			? (ESCROW_LABELS[status as keyof typeof ESCROW_LABELS] ?? status)
+			? escrowLabel(status)
 			: kind === 'booking'
-				? (STATUS_LABELS[status as keyof typeof STATUS_LABELS] ?? status)
-				: status.replace(/_/g, ' ')
+				? statusLabel(status)
+				: kind === 'application'
+					? applicationLabel(status)
+					: campaignLabel(status)
 	);
 </script>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import { Calendar } from '$lib/components/ui/calendar';
 	import * as Popover from '$lib/components/ui/popover/index.js';
@@ -45,9 +46,9 @@
 
 	// Derived label for the trigger button
 	const displayLabel = $derived.by(() => {
-		if (selectedDates.length === 0) return 'Select dates';
+		if (selectedDates.length === 0) return m.dp_select_dates();
 		if (selectedDates.length === 1) return formatEthiopianDate(selectedDates[0]);
-		return `${selectedDates.length} dates selected`;
+		return m.dp_dates_selected({ count: selectedDates.length });
 	});
 </script>
 
@@ -86,7 +87,9 @@
 				<Button variant="secondary" size="sm" onclick={() => (selectedDates = [today(tz)])}>
 					Today Only
 				</Button>
-				<Button variant="ghost" size="sm" onclick={() => (selectedDates = [])}>Clear All</Button>
+				<Button variant="ghost" size="sm" onclick={() => (selectedDates = [])}
+					>{m.dp_clear_all()}</Button
+				>
 			</div>
 			<ScrollArea>
 				<Calendar

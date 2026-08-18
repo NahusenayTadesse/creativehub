@@ -1,3 +1,5 @@
+import * as m from '$lib/paraglide/messages';
+
 /**
  * Anti-disintermediation. Deals stay on-platform because the escrow, the
  * delivery record and the review only exist here — masking contact details in
@@ -17,15 +19,15 @@ export function maskContact(input: string): MaskResult {
 
 	// Fresh regex per pass: a shared /g literal carries `lastIndex` between calls.
 	if (new RegExp(EMAIL.source, EMAIL.flags).test(text)) {
-		text = text.replace(new RegExp(EMAIL.source, EMAIL.flags), '[email hidden — keep it on Creator Network]');
+		text = text.replace(new RegExp(EMAIL.source, EMAIL.flags), m.mask_email());
 		masked = true;
 	}
 	if (new RegExp(PHONE.source, PHONE.flags).test(text)) {
-		text = text.replace(new RegExp(PHONE.source, PHONE.flags), '[phone hidden — escrow protection]');
+		text = text.replace(new RegExp(PHONE.source, PHONE.flags), m.mask_phone());
 		masked = true;
 	}
 	if (new RegExp(HANDOFF.source, HANDOFF.flags).test(text)) {
-		text = text.replace(new RegExp(HANDOFF.source, HANDOFF.flags), '[link hidden — keep the deal on-platform]');
+		text = text.replace(new RegExp(HANDOFF.source, HANDOFF.flags), m.mask_link());
 		masked = true;
 	}
 

@@ -4,39 +4,40 @@
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
 	import { Award, Star, ExternalLink } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
+	import * as m from '$lib/paraglide/messages';
 
 	let { data } = $props();
 
-	const fields: CrudField[] = [
-		{ name: 'fullName', label: 'Full name', required: true },
-		{ name: 'username', label: 'Handle', required: true },
-		{ name: 'bio', label: 'Bio', type: 'textarea', rows: 4 },
-		{ name: 'avatar', label: 'Avatar URL' },
-		{ name: 'cover', label: 'Cover URL' },
+	const fields: CrudField[] = $derived([
+		{ name: 'fullName', label: m.ac_full_name(), required: true },
+		{ name: 'username', label: m.pc_handle(), required: true },
+		{ name: 'bio', label: m.pf_bio(), type: 'textarea', rows: 4 },
+		{ name: 'avatar', label: m.ac_avatar_url() },
+		{ name: 'cover', label: m.ac_cover_url() },
 		{
 			name: 'countryId',
-			label: 'Country',
+			label: m.pf_country(),
 			type: 'select',
 			items: data.reference.countries.map((c) => ({ value: c.id, name: `${c.flag} ${c.name}` }))
 		},
 		{
 			name: 'regionId',
-			label: 'Region',
+			label: m.pf_region(),
 			type: 'select',
 			items: data.reference.regions.map((r) => ({ value: r.id, name: r.name }))
 		},
-		{ name: 'city', label: 'City' },
+		{ name: 'city', label: m.pf_city() },
 		{
 			name: 'primaryPlatformId',
-			label: 'Primary platform',
+			label: m.pf_primary_platform(),
 			type: 'select',
 			items: data.reference.platforms.map((p) => ({ value: p.id, name: p.name }))
 		},
-		{ name: 'totalReach', label: 'Total reach', type: 'number' },
-		{ name: 'startingPrice', label: 'Starting price', type: 'number' },
+		{ name: 'totalReach', label: m.pf_total_reach(), type: 'number' },
+		{ name: 'startingPrice', label: m.pf_starting_price(), type: 'number' },
 		{
 			name: 'currencyCode',
-			label: 'Currency',
+			label: m.campaign_currency(),
 			type: 'select',
 			items: ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'].map((c) => ({
 				value: c,
@@ -45,57 +46,77 @@
 		},
 		{
 			name: 'verificationLevel',
-			label: 'Verification badge',
+			label: m.ac_verification_badge(),
 			type: 'select',
 			items: [
-				{ value: 'unverified', name: 'Unverified' },
-				{ value: 'social_verified', name: 'Social verified' },
-				{ value: 'identity_verified', name: 'Identity verified' },
-				{ value: 'cn_verified', name: 'CN Verified' }
+				{ value: 'unverified', name: m.verif_none_label() },
+				{ value: 'social_verified', name: m.verif_social_label() },
+				{ value: 'identity_verified', name: m.verif_id_label() },
+				{ value: 'cn_verified', name: m.verif_cn_label() }
 			]
 		},
 		{
 			name: 'availability',
-			label: 'Availability',
+			label: m.pf_availability(),
 			type: 'select',
 			items: [
-				{ value: 'available', name: 'Available' },
-				{ value: 'busy', name: 'Busy' },
-				{ value: 'away', name: 'Away' }
+				{ value: 'available', name: m.ac_avail_available() },
+				{ value: 'busy', name: m.ac_avail_busy() },
+				{ value: 'away', name: m.pf_avail_away() }
 			]
 		},
-		{ name: 'overseasPercentage', label: 'Overseas audience %', type: 'number' },
-		{ name: 'topCountries', label: 'Top audience countries (one per line)', type: 'textarea', rows: 3 },
-		{ name: 'isFeatured', label: 'Featured', type: 'checkboxSingle', placeholder: 'Show on the homepage' },
-		{ name: 'isTrending', label: 'Trending', type: 'checkboxSingle', placeholder: 'Show in the trending strip' },
-		{ name: 'isPublished', label: 'Published', type: 'checkboxSingle', placeholder: 'Visible in discovery' },
-		{ name: 'sortOrder', label: 'Sort order', type: 'number' },
-		{ name: 'isActive', label: 'Active', type: 'checkboxSingle', placeholder: 'Account is active' }
-	];
+		{ name: 'overseasPercentage', label: m.ac_overseas_pct(), type: 'number' },
+		{ name: 'topCountries', label: m.ac_top_countries(), type: 'textarea', rows: 3 },
+		{
+			name: 'isFeatured',
+			label: m.ac_featured(),
+			type: 'checkboxSingle',
+			placeholder: m.ac_featured_note()
+		},
+		{
+			name: 'isTrending',
+			label: m.ac_trending(),
+			type: 'checkboxSingle',
+			placeholder: m.ac_trending_note()
+		},
+		{
+			name: 'isPublished',
+			label: m.ac_published(),
+			type: 'checkboxSingle',
+			placeholder: m.ac_published_note()
+		},
+		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
+		{
+			name: 'isActive',
+			label: m.common_active(),
+			type: 'checkboxSingle',
+			placeholder: m.common_account_active()
+		}
+	]);
 
 	const published = $derived(data.rows.filter((r) => r.isPublished).length);
 </script>
 
-<svelte:head><title>Creators — Creator Network</title></svelte:head>
+<svelte:head><title>{m.ac_meta_title()}</title></svelte:head>
 
 <CrudSection
-	eyebrow="Marketplace"
-	title="Creator supply"
-	description="Every creator record, published or not. Imported profiles stay hidden from discovery until an operator publishes them."
-	label="Creator"
+	eyebrow={m.sb_marketplace()}
+	title={m.ac_title()}
+	description={m.ac_description()}
+	label={m.ac_label()}
 	rows={data.rows}
 	{fields}
 	addForm={data.addForm}
 	editForm={data.editForm}
 	deleteForm={data.deleteForm}
 	nameKey="fullName"
-	emptyMessage="No creators yet"
+	emptyMessage={m.ac_empty()}
 >
 	{#snippet extraActions()}
 		<span
 			class="rounded-2xl border-2 border-slate-900 bg-[#dcfce7] px-4 py-2.5 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]"
 		>
-			{published} of {data.rows.length} published
+			{m.ac_published_count({ published, total: data.rows.length })}
 		</span>
 	{/snippet}
 
@@ -121,13 +142,13 @@
 							class="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 hover:underline"
 						>
 							<ExternalLink class="h-3 w-3" />
-							Live
+							{m.ac_live()}
 						</a>
 					{:else}
 						<span
 							class="rounded-md border border-amber-500 bg-amber-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-amber-900 uppercase"
 						>
-							Unpublished
+							{m.ac_unpublished()}
 						</span>
 					{/if}
 				</div>
@@ -139,32 +160,38 @@
 					<span
 						class="rounded-md border border-slate-900 bg-[#e0e7ff] px-2 py-0.5 text-[10px] font-black tracking-wider text-indigo-950 uppercase"
 					>
-						Featured
+						{m.ac_featured()}
 					</span>
 				{/if}
 				{#if creator.isTrending}
 					<span
 						class="rounded-md border border-slate-900 bg-[#fef9c3] px-2 py-0.5 text-[10px] font-black tracking-wider text-amber-950 uppercase"
 					>
-						Trending
+						{m.ac_trending()}
 					</span>
 				{/if}
 			</div>
 
 			<div class="grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2 text-center text-xs">
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-500 uppercase">Reach</div>
+					<div class="text-[9px] font-black tracking-wider text-slate-500 uppercase">
+						{m.card_reach()}
+					</div>
 					<div class="font-black text-slate-900">{formatReach(creator.totalReach)}</div>
 				</div>
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-500 uppercase">Score</div>
+					<div class="text-[9px] font-black tracking-wider text-slate-500 uppercase">
+						{m.home_score()}
+					</div>
 					<div class="flex items-center justify-center gap-0.5 font-black text-slate-900">
 						<Award class="h-3 w-3 text-emerald-600" />
 						{creator.score}
 					</div>
 				</div>
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-500 uppercase">Rating</div>
+					<div class="text-[9px] font-black tracking-wider text-slate-500 uppercase">
+						{m.card_rating()}
+					</div>
 					<div class="flex items-center justify-center gap-0.5 font-black text-slate-900">
 						<Star class="h-3 w-3 fill-amber-400 text-slate-900" />
 						{creator.averageRating.toFixed(1)}

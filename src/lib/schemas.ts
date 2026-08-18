@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { z } from 'zod/v4';
 import { idSchema, sortOrderField } from '$lib/server/crud';
 
@@ -7,22 +8,64 @@ export { idSchema, sortOrderField };
  * Building blocks
  * ------------------------------------------------------------------ */
 
-const name = (max = 180) => z.string().trim().min(2, 'Too short').max(max);
+const name = (max = 180) =>
+	z
+		.string()
+		.trim()
+		.min(2, { error: () => m.val_too_short() })
+		.max(max);
 const optionalText = z.string().trim().optional().default('');
+
+/**
+ * True only for an absolute http(s) URL.
+ *
+ * `z.url()` validates through the `URL` constructor, which accepts every
+ * scheme — `javascript:`, `data:` and `vbscript:` all pass it. Several of these
+ * values are rendered straight into an `href`, where those schemes execute, so
+ * the protocol is checked explicitly rather than left to the URL parser.
+ */
+const isHttpUrl = (value: string): boolean => {
+	try {
+		const { protocol } = new URL(value);
+		return protocol === 'http:' || protocol === 'https:';
+	} catch {
+		return false;
+	}
+};
+
+/** A required absolute http(s) link, e.g. a published deliverable. */
+const httpUrl = z
+	.string()
+	.trim()
+	.max(500)
+	.refine(isHttpUrl, { error: () => m.val_full_url() });
+
 const optionalUrl = z
 	.string()
 	.trim()
 	.max(500)
 	.optional()
 	.default('')
-	.refine((v) => !v || /^(https?:\/\/|\/)/.test(v), 'Enter a full URL starting with http');
-const money = z.coerce.number().int().min(0, 'Cannot be negative').default(0);
+	/* A site-relative path is also allowed here: these columns hold uploads too. */
+	.refine((v) => !v || v.startsWith('/') || isHttpUrl(v), { error: () => m.val_full_url() });
+const money = z.coerce
+	.number()
+	.int()
+	.min(0, { error: () => m.val_not_negative() })
+	.default(0);
 const count = z.coerce.number().int().min(0).default(0);
 const refId = z.coerce.number().int().positive();
 const optionalRefId = z.coerce.number().int().positive().optional();
 const active = z.coerce.boolean().default(true);
 /** Textareas that hold one item per line; crud.ts turns these into JSON arrays. */
 const lines = z.string().trim().optional().default('');
+
+/** Splits a one-per-line textarea into its non-empty, trimmed entries. */
+export const linesOf = (value: string | null | undefined): string[] =>
+	(value ?? '')
+		.split('\n')
+		.map((line) => line.trim())
+		.filter(Boolean);
 const rate = z.coerce.number().min(0).max(100).default(0);
 
 const CURRENCIES = ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'] as const;
@@ -40,21 +83,21 @@ const VERIFICATION_LEVELS = [
  * ------------------------------------------------------------------ */
 
 export const loginSchema = z.object({
-	email: z.email('Enter a valid email'),
-	password: z.string().min(8, 'At least 8 characters')
+	email: z.email({ error: () => m.val_valid_email() }),
+	password: z.string().min(8, { error: () => m.val_min_8() })
 });
 
 export const registerSchema = z
 	.object({
 		name: name(),
-		email: z.email('Enter a valid email'),
-		password: z.string().min(8, 'At least 8 characters'),
+		email: z.email({ error: () => m.val_valid_email() }),
+		password: z.string().min(8, { error: () => m.val_min_8() }),
 		confirm: z.string(),
 		/** Admin is never self-selected — see routes/register/+page.server.ts. */
 		role: z.enum(['creator', 'business']).default('creator')
 	})
 	.refine((data) => data.password === data.confirm, {
-		message: 'Passwords do not match',
+		error: () => m.val_passwords_mismatch(),
 		path: ['confirm']
 	});
 
@@ -71,7 +114,10 @@ export const countryAdd = z.object({
 	flag: z.string().trim().max(16).default('🌍'),
 	currencyCode: z.string().trim().min(2).max(8).toUpperCase().default('USD'),
 	currencySymbol: z.string().trim().max(12).default('$'),
-	usdRate: z.coerce.number().positive('Must be greater than zero').default(1),
+	usdRate: z.coerce
+		.number()
+		.positive({ error: () => m.val_greater_than_zero() })
+		.default(1),
 	paymentRails: lines,
 	description: optionalText,
 	isActive: active,
@@ -95,7 +141,7 @@ export const categoryAdd = z.object({
 		.trim()
 		.min(2)
 		.max(140)
-		.regex(/^[a-z0-9-]+$/, 'Lower-case letters, numbers and dashes only'),
+		.regex(/^[a-z0-9-]+$/, { error: () => m.val_slug_format() }),
 	description: optionalText,
 	icon: z.string().trim().max(60).default('Sparkles'),
 	isActive: active,
@@ -108,7 +154,7 @@ export const platformAdd = z.object({
 	color: z
 		.string()
 		.trim()
-		.regex(/^#[0-9a-fA-F]{6}$/, 'Use a hex colour like #10b981')
+		.regex(/^#[0-9a-fA-F]{6}$/, { error: () => m.val_hex_colour() })
 		.default('#0f172a'),
 	isActive: active,
 	sortOrder: sortOrderField
@@ -133,7 +179,7 @@ export const creatorAdd = z.object({
 		.trim()
 		.min(3)
 		.max(120)
-		.regex(/^[a-z0-9_.]+$/, 'Lower-case letters, numbers, dots and underscores only'),
+		.regex(/^[a-z0-9_.]+$/, { error: () => m.val_handle_format() }),
 	fullName: name(),
 	bio: optionalText,
 	avatar: optionalUrl,
@@ -181,9 +227,13 @@ export const creatorCreateProfile = z.object({
 		.trim()
 		.min(3)
 		.max(120)
-		.regex(/^[a-z0-9_.]+$/, 'Lower-case letters, numbers, dots and underscores only'),
+		.regex(/^[a-z0-9_.]+$/, { error: () => m.val_handle_format() }),
 	fullName: name(),
-	bio: z.string().trim().min(20, 'Tell brands at least a sentence or two').max(2000),
+	bio: z
+		.string()
+		.trim()
+		.min(20, { error: () => m.val_bio_min() })
+		.max(2000),
 	countryId: refId,
 	city: z.string().trim().min(2).max(120),
 	primaryPlatformId: refId,
@@ -242,7 +292,7 @@ export const organizationAdd = z.object({
 		.trim()
 		.min(2)
 		.max(200)
-		.regex(/^[a-z0-9-]+$/, 'Lower-case letters, numbers and dashes only'),
+		.regex(/^[a-z0-9-]+$/, { error: () => m.val_slug_format() }),
 	orgType: z.enum(ORG_TYPES).default('company'),
 	logo: optionalUrl,
 	website: optionalUrl,
@@ -284,8 +334,17 @@ const COMPENSATION = ['paid', 'barter', 'event_pass'] as const;
  * campaign must carry complete terms for the model it declares (PRD FR-042).
  */
 const campaignShape = {
+	/**
+	 * Only an operator supplies this: a brand's campaigns are stamped from its
+	 * session by the crud scope, which overrides anything posted here.
+	 */
+	organizationId: optionalRefId,
 	title: name(250),
-	description: z.string().trim().min(20, 'Give creators something to respond to').max(4000),
+	description: z
+		.string()
+		.trim()
+		.min(20, { error: () => m.val_description_min() })
+		.max(4000),
 	objective: optionalText,
 	compensationType: z.enum(COMPENSATION).default('paid'),
 	categoryId: optionalRefId,
@@ -337,7 +396,7 @@ const withCompensationRules = <T extends z.ZodObject<any>>(schema: T) =>
 					data.compensationType !== 'paid' || data.status !== 'published' || data.budgetMax > 0
 				);
 			},
-			{ message: 'A published paid campaign needs a budget', path: ['budgetMax'] }
+			{ error: () => m.val_paid_needs_budget(), path: ['budgetMax'] }
 		)
 		.refine(
 			(raw) => {
@@ -348,7 +407,7 @@ const withCompensationRules = <T extends z.ZodObject<any>>(schema: T) =>
 					(data.barterDetails ?? '').length > 0
 				);
 			},
-			{ message: 'Describe what the creator receives', path: ['barterDetails'] }
+			{ error: () => m.val_barter_needs_details(), path: ['barterDetails'] }
 		)
 		.refine(
 			(raw) => {
@@ -359,18 +418,20 @@ const withCompensationRules = <T extends z.ZodObject<any>>(schema: T) =>
 					(data.eventName ?? '').length > 0
 				);
 			},
-			{ message: 'Name the event', path: ['eventName'] }
+			{ error: () => m.val_event_needs_name(), path: ['eventName'] }
 		)
 		.refine(
 			(raw) => {
 				const data = raw as CampaignRuleInput;
 				return data.followerMax === 0 || data.followerMax >= data.followerMin;
 			},
-			{ message: 'Maximum must be at least the minimum', path: ['followerMax'] }
+			{ error: () => m.val_max_at_least_min(), path: ['followerMax'] }
 		);
 
 export const campaignAdd = withCompensationRules(z.object(campaignShape));
-export const campaignEdit = withCompensationRules(z.object({ ...campaignShape, ...idSchema.shape }));
+export const campaignEdit = withCompensationRules(
+	z.object({ ...campaignShape, ...idSchema.shape })
+);
 
 /* ------------------------------------------------------------------ *
  * Applications, bookings, delivery
@@ -378,7 +439,11 @@ export const campaignEdit = withCompensationRules(z.object({ ...campaignShape, .
 
 export const applicationSchema = z.object({
 	campaignId: refId,
-	pitch: z.string().trim().min(30, 'Say why your audience fits, in a sentence or three').max(2000),
+	pitch: z
+		.string()
+		.trim()
+		.min(30, { error: () => m.val_pitch_min() })
+		.max(2000),
 	proposedPrice: money,
 	currencyCode: currency
 });
@@ -426,7 +491,8 @@ export const fundEscrowSchema = z.object({
 
 export const submissionSchema = z.object({
 	bookingId: refId,
-	contentUrl: z.url('Paste the published link'),
+	/* Rendered as an `href` on the brand's booking page — http(s) only. */
+	contentUrl: httpUrl,
 	notes: optionalText
 });
 
@@ -462,10 +528,23 @@ export const verificationSubmit = z.object({
 	requestedLevel: z.enum(['social_verified', 'identity_verified', 'cn_verified']),
 	/** Either an uploaded file or a link — the action normalises both to a path. */
 	documentUrl: z
-		.union([z.instanceof(File), z.string()])
+		.union([
+			z.instanceof(File),
+			/* A pasted link reaches an operator's `href`; an upload is a stored filename. */
+			z
+				.string()
+				.trim()
+				.max(500)
+				.refine((v) => !v || isHttpUrl(v), {
+					error: () => m.val_full_url()
+				})
+		])
 		.optional()
 		.default(''),
-	socialProofs: lines
+	/* One proof link per line, each rendered as an `href` in the operator queue. */
+	socialProofs: lines.refine((v) => linesOf(v).every(isHttpUrl), {
+		error: () => m.val_full_url()
+	})
 });
 
 export const verificationDecision = z.object({
@@ -490,4 +569,70 @@ export const settingsSchema = z.object({
 	platformFeePercent: z.coerce.number().int().min(0).max(50).default(15),
 	supportEmail: z.string().trim().max(200).optional().default(''),
 	supportPhone: z.string().trim().max(60).optional().default('')
+});
+
+/* ------------------------------------------------------------------ *
+ * Trending
+ *
+ * Ranges are not decoration here: these values are the algorithm, and a
+ * mistyped window or a negative weight would quietly reshape the homepage.
+ * ------------------------------------------------------------------ */
+
+const weight = z.coerce.number().int().min(0).max(100).default(0);
+
+export const trendingConfigSchema = z.object({
+	id: z.coerce.number().optional(),
+	mode: z.enum(['manual', 'automatic', 'hybrid']).default('hybrid'),
+	slots: z.coerce.number().int().min(1).max(48).default(12),
+	windowDays: z.coerce.number().int().min(1).max(365).default(30),
+	/** 0 disables decay — every event in the window then counts the same. */
+	halfLifeDays: z.coerce.number().int().min(0).max(180).default(7),
+	normalization: z.enum(['percentile', 'minmax']).default('percentile'),
+
+	weightScore: weight,
+	weightReach: weight,
+	weightEngagement: weight,
+	weightBookings: weight,
+	weightApplications: weight,
+	weightReviews: weight,
+	weightRating: weight,
+	weightSaves: weight,
+	weightNewcomer: weight,
+	weightVerification: weight,
+
+	minScore: z.coerce.number().int().min(0).max(100).default(0),
+	minFollowers: count,
+	minRating: z.coerce.number().min(0).max(5).default(0),
+	minVerification: z.enum(VERIFICATION_LEVELS).default('unverified'),
+	requireAvailable: z.coerce.boolean().default(false),
+	requireChannel: z.coerce.boolean().default(false),
+	requireActivity: z.coerce.boolean().default(false),
+
+	/** 0 means uncapped. */
+	maxPerCategory: z.coerce.number().int().min(0).max(48).default(0),
+	maxPerCountry: z.coerce.number().int().min(0).max(48).default(0),
+	maxTenureDays: z.coerce.number().int().min(0).max(365).default(0),
+	cooldownDays: z.coerce.number().int().min(0).max(365).default(0),
+
+	pinnedFirst: z.coerce.boolean().default(false),
+	autoRefresh: z.coerce.boolean().default(false),
+	refreshIntervalMinutes: z.coerce.number().int().min(15).max(10080).default(360),
+	isFrozen: z.coerce.boolean().default(false)
+});
+
+export const trendingOverrideSchema = z.object({
+	creatorId: refId,
+	kind: z.enum(['pin', 'boost', 'block']),
+	/** 1-based slot for a pin; 0 leaves placement to the ranking. */
+	position: z.coerce.number().int().min(0).max(48).default(0),
+	multiplier: z.coerce.number().min(0.1).max(5).default(1),
+	note: z.string().trim().max(300).optional().default(''),
+	/** Blank means the instruction stands until an operator removes it. */
+	expiresAt: z.string().trim().max(20).optional().default('')
+});
+
+export const trendingOverrideRemove = z.object({ id: z.coerce.number() });
+
+export const trendingRunSchema = z.object({
+	note: z.string().trim().max(300).optional().default('')
 });

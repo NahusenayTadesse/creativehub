@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages';
 import { asc } from 'drizzle-orm';
 import type { RequestEvent } from '@sveltejs/kit';
 import { contentCrud } from '$lib/server/crud';
@@ -11,7 +12,7 @@ import { refreshCreatorReach } from '$lib/server/score-service';
 const crudFor = (creatorId: number) =>
 	contentCrud({
 		table: t.socialAccounts,
-		label: 'Channel',
+		label: () => m.ch_label(),
 		addSchema: socialAdd,
 		editSchema: socialEdit,
 		scope: { column: t.socialAccounts.creatorId, key: 'creatorId', value: creatorId },

@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
+import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
 
 /** Rows that exist and have not been soft-deleted. */
 const live = <T extends { isActive: any; deletedAt: any }>(table: T) =>
@@ -111,10 +112,12 @@ export async function listCreators(options: { featured?: boolean; trending?: boo
 				engagementRate: t.socialAccounts.engagementRate
 			})
 			.from(t.socialAccounts)
-			.where(inArray(t.socialAccounts.creatorId, ids))
+			/* Same definition the profile page and the score use, so a card and the
+			   profile it opens cannot disagree about a creator's channels. */
+			.where(and(inArray(t.socialAccounts.creatorId, ids), liveSocialFilter()))
 	]);
 
-	return rows.map((row) => {
+	const cards = rows.map((row) => {
 		const mine = socials.filter((s) => s.creatorId === row.id);
 		return {
 			...row,
@@ -126,6 +129,25 @@ export async function listCreators(options: { featured?: boolean; trending?: boo
 				: 0
 		};
 	});
+
+	/*
+	 * The trending strip is an ordered board, not a set: slot 1 was earned. The
+	 * flag above is what the run wrote, so the ids always match; the ranks are
+	 * read separately only to put them back in the operator's order. Falls back
+	 * to score order when no board has been published yet.
+	 */
+	if (options.trending) {
+		const board = await db
+			.select({ creatorId: t.trendingEntries.creatorId, rank: t.trendingEntries.rank })
+			.from(t.trendingEntries)
+			.orderBy(asc(t.trendingEntries.rank));
+		if (board.length) {
+			const rankOf = new Map(board.map((entry) => [entry.creatorId, entry.rank]));
+			cards.sort((a, b) => (rankOf.get(a.id) ?? Infinity) - (rankOf.get(b.id) ?? Infinity));
+		}
+	}
+
+	return cards;
 }
 
 /** A full profile page: creator, related lists and published reviews. */
@@ -149,7 +171,7 @@ export async function getCreatorById(id: number) {
 }
 
 async function hydrateCreator(creator: typeof t.creators.$inferSelect) {
-	const [country, region, platform, cats, langs, socials, pkgs, portfolio, revs] =
+	const [country, region, platform, cats, langs, socials, pkgs, portfolio, revs, breakdown] =
 		await Promise.all([
 			creator.countryId
 				? db.select().from(t.countries).where(eq(t.countries.id, creator.countryId)).limit(1)
@@ -158,7 +180,11 @@ async function hydrateCreator(creator: typeof t.creators.$inferSelect) {
 				? db.select().from(t.regions).where(eq(t.regions.id, creator.regionId)).limit(1)
 				: [],
 			creator.primaryPlatformId
-				? db.select().from(t.platforms).where(eq(t.platforms.id, creator.primaryPlatformId)).limit(1)
+				? db
+						.select()
+						.from(t.platforms)
+						.where(eq(t.platforms.id, creator.primaryPlatformId))
+						.limit(1)
 				: [],
 			db
 				.select({ id: t.categories.id, name: t.categories.name })
@@ -183,7 +209,7 @@ async function hydrateCreator(creator: typeof t.creators.$inferSelect) {
 				})
 				.from(t.socialAccounts)
 				.leftJoin(t.platforms, eq(t.platforms.id, t.socialAccounts.platformId))
-				.where(and(eq(t.socialAccounts.creatorId, creator.id), live(t.socialAccounts)))
+				.where(and(eq(t.socialAccounts.creatorId, creator.id), liveSocialFilter()))
 				.orderBy(desc(t.socialAccounts.followers)),
 			db
 				.select({
@@ -216,24 +242,8 @@ async function hydrateCreator(creator: typeof t.creators.$inferSelect) {
 				.leftJoin(t.platforms, eq(t.platforms.id, t.portfolioItems.platformId))
 				.where(and(eq(t.portfolioItems.creatorId, creator.id), live(t.portfolioItems)))
 				.orderBy(asc(t.portfolioItems.sortOrder)),
-			db
-				.select({
-					id: t.reviews.id,
-					rating: t.reviews.rating,
-					communication: t.reviews.communication,
-					professionalism: t.reviews.professionalism,
-					timeliness: t.reviews.timeliness,
-					quality: t.reviews.quality,
-					body: t.reviews.body,
-					createdAt: t.reviews.createdAt,
-					organizationName: t.organizations.name
-				})
-				.from(t.reviews)
-				.leftJoin(t.organizations, eq(t.organizations.id, t.reviews.organizationId))
-				.where(
-					and(eq(t.reviews.creatorId, creator.id), eq(t.reviews.direction, 'brand_to_creator'))
-				)
-				.orderBy(desc(t.reviews.createdAt))
+			getCreatorReviews(creator.id),
+			getCreatorRatingBreakdown(creator.id)
 		]);
 
 	return {
@@ -246,7 +256,68 @@ async function hydrateCreator(creator: typeof t.creators.$inferSelect) {
 		socialAccounts: socials,
 		packages: pkgs,
 		portfolio,
-		reviews: revs
+		/* The first page only. `reviewsCount` says how many there are in total,
+		   and the profile fetches the rest from the reviews endpoint. */
+		reviews: revs,
+		ratingBreakdown: breakdown
+	};
+}
+
+/** How many reviews a profile shows before the reader asks for more. */
+export const REVIEW_PAGE_SIZE = 5;
+
+/**
+ * One page of the reviews that count towards a creator's rating, newest
+ * first. The profile load and the reviews endpoint both come through here, so
+ * a later page is drawn from the same set as the first.
+ */
+export async function getCreatorReviews(creatorId: number, offset = 0, limit = REVIEW_PAGE_SIZE) {
+	return (
+		db
+			.select({
+				id: t.reviews.id,
+				rating: t.reviews.rating,
+				communication: t.reviews.communication,
+				professionalism: t.reviews.professionalism,
+				timeliness: t.reviews.timeliness,
+				quality: t.reviews.quality,
+				body: t.reviews.body,
+				createdAt: t.reviews.createdAt,
+				organizationName: t.organizations.name
+			})
+			.from(t.reviews)
+			.leftJoin(t.organizations, eq(t.organizations.id, t.reviews.organizationId))
+			.where(and(eq(t.reviews.creatorId, creatorId), ratingReviewFilter()))
+			/* Two reviews can share a timestamp, so the id keeps the order total —
+		   without it a row could repeat or be skipped across pages. */
+			.orderBy(desc(t.reviews.createdAt), desc(t.reviews.id))
+			.limit(limit)
+			.offset(offset)
+	);
+}
+
+/**
+ * The per-criterion averages behind the rating bars. Computed over every
+ * review that counts rather than the page on screen, so the bars do not move
+ * as more reviews load.
+ */
+async function getCreatorRatingBreakdown(creatorId: number) {
+	const rows = await db
+		.select({
+			communication: sql<number>`coalesce(avg(${t.reviews.communication}), 0)`,
+			professionalism: sql<number>`coalesce(avg(${t.reviews.professionalism}), 0)`,
+			timeliness: sql<number>`coalesce(avg(${t.reviews.timeliness}), 0)`,
+			quality: sql<number>`coalesce(avg(${t.reviews.quality}), 0)`
+		})
+		.from(t.reviews)
+		.where(and(eq(t.reviews.creatorId, creatorId), ratingReviewFilter()));
+
+	const row = rows.at(0);
+	return {
+		communication: Number(row?.communication ?? 0),
+		professionalism: Number(row?.professionalism ?? 0),
+		timeliness: Number(row?.timeliness ?? 0),
+		quality: Number(row?.quality ?? 0)
 	};
 }
 
@@ -254,10 +325,14 @@ async function hydrateCreator(creator: typeof t.creators.$inferSelect) {
  * Campaigns
  * ------------------------------------------------------------------ */
 
-export async function listCampaigns(options: { organizationId?: number; publicOnly?: boolean } = {}) {
+export async function listCampaigns(
+	options: { organizationId?: number; publicOnly?: boolean; slug?: string } = {}
+) {
 	const conditions = [isNull(t.campaigns.deletedAt)];
 	if (options.publicOnly) conditions.push(eq(t.campaigns.status, 'published'));
-	if (options.organizationId) conditions.push(eq(t.campaigns.organizationId, options.organizationId));
+	if (options.organizationId)
+		conditions.push(eq(t.campaigns.organizationId, options.organizationId));
+	if (options.slug) conditions.push(eq(t.campaigns.slug, options.slug));
 
 	return db
 		.select({
@@ -305,9 +380,10 @@ export async function listCampaigns(options: { organizationId?: number; publicOn
 		.orderBy(desc(t.campaigns.createdAt));
 }
 
+/** One campaign by its slug — matched in SQL, not by scanning every campaign. */
 export async function getCampaignBySlug(slug: string) {
-	const rows = await listCampaigns();
-	return rows.find((row) => row.slug === slug) ?? null;
+	const rows = await listCampaigns({ slug });
+	return rows.at(0) ?? null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -317,9 +393,10 @@ export async function getCampaignBySlug(slug: string) {
 export type BookingRow = Awaited<ReturnType<typeof listBookings>>[number];
 
 export async function listBookings(
-	filter: { creatorId?: number; organizationId?: number } = {}
+	filter: { id?: number; creatorId?: number; organizationId?: number } = {}
 ) {
 	const conditions = [isNull(t.bookings.deletedAt)];
+	if (filter.id) conditions.push(eq(t.bookings.id, filter.id));
 	if (filter.creatorId) conditions.push(eq(t.bookings.creatorId, filter.creatorId));
 	if (filter.organizationId) conditions.push(eq(t.bookings.organizationId, filter.organizationId));
 
@@ -362,7 +439,9 @@ export async function listBookings(
 }
 
 export async function getBookingDetail(bookingId: number) {
-	const [booking] = await listBookings().then((rows) => rows.filter((r) => r.id === bookingId));
+	/* Filtered in SQL. This used to select every booking on the platform, join
+	   both sides, and discard all but one — on every load of the detail page. */
+	const [booking] = await listBookings({ id: bookingId });
 	if (!booking) return null;
 
 	const [proposals, subs, msgs, revs] = await Promise.all([
@@ -453,7 +532,9 @@ export async function getPlatformStats() {
 		db
 			.select({ count: sql<number>`count(*)` })
 			.from(t.campaigns)
-			.where(eq(t.campaigns.status, 'published')),
+			/* Every other count here excludes deleted rows; this one inflated the
+			   homepage figure with them. */
+			.where(and(eq(t.campaigns.status, 'published'), isNull(t.campaigns.deletedAt))),
 		db
 			.select({
 				count: sql<number>`count(*)`,
@@ -462,7 +543,10 @@ export async function getPlatformStats() {
 			})
 			.from(t.bookings)
 			.where(isNull(t.bookings.deletedAt)),
-		db.select({ count: sql<number>`count(*)` }).from(t.organizations).where(live(t.organizations))
+		db
+			.select({ count: sql<number>`count(*)` })
+			.from(t.organizations)
+			.where(live(t.organizations))
 	]);
 
 	const reach = await db

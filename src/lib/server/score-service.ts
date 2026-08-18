@@ -2,6 +2,11 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { calculateScore } from '$lib/domain/score';
+import {
+	liveSocialFilter,
+	recalcCreatorCompletedBookings,
+	recalcCreatorRatings
+} from '$lib/server/db/rollups';
 
 /**
  * Recomputes the derived fields on a creator row from the evidence the platform
@@ -33,7 +38,7 @@ export async function refreshCreatorScore(creatorId: number) {
 		db
 			.select({ rate: t.socialAccounts.engagementRate })
 			.from(t.socialAccounts)
-			.where(eq(t.socialAccounts.creatorId, creatorId))
+			.where(and(eq(t.socialAccounts.creatorId, creatorId), liveSocialFilter()))
 	]);
 
 	const engagementRate = socials.length
@@ -63,7 +68,7 @@ export async function refreshCreatorReach(creatorId: number) {
 	const rows = await db
 		.select({ total: sql<number>`coalesce(sum(${t.socialAccounts.followers}), 0)` })
 		.from(t.socialAccounts)
-		.where(and(eq(t.socialAccounts.creatorId, creatorId), isNull(t.socialAccounts.deletedAt)));
+		.where(and(eq(t.socialAccounts.creatorId, creatorId), liveSocialFilter()));
 
 	await db
 		.update(t.creators)
@@ -75,21 +80,12 @@ export async function refreshCreatorReach(creatorId: number) {
 
 /** Recomputes a creator's rating and review count from published reviews. */
 export async function refreshCreatorRating(creatorId: number) {
-	const rows = await db
-		.select({
-			n: sql<number>`count(*)`,
-			avg: sql<number>`coalesce(avg(${t.reviews.rating}), 0)`
-		})
-		.from(t.reviews)
-		.where(and(eq(t.reviews.creatorId, creatorId), eq(t.reviews.direction, 'brand_to_creator')));
+	await recalcCreatorRatings(db, creatorId);
+	await refreshCreatorScore(creatorId);
+}
 
-	await db
-		.update(t.creators)
-		.set({
-			reviewsCount: Number(rows[0]?.n ?? 0),
-			averageRating: Number(Number(rows[0]?.avg ?? 0).toFixed(2))
-		})
-		.where(eq(t.creators.id, creatorId));
-
+/** Recounts a creator's delivered bookings. Recount, never increment. */
+export async function refreshCreatorCompletedBookings(creatorId: number) {
+	await recalcCreatorCompletedBookings(db, creatorId);
 	await refreshCreatorScore(creatorId);
 }

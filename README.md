@@ -35,6 +35,7 @@ src/lib/
     booking.ts       Lifecycle states and the legal transitions between them
     match.ts         Deterministic 5-factor campaign ↔ creator fit score
     score.ts         The 0–100 creator score, derived from evidence only
+    trending.ts      The trending ranking as arithmetic — weights, decay, order
     money.ts         Currency conversion through the rate on `countries`
     mask.ts          Contact masking for deal conversations
   server/
@@ -42,7 +43,8 @@ src/lib/
     guards.ts        requireUser / requireRole / requireBookingAccess + audit
     queries.ts       Every read the app performs
     score-service.ts Recalculates derived creator fields after a write
-    db/schema.ts     29 tables
+    trending-service.ts Gathers the trending signals, publishes the board
+    db/schema.ts     34 tables
   schemas.ts       Every Zod schema, shared by forms and actions
 ```
 
@@ -53,11 +55,11 @@ needs plus the rows, and the matching actions:
 
 ```ts
 export const { load, actions } = contentCrud({
-  table: t.countries,
-  label: 'Country',
-  addSchema: countryAdd,
-  editSchema: countryEdit,
-  listFields: ['paymentRails']   // one-per-line textarea → JSON array
+	table: t.countries,
+	label: 'Country',
+	addSchema: countryAdd,
+	editSchema: countryEdit,
+	listFields: ['paymentRails'] // one-per-line textarea → JSON array
 });
 ```
 
@@ -98,6 +100,37 @@ requests an action and never asserts a state. Three rules are load-bearing:
 Every state change appends to `audit_log`: actor, object, from-state, to-state,
 reason. Nothing in the app updates or deletes that table.
 
+### Trending is a policy, not a checkbox
+
+`/dashboard/admin/trending` is where an operator decides what "trending" means.
+Ten signals — profile score, reach, engagement, recent bookings, applications,
+reviews, rating, shortlist saves, newcomer boost and verification — each carry a
+weight, and the weights are relative: they are divided by their own sum, so
+raising one does not silently steal from the other nine.
+
+```
+mode          manual (ticked by hand) · automatic (ranking only) · hybrid (pins, then ranking)
+window        activity older than N days is not counted at all
+half-life     how fast activity inside that window loses value; 0 counts it flat
+comparison    percentile (rank against the pool) or min–max (keep the real distances)
+eligibility   floors on score, reach, rating and verification; live channel, availability, activity
+fairness      max per category and per country, max days on the board, rest afterwards
+overrides     pin, boost or block one creator — each with a reason and an expiry
+```
+
+Three properties are deliberate:
+
+- **Preview runs the real ranking.** The preview button posts the unsaved form
+  to a dry run of the same function the publish path calls, and writes nothing.
+  A preview that ran its own slightly different query would be worse than none.
+- **Saving publishes.** Settings that are saved but not applied are the surest
+  way to make an algorithm screen untrustworthy — so a save republishes, unless
+  the board is frozen.
+- **Every slot can be explained.** `trending_entries` stores the contribution of
+  each signal to each rank, `trending_runs` stores the settings the run used,
+  and `creators.is_trending` is rewritten from the board so the badge on a card
+  and the strip on the homepage cannot disagree.
+
 ## What is not connected
 
 No payment provider is integrated. Deposits and payouts are **recorded** by an
@@ -106,13 +139,14 @@ operator and the interface says so rather than implying money has moved. The
 
 ## Scripts
 
-| Command             | Does                                        |
-| ------------------- | ------------------------------------------- |
-| `npm run dev`       | Dev server                                  |
-| `npm run build`     | Production build (node adapter)             |
-| `npm run check`     | svelte-check                                |
-| `npm run lint`      | prettier + eslint                           |
-| `npm run db:push`   | Sync schema to the database                 |
-| `npm run db:seed`   | Seed reference data and demonstration rows  |
-| `npm run db:studio` | Drizzle Studio                              |
+| Command             | Does                                       |
+| ------------------- | ------------------------------------------ |
+| `npm run dev`       | Dev server                                 |
+| `npm run build`     | Production build (node adapter)            |
+| `npm run check`     | svelte-check                               |
+| `npm run lint`      | prettier + eslint                          |
+| `npm run db:push`   | Sync schema to the database                |
+| `npm run db:seed`   | Seed reference data and demonstration rows |
+| `npm run db:studio` | Drizzle Studio                             |
+
 # creativehub

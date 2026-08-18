@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import { Search, Plus, Briefcase, Ticket, Gift, Globe } from '@lucide/svelte';
 	import CampaignCard from '$lib/components/campaign-card.svelte';
 
@@ -45,7 +46,7 @@
 	const canApply = $derived(Boolean(data.creatorId));
 </script>
 
-<svelte:head><title>Campaign briefs — Creator Network</title></svelte:head>
+<svelte:head><title>{m.campaigns_meta_title()}</title></svelte:head>
 
 <div id="campaigns-view-container" class="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
 	<!-- Header -->
@@ -55,19 +56,18 @@
 		<div>
 			<div class="mb-1 flex items-center gap-2">
 				<span class="text-xs font-black tracking-widest text-slate-500 uppercase">
-					Live opportunities
+					{m.campaigns_eyebrow()}
 				</span>
 				<span
 					class="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-900"
 				>
 					<Globe class="h-3 w-3 text-emerald-700" />
-					Pan-African & global
+					{m.discover_global_badge()}
 				</span>
 			</div>
-			<h1 class="text-2xl font-black text-slate-900 sm:text-3xl">Brand briefs & campaigns</h1>
+			<h1 class="text-2xl font-black text-slate-900 sm:text-3xl">{m.campaigns_title()}</h1>
 			<p class="mt-1 text-xs font-medium text-slate-600">
-				Paid briefs, event access passes and barter partnerships — all with the deliverables and
-				deadline stated up front.
+				{m.campaigns_subtitle()}
 			</p>
 		</div>
 
@@ -77,7 +77,7 @@
 				class="flex shrink-0 items-center gap-2 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-slate-800"
 			>
 				<Plus class="h-4 w-4 text-emerald-400" />
-				<span>Post a new campaign</span>
+				<span>{m.campaigns_post_new()}</span>
 			</a>
 		{/if}
 	</div>
@@ -93,9 +93,11 @@
 				: 'bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50'}"
 		>
 			<span class="block text-[10px] font-black tracking-widest uppercase opacity-70">
-				All opportunities
+				{m.campaigns_all_opportunities()}
 			</span>
-			<span class="mt-1 block text-lg font-black">{data.campaigns.length} briefs live</span>
+			<span class="mt-1 block text-lg font-black"
+				>{m.campaigns_briefs_live({ count: data.campaigns.length })}</span
+			>
 		</button>
 
 		<button
@@ -106,11 +108,15 @@
 				? 'bg-[#dcfce7] font-black text-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]'
 				: 'bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50'}"
 		>
-			<div class="flex items-center gap-1.5 text-xs font-black tracking-wider text-emerald-800 uppercase">
+			<div
+				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-emerald-800 uppercase"
+			>
 				<Briefcase class="h-3.5 w-3.5" />
-				<span>Paid</span>
+				<span>{m.campaigns_type_paid()}</span>
 			</div>
-			<span class="mt-1 block text-sm font-black">{countFor('paid')} cash-budget briefs</span>
+			<span class="mt-1 block text-sm font-black"
+				>{m.campaigns_paid_count({ count: countFor('paid') })}</span
+			>
 		</button>
 
 		<button
@@ -121,11 +127,15 @@
 				? 'bg-[#e0e7ff] font-black text-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]'
 				: 'bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50'}"
 		>
-			<div class="flex items-center gap-1.5 text-xs font-black tracking-wider text-indigo-900 uppercase">
+			<div
+				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-indigo-900 uppercase"
+			>
 				<Ticket class="h-3.5 w-3.5" />
-				<span>Event passes</span>
+				<span>{m.campaigns_type_event()}</span>
 			</div>
-			<span class="mt-1 block text-sm font-black">{countFor('event_pass')} summits & festivals</span>
+			<span class="mt-1 block text-sm font-black">
+				{m.campaigns_event_count({ count: countFor('event_pass') })}
+			</span>
 		</button>
 
 		<button
@@ -136,20 +146,26 @@
 				? 'bg-[#fef9c3] font-black text-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]'
 				: 'bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50'}"
 		>
-			<div class="flex items-center gap-1.5 text-xs font-black tracking-wider text-amber-900 uppercase">
+			<div
+				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-amber-900 uppercase"
+			>
 				<Gift class="h-3.5 w-3.5" />
-				<span>Barter</span>
+				<span>{m.campaigns_type_barter()}</span>
 			</div>
-			<span class="mt-1 block text-sm font-black">{countFor('barter')} stays & products</span>
+			<span class="mt-1 block text-sm font-black"
+				>{m.campaigns_barter_count({ count: countFor('barter') })}</span
+			>
 		</button>
 	</div>
 
 	<!-- Market filter + search -->
 	<div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-		<div class="scrollbar-none flex flex-1 items-center gap-2 overflow-x-auto pb-1">
-			<span class="mr-1 flex items-center gap-1 text-xs font-black whitespace-nowrap text-slate-700">
+		<div class="flex flex-1 scrollbar-none items-center gap-2 overflow-x-auto pb-1">
+			<span
+				class="mr-1 flex items-center gap-1 text-xs font-black whitespace-nowrap text-slate-700"
+			>
 				<Globe class="h-3.5 w-3.5 text-emerald-600" />
-				Market:
+				{m.campaigns_market_label()}
 			</span>
 			<button
 				type="button"
@@ -159,7 +175,7 @@
 					? 'bg-emerald-600 text-white'
 					: 'bg-white text-slate-800 hover:bg-slate-100'}"
 			>
-				🌍 All markets ({data.campaigns.length})
+				{m.campaigns_all_markets({ count: data.campaigns.length })}
 			</button>
 			{#each data.reference.countries.slice(0, 6) as country (country.id)}
 				<button
@@ -181,7 +197,7 @@
 			<input
 				type="text"
 				bind:value={query}
-				placeholder="Search briefs, brands, markets…"
+				placeholder={m.campaigns_search_placeholder()}
 				class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 pr-3 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] outline-none focus:ring-2 focus:ring-emerald-500"
 			/>
 		</div>
@@ -194,16 +210,16 @@
 				<CampaignCard
 					{campaign}
 					hasApplied={data.appliedCampaignIds.includes(campaign.id)}
-					canApply={canApply}
+					{canApply}
 				/>
 			{/each}
 		</div>
 	{:else}
 		<div class="bento-card bento-card-static space-y-3 p-12 text-center">
 			<Search class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">No briefs match this filter</h3>
+			<h3 class="text-base font-black text-slate-900">{m.campaigns_empty_title()}</h3>
 			<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
-				Try switching back to all markets or clearing your search.
+				{m.campaigns_empty_body()}
 			</p>
 			<button
 				type="button"
@@ -214,7 +230,7 @@
 				}}
 				class="cursor-pointer rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 			>
-				Reset filters
+				{m.campaigns_reset_filters()}
 			</button>
 		</div>
 	{/if}

@@ -1,7 +1,8 @@
+import * as m from '$lib/paraglide/messages';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
@@ -12,13 +13,13 @@ import { bookingReference, splitFee } from '$lib/domain/booking';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const creator = await getCreatorByUsername(params.username);
-	if (!creator) error(404, 'That creator profile does not exist.');
+	if (!creator) error(404, m.srv_creator_not_found());
 
 	/* Unpublished profiles are visible only to their owner and to operators. */
 	const isOwner = locals.user?.id && creator.userId === locals.user.id;
 	const isAdmin = (locals.user as { role?: string })?.role === 'admin';
 	if (!creator.isPublished && !isOwner && !isAdmin) {
-		error(404, 'That creator profile is not published yet.');
+		error(404, m.srv_creator_not_published());
 	}
 
 	const organization = locals.user ? await getOrganizationFor(locals.user.id) : undefined;
@@ -43,24 +44,32 @@ export const actions: Actions = {
 		const form = await superValidate(event.request, zod4(bookingCreate));
 
 		if (!organization) {
-			return message(
-				form,
-				{ type: 'error', text: 'Only brand accounts can book creators.' },
-				{ status: 403 }
-			);
+			return message(form, { type: 'error', text: m.srv_brands_only_book() }, { status: 403 });
 		}
 		if (!form.valid) {
-			return message(form, { type: 'error', text: 'Check the form for errors' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
 		}
 
+		/*
+		 * The id comes from the form, so the row it names has to be one that is
+		 * actually open to bookings — this used to accept any id at all, including
+		 * a soft-deleted or never-published profile.
+		 */
 		const creatorRows = await db
 			.select()
 			.from(t.creators)
-			.where(eq(t.creators.id, form.data.creatorId))
+			.where(
+				and(
+					eq(t.creators.id, form.data.creatorId),
+					eq(t.creators.isPublished, true),
+					eq(t.creators.isActive, true),
+					isNull(t.creators.deletedAt)
+				)
+			)
 			.limit(1);
 		const creator = creatorRows.at(0);
 		if (!creator) {
-			return message(form, { type: 'error', text: 'Unknown creator' }, { status: 400 });
+			return message(form, { type: 'error', text: m.srv_unknown_creator() }, { status: 400 });
 		}
 
 		const settings = await getSettings();
@@ -114,7 +123,7 @@ export const actions: Actions = {
 			if (creator.userId) {
 				await db.insert(t.notifications).values({
 					userId: creator.userId,
-					title: `${organization.name} sent you a booking request`,
+					title: m.notif_booking_request_title({ organisation: organization.name }),
 					body: form.data.title,
 					link: `/dashboard/bookings/${bookingId}`,
 					kind: 'booking',
@@ -136,11 +145,7 @@ export const actions: Actions = {
 		} catch (err) {
 			if (err instanceof Response || (err as { status?: number })?.status === 303) throw err;
 			console.error('Booking failed:', err);
-			return message(
-				form,
-				{ type: 'error', text: 'Could not create the booking request.' },
-				{ status: 500 }
-			);
+			return message(form, { type: 'error', text: m.srv_booking_failed() }, { status: 500 });
 		}
 	}
 };

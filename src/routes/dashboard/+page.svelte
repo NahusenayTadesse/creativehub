@@ -18,21 +18,21 @@
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
 	import SpendChart from '$lib/components/spend-chart.svelte';
 	import { formatReach } from '$lib/domain/money';
+	import * as m from '$lib/paraglide/messages';
+	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
 
 	const money = (value: number) => value.toLocaleString();
+
+	const dateLocale = $derived(getLocale() === 'am' ? 'am-ET' : 'en-GB');
 </script>
 
-<svelte:head><title>Dashboard — Creator Network</title></svelte:head>
+<svelte:head><title>{m.dash_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
 	{#if data.view === 'onboarding'}
-		<PageHeader
-			eyebrow="Welcome"
-			title="Finish setting up your account"
-			description="One more step before you can be discovered or take bookings."
-		/>
+		<PageHeader eyebrow={m.ob_eyebrow()} title={m.ob_title()} description={m.ob_description()} />
 
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 			<a href="/dashboard/profile/create" class="bento-card space-y-3">
@@ -41,9 +41,9 @@
 				>
 					<UserRoundCog class="h-6 w-6 text-emerald-400" />
 				</div>
-				<h3 class="text-lg font-black text-slate-900">Create your creator profile</h3>
+				<h3 class="text-lg font-black text-slate-900">{m.ob_creator_title()}</h3>
 				<p class="text-xs font-medium text-slate-600">
-					Your handle, audience and rates. Takes about two minutes.
+					{m.ob_creator_body()}
 				</p>
 			</a>
 
@@ -53,9 +53,9 @@
 				>
 					<Building2 class="h-6 w-6 text-indigo-300" />
 				</div>
-				<h3 class="text-lg font-black text-slate-900">Register an organisation</h3>
+				<h3 class="text-lg font-black text-slate-900">{m.ob_org_title()}</h3>
 				<p class="text-xs font-medium text-slate-600">
-					Set up a brand, agency, NGO or event account so you can post briefs.
+					{m.ob_org_body()}
 				</p>
 			</a>
 		</div>
@@ -63,9 +63,9 @@
 		<!-- ============================= CREATOR ============================= -->
 	{:else if data.view === 'creator'}
 		<PageHeader
-			eyebrow="Creator studio"
-			title="Your work at a glance"
-			description="Everything currently in flight, and what is waiting on you."
+			eyebrow={m.dashc_eyebrow()}
+			title={m.dashc_title()}
+			description={m.dashc_description()}
 		>
 			{#snippet actions()}
 				<a
@@ -73,7 +73,7 @@
 					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 				>
 					<Send class="h-4 w-4" />
-					Find briefs to pitch
+					{m.dashc_find_briefs()}
 				</a>
 			{/snippet}
 		</PageHeader>
@@ -81,47 +81,49 @@
 		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
 			<StatTile
 				tone="dark"
-				label="Earned to date"
+				label={m.dashc_earned()}
 				value={money(data.totals.earned)}
-				note="Net of the 15% marketplace fee, from completed bookings"
+				note={m.dashc_earned_note()}
 			>
 				{#snippet icon()}
-					<span class="rounded-lg border border-emerald-500/30 bg-emerald-950/80 p-1.5 text-emerald-400">
+					<span
+						class="rounded-lg border border-emerald-500/30 bg-emerald-950/80 p-1.5 text-emerald-400"
+					>
 						<Wallet class="h-4 w-4" />
 					</span>
 				{/snippet}
 			</StatTile>
 			<StatTile
 				tone="mint"
-				label="Awaiting settlement"
+				label={m.dashc_awaiting()}
 				value={money(data.totals.pending)}
-				note="Approved work not yet marked fulfilled"
+				note={m.dashc_awaiting_note()}
 			/>
 			<StatTile
 				tone="yellow"
-				label="Active bookings"
+				label={m.dashc_active_bookings()}
 				value={data.totals.activeBookings}
-				note="In negotiation, production or review"
+				note={m.dashc_active_bookings_note()}
 			/>
 			<StatTile
 				tone="indigo"
-				label="Open applications"
+				label={m.dashc_open_applications()}
 				value={data.totals.openApplications}
-				note="Applied or shortlisted"
+				note={m.dashc_open_applications_note()}
 			/>
 		</div>
 
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-			{@render bookingList(data.bookings, 'Your bookings', '/dashboard/bookings')}
+			{@render bookingList(data.bookings, m.dashc_your_bookings(), '/dashboard/bookings')}
 			{@render applicationList(data.applications, '/dashboard/applications')}
 		</div>
 
 		<!-- ============================= BUSINESS ============================= -->
 	{:else if data.view === 'business'}
 		<PageHeader
-			eyebrow="Brand operations"
-			title="Campaign and spend overview"
-			description="Committed budget, live briefs and the bookings that need your attention."
+			eyebrow={m.dashb_eyebrow()}
+			title={m.dashb_title()}
+			description={m.dashb_description()}
 		>
 			{#snippet actions()}
 				<a
@@ -129,14 +131,14 @@
 					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 				>
 					<Plus class="h-4 w-4" />
-					Post a brief
+					{m.dashb_post_brief()}
 				</a>
 				<a
 					href="/discover"
 					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-white px-4 py-2.5 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50"
 				>
 					<Users class="h-4 w-4 text-emerald-600" />
-					Find creators
+					{m.dashb_find_creators()}
 				</a>
 			{/snippet}
 		</PageHeader>
@@ -144,33 +146,35 @@
 		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
 			<StatTile
 				tone="dark"
-				label="Committed spend"
+				label={m.dashb_committed()}
 				value={money(data.totals.committed)}
-				note="Across every booking you have opened"
+				note={m.dashb_committed_note()}
 			>
 				{#snippet icon()}
-					<span class="rounded-lg border border-emerald-500/30 bg-emerald-950/80 p-1.5 text-emerald-400">
+					<span
+						class="rounded-lg border border-emerald-500/30 bg-emerald-950/80 p-1.5 text-emerald-400"
+					>
 						<TrendingUp class="h-4 w-4" />
 					</span>
 				{/snippet}
 			</StatTile>
 			<StatTile
 				tone="mint"
-				label="Settled"
+				label={m.dashb_settled()}
 				value={money(data.totals.settled)}
-				note="Compensation marked fulfilled"
+				note={m.dashb_settled_note()}
 			/>
 			<StatTile
 				tone="yellow"
-				label="Active bookings"
+				label={m.dashc_active_bookings()}
 				value={data.totals.activeBookings}
-				note="Not yet completed or cancelled"
+				note={m.dashb_active_note()}
 			/>
 			<StatTile
 				tone="indigo"
-				label="Applications to review"
+				label={m.dashb_apps_to_review()}
 				value={data.totals.pendingApplications}
-				note="Waiting on a shortlist decision"
+				note={m.dashb_apps_to_review_note()}
 			/>
 		</div>
 
@@ -178,25 +182,25 @@
 			<div class="bento-card bento-card-static space-y-4">
 				<div>
 					<span class="text-[10px] font-black tracking-widest text-slate-500 uppercase">
-						Booking value by month
+						{m.dashb_chart_eyebrow()}
 					</span>
-					<h3 class="text-base font-black text-slate-900">Spend trend</h3>
+					<h3 class="text-base font-black text-slate-900">{m.dashb_chart_title()}</h3>
 				</div>
 				<SpendChart data={data.spend} />
 			</div>
 		{/if}
 
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-			{@render bookingList(data.bookings, 'Recent bookings', '/dashboard/bookings')}
+			{@render bookingList(data.bookings, m.dashb_recent_bookings(), '/dashboard/bookings')}
 			{@render applicationList(data.applications, '/dashboard/applications')}
 		</div>
 
 		<!-- ============================= ADMIN ============================= -->
 	{:else}
 		<PageHeader
-			eyebrow="Platform operations"
-			title="Marketplace health"
-			description="Supply, demand and the operational queues that need a human."
+			eyebrow={m.dash_platform_operations()}
+			title={m.dasha_title()}
+			description={m.dasha_description()}
 		>
 			{#snippet actions()}
 				<a
@@ -204,7 +208,7 @@
 					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 				>
 					<ShieldCheck class="h-4 w-4" />
-					Verification queue ({data.pendingVerifications})
+					{m.dasha_verification_queue({ count: data.pendingVerifications })}
 				</a>
 			{/snippet}
 		</PageHeader>
@@ -212,33 +216,38 @@
 		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
 			<StatTile
 				tone="dark"
-				label="Booking volume"
+				label={m.dasha_booking_volume()}
 				value={money(data.stats.volume)}
-				note="{data.stats.bookings} bookings · {money(data.stats.fees)} in platform fees"
+				note={m.dasha_booking_volume_note({
+					bookings: data.stats.bookings,
+					fees: money(data.stats.fees)
+				})}
 			>
 				{#snippet icon()}
-					<span class="rounded-lg border border-emerald-500/30 bg-emerald-950/80 p-1.5 text-emerald-400">
+					<span
+						class="rounded-lg border border-emerald-500/30 bg-emerald-950/80 p-1.5 text-emerald-400"
+					>
 						<TrendingUp class="h-4 w-4" />
 					</span>
 				{/snippet}
 			</StatTile>
 			<StatTile
 				tone="mint"
-				label="Published creators"
+				label={m.dasha_published_creators()}
 				value={data.stats.creators}
-				note="{formatReach(data.stats.totalReach)} combined reach"
+				note={m.dasha_combined_reach_note({ reach: formatReach(data.stats.totalReach) })}
 			/>
 			<StatTile
 				tone="indigo"
-				label="Organisations"
+				label={m.dasha_organisations()}
 				value={data.stats.organizations}
-				note="{data.stats.campaigns} live campaigns"
+				note={m.dasha_live_campaigns_note({ count: data.stats.campaigns })}
 			/>
 			<StatTile
 				tone="yellow"
-				label="Verification queue"
+				label={m.dasha_verification_queue_label()}
 				value={data.pendingVerifications}
-				note="Cases waiting on an operator decision"
+				note={m.dasha_verification_queue_note()}
 			/>
 		</div>
 
@@ -246,25 +255,26 @@
 			<div class="bento-card bento-card-static space-y-4">
 				<div>
 					<span class="text-[10px] font-black tracking-widest text-slate-500 uppercase">
-						Marketplace value by month
+						{m.dasha_chart_eyebrow()}
 					</span>
-					<h3 class="text-base font-black text-slate-900">Booking volume trend</h3>
+					<h3 class="text-base font-black text-slate-900">{m.dasha_chart_title()}</h3>
 				</div>
 				<SpendChart data={data.spend} />
 			</div>
 		{/if}
 
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-			{@render bookingList(data.bookings, 'Recent bookings', '/dashboard/bookings')}
+			{@render bookingList(data.bookings, m.dashb_recent_bookings(), '/dashboard/bookings')}
 
 			<div class="bento-card bento-card-static space-y-3">
 				<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
-					<h3 class="text-sm font-black text-slate-900">Recent activity</h3>
+					<h3 class="text-sm font-black text-slate-900">{m.dasha_recent_activity()}</h3>
 					<a
 						href="/dashboard/admin/audit"
 						class="flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline"
 					>
-						Full log <ArrowRight class="h-3 w-3" />
+						{m.dasha_full_log()}
+						<ArrowRight class="h-3 w-3" />
 					</a>
 				</div>
 
@@ -286,7 +296,7 @@
 									{/if}
 								</div>
 								<span class="shrink-0 text-[10px] font-bold text-slate-400">
-									{new Date(entry.createdAt).toLocaleDateString('en-GB', {
+									{new Date(entry.createdAt).toLocaleDateString(dateLocale, {
 										day: 'numeric',
 										month: 'short'
 									})}
@@ -296,7 +306,7 @@
 					</ul>
 				{:else}
 					<p class="py-6 text-center text-xs font-medium text-slate-500">
-						No recorded activity yet.
+						{m.dasha_no_activity()}
 					</p>
 				{/if}
 			</div>
@@ -314,7 +324,8 @@
 				{title}
 			</h3>
 			<a {href} class="flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline">
-				View all <ArrowRight class="h-3 w-3" />
+				{m.dash_view_all()}
+				<ArrowRight class="h-3 w-3" />
 			</a>
 		</div>
 
@@ -349,7 +360,7 @@
 				{/each}
 			</ul>
 		{:else}
-			<p class="py-6 text-center text-xs font-medium text-slate-500">No bookings yet.</p>
+			<p class="py-6 text-center text-xs font-medium text-slate-500">{m.dash_no_bookings()}</p>
 		{/if}
 	</div>
 {/snippet}
@@ -359,19 +370,18 @@
 		<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
 			<h3 class="flex items-center gap-1.5 text-sm font-black text-slate-900">
 				<Send class="h-4 w-4 text-emerald-600" />
-				Applications
+				{m.dash_applications()}
 			</h3>
 			<a {href} class="flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline">
-				View all <ArrowRight class="h-3 w-3" />
+				{m.dash_view_all()}
+				<ArrowRight class="h-3 w-3" />
 			</a>
 		</div>
 
 		{#if applications.length}
 			<ul class="space-y-2">
 				{#each applications as application (application.id)}
-					<li
-						class="flex items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-3"
-					>
+					<li class="flex items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-3">
 						<img
 							src={application.creatorAvatar ?? ''}
 							alt=""
@@ -390,7 +400,7 @@
 				{/each}
 			</ul>
 		{:else}
-			<p class="py-6 text-center text-xs font-medium text-slate-500">No applications yet.</p>
+			<p class="py-6 text-center text-xs font-medium text-slate-500">{m.dash_no_applications()}</p>
 		{/if}
 	</div>
 {/snippet}

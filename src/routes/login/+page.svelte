@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
 	import { Eye, EyeOff } from '@lucide/svelte';
@@ -16,7 +17,7 @@
 	});
 </script>
 
-<svelte:head><title>Sign in — Creator Network</title></svelte:head>
+<svelte:head><title>{m.login_meta_title()}</title></svelte:head>
 
 <div class="flex min-h-screen items-center justify-center px-4 py-12">
 	<div class="w-full max-w-md space-y-6">
@@ -26,15 +27,17 @@
 			>
 				ET
 			</div>
-			<span class="text-xl font-black tracking-tight text-slate-900">Creator Network</span>
+			<span class="text-xl font-black tracking-tight text-slate-900">{m.brand_name()}</span>
 		</a>
 
 		<div class="bento-card bento-card-static space-y-5">
 			<div class="border-b-2 border-slate-900 pb-4">
-				<span class="text-xs font-black tracking-widest text-slate-500 uppercase">Welcome back</span>
-				<h1 class="text-2xl font-black text-slate-900">Sign in</h1>
+				<span class="text-xs font-black tracking-widest text-slate-500 uppercase"
+					>{m.login_eyebrow()}</span
+				>
+				<h1 class="text-2xl font-black text-slate-900">{m.login_title()}</h1>
 				<p class="mt-1 text-xs font-medium text-slate-600">
-					Creators, brands and operators all sign in here.
+					{m.login_subtitle()}
 				</p>
 			</div>
 
@@ -42,7 +45,7 @@
 				<Errors allErrors={$allErrors} />
 
 				<div class="space-y-1.5">
-					<label for="email" class="text-xs font-black text-slate-900">Email</label>
+					<label for="email" class="text-xs font-black text-slate-900">{m.login_email()}</label>
 					<input
 						id="email"
 						name="email"
@@ -50,14 +53,16 @@
 						autocomplete="email"
 						bind:value={$form.email}
 						required
-						placeholder="you@example.com"
+						placeholder={m.login_email_placeholder()}
 						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
 					/>
 					{#if $errors.email}<p class="text-xs font-bold text-red-600">{$errors.email}</p>{/if}
 				</div>
 
 				<div class="space-y-1.5">
-					<label for="password" class="text-xs font-black text-slate-900">Password</label>
+					<label for="password" class="text-xs font-black text-slate-900"
+						>{m.login_password()}</label
+					>
 					<div class="relative">
 						<input
 							id="password"
@@ -71,7 +76,7 @@
 						<button
 							type="button"
 							onclick={() => (showPassword = !showPassword)}
-							aria-label={showPassword ? 'Hide password' : 'Show password'}
+							aria-label={showPassword ? m.login_hide_password() : m.login_show_password()}
 							class="absolute top-1/2 right-3 -translate-y-1/2 text-slate-500 hover:text-slate-900"
 						>
 							{#if showPassword}
@@ -81,7 +86,9 @@
 							{/if}
 						</button>
 					</div>
-					{#if $errors.password}<p class="text-xs font-bold text-red-600">{$errors.password}</p>{/if}
+					{#if $errors.password}<p class="text-xs font-bold text-red-600">
+							{$errors.password}
+						</p>{/if}
 				</div>
 
 				<button
@@ -90,22 +97,23 @@
 					class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700 disabled:opacity-60"
 				>
 					{#if $delayed}
-						<LoadingBtn name="Signing in" />
+						<LoadingBtn name={m.login_signing_in()} />
 					{:else}
-						Sign in
+						{m.login_title()}
 					{/if}
 				</button>
 			</form>
 
 			<p class="text-center text-xs font-medium text-slate-600">
-				No account yet?
-				<a href="/register" class="font-black text-emerald-700 hover:underline">Create one</a>
+				{m.login_no_account()}
+				<a href="/register" class="font-black text-emerald-700 hover:underline"
+					>{m.login_create_one()}</a
+				>
 			</p>
 		</div>
 
 		<p class="text-center text-[11px] font-medium text-slate-500">
-			By signing in you agree to keep negotiations and compensation on the platform, so the agreed
-			terms and delivery record stay attached to every booking.
+			{m.login_disclaimer()}
 		</p>
 	</div>
 </div>

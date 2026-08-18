@@ -22,14 +22,25 @@
 	const hero = $derived(data.featured[0] ?? data.trending[0] ?? null);
 
 	const search = () => goto(`/discover${query ? `?q=${encodeURIComponent(query)}` : ''}`);
+
+	const brandSteps = $derived([
+		{ n: 1, title: m.home_brands_step1_title(), body: m.home_brands_step1_body() },
+		{ n: 2, title: m.home_brands_step2_title(), body: m.home_brands_step2_body() },
+		{ n: 3, title: m.home_brands_step3_title(), body: m.home_brands_step3_body() },
+		{ n: 4, title: m.home_brands_step4_title(), body: m.home_brands_step4_body() }
+	]);
+
+	const creatorSteps = $derived([
+		{ n: 1, title: m.home_creators_step1_title(), body: m.home_creators_step1_body() },
+		{ n: 2, title: m.home_creators_step2_title(), body: m.home_creators_step2_body() },
+		{ n: 3, title: m.home_creators_step3_title(), body: m.home_creators_step3_body() },
+		{ n: 4, title: m.home_creators_step4_title(), body: m.home_creators_step4_body() }
+	]);
 </script>
 
 <svelte:head>
-	<title>Creator Network — Ethiopia's creator marketplace</title>
-	<meta
-		name="description"
-		content="Discover verified Ethiopian and Pan-African creators, agree terms that are recorded, and track delivery through to completion."
-	/>
+	<title>{m.home_meta_title()}</title>
+	<meta name="description" content={m.home_meta_description()} />
 </svelte:head>
 
 <div id="landing-page-view" class="space-y-16 pb-16">
@@ -44,7 +55,7 @@
 						class="inline-flex items-center gap-2 rounded-full border-2 border-slate-900 bg-[#dcfce7] px-4 py-1.5 text-xs font-black tracking-wider text-slate-900 uppercase shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 					>
 						<ShieldCheck class="h-4 w-4 text-emerald-700" />
-						<span>Ethiopia's managed creator marketplace</span>
+						<span>{m.home_badge_marketplace()}</span>
 					</div>
 
 					<h1 class="text-3xl leading-[1.1] font-black tracking-tight sm:text-5xl">
@@ -85,24 +96,26 @@
 							href="/campaigns"
 							class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-white px-5 py-2.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-slate-100"
 						>
-							<span>View live campaign briefs</span>
+							<span>{m.home_cta_view_briefs()}</span>
 							<ArrowRight class="h-4 w-4" />
 						</a>
 						<a
 							href="/register"
 							class="flex items-center gap-2 rounded-xl border-2 border-slate-900 bg-[#fef9c3] px-5 py-2.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]"
 						>
-							<span>Create an account</span>
+							<span>{m.home_cta_create_account()}</span>
 						</a>
 					</div>
 				</div>
 
 				<!-- Live figures, read from the database rather than written into the page -->
-				<div class="relative z-10 mt-6 grid grid-cols-3 gap-4 border-t-2 border-slate-800 pt-6 text-xs">
+				<div
+					class="relative z-10 mt-6 grid grid-cols-3 gap-4 border-t-2 border-slate-800 pt-6 text-xs"
+				>
 					<div>
 						<div class="text-xl font-black text-white sm:text-2xl">{data.stats.creators}</div>
 						<div class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-							Published creators
+							{m.home_stat_published_creators()}
 						</div>
 					</div>
 					<div>
@@ -110,13 +123,13 @@
 							{formatReach(data.stats.totalReach)}
 						</div>
 						<div class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-							Combined reach
+							{m.home_stat_combined_reach()}
 						</div>
 					</div>
 					<div>
 						<div class="text-xl font-black text-white sm:text-2xl">{data.stats.campaigns}</div>
 						<div class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-							Live campaigns
+							{m.home_stat_live_campaigns()}
 						</div>
 					</div>
 				</div>
@@ -129,7 +142,7 @@
 						<span
 							class="rounded-full border border-slate-900 bg-slate-900 px-2.5 py-1 text-[10px] font-black tracking-widest text-white uppercase"
 						>
-							Featured creator
+							{m.home_featured_creator()}
 						</span>
 						{#if hero}
 							<span
@@ -170,13 +183,13 @@
 						>
 							<div>
 								<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
-									Reach
+									{m.home_reach()}
 								</span>
 								<span class="font-black text-slate-900">{formatReach(hero.totalReach)}</span>
 							</div>
 							<div>
 								<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
-									Score
+									{m.home_score()}
 								</span>
 								<span class="font-black text-emerald-700">{hero.score}/100</span>
 							</div>
@@ -184,7 +197,7 @@
 								href="/creators/{hero.username}"
 								class="rounded-xl border border-slate-900 bg-slate-900 px-3.5 py-1.5 text-xs font-black text-white shadow-[1px_1px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-800"
 							>
-								View
+								{m.home_view()}
 							</a>
 						</div>
 					{/if}
@@ -192,12 +205,11 @@
 
 				<div class="bento-card-yellow space-y-2">
 					<span class="block text-[10px] font-black tracking-widest text-slate-800 uppercase">
-						How agreements work
+						{m.home_agreements_eyebrow()}
 					</span>
-					<h4 class="text-base font-black text-slate-900">Terms are frozen when both sides agree</h4>
+					<h4 class="text-base font-black text-slate-900">{m.home_agreements_title()}</h4>
 					<p class="text-xs font-medium text-slate-700">
-						Scope, price, deadline and revision allowance are copied into an unchangeable record at
-						the moment of agreement. Later edits to a profile or brief never rewrite a live deal.
+						{m.home_agreements_body()}
 					</p>
 				</div>
 			</div>
@@ -209,18 +221,22 @@
 		<section class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
 			<div class="flex items-center justify-between">
 				<div>
-					<div class="flex items-center gap-2 text-xs font-bold tracking-wider text-emerald-600 uppercase">
+					<div
+						class="flex items-center gap-2 text-xs font-bold tracking-wider text-emerald-600 uppercase"
+					>
 						<TrendingUp class="h-4 w-4" />
-						<span>Verified creator supply</span>
+						<span>{m.home_trending_eyebrow()}</span>
 					</div>
-					<h2 class="mt-1 text-xl font-extrabold text-gray-900 sm:text-2xl">Trending creators</h2>
+					<h2 class="mt-1 text-xl font-extrabold text-gray-900 sm:text-2xl">
+						{m.home_trending_title()}
+					</h2>
 				</div>
 
 				<a
 					href="/discover"
 					class="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800"
 				>
-					<span>View all ({data.stats.creators})</span>
+					<span>{m.home_view_all({ count: data.stats.creators })}</span>
 					<ArrowRight class="h-3.5 w-3.5" />
 				</a>
 			</div>
@@ -237,11 +253,11 @@
 	<section class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
 		<div class="mx-auto max-w-2xl space-y-2 text-center">
 			<span class="text-xs font-black tracking-widest text-slate-500 uppercase">
-				Targeted discovery
+				{m.home_categories_eyebrow()}
 			</span>
-			<h2 class="text-xl font-black text-slate-900 sm:text-3xl">Browse creators by category</h2>
+			<h2 class="text-xl font-black text-slate-900 sm:text-3xl">{m.home_categories_title()}</h2>
 			<p class="text-xs font-medium text-slate-600">
-				Pick a category to narrow discovery to creators who already make this kind of work.
+				{m.home_categories_body()}
 			</p>
 		</div>
 
@@ -257,7 +273,9 @@
 						>
 							<DynamicIcon name={category.icon} class="h-5 w-5" />
 						</div>
-						<h3 class="text-sm font-black text-slate-900 transition-colors group-hover:text-emerald-600">
+						<h3
+							class="text-sm font-black text-slate-900 transition-colors group-hover:text-emerald-600"
+						>
 							{category.name}
 						</h3>
 						<p class="mt-1 line-clamp-2 text-[11px] leading-relaxed font-medium text-slate-600">
@@ -276,12 +294,11 @@
 				<span
 					class="inline-block rounded-full border border-slate-900 bg-[#dcfce7] px-3 py-1 text-xs font-black tracking-widest text-emerald-700 uppercase"
 				>
-					Flexible compensation
+					{m.home_comp_eyebrow()}
 				</span>
-				<h2 class="text-xl font-black text-slate-900 sm:text-3xl">Three ways to pay a creator</h2>
+				<h2 class="text-xl font-black text-slate-900 sm:text-3xl">{m.home_comp_title()}</h2>
 				<p class="text-xs font-medium text-slate-600">
-					Whether you hold a cash budget, a hotel with rooms to fill, or an event with passes to
-					give — each model is tracked to fulfilment.
+					{m.home_comp_body()}
 				</p>
 			</div>
 
@@ -292,15 +309,14 @@
 					>
 						<Briefcase class="h-6 w-6 text-emerald-400" />
 					</div>
-					<h3 class="text-lg font-black text-slate-900">1. Paid campaigns</h3>
+					<h3 class="text-lg font-black text-slate-900">{m.home_comp_paid_title()}</h3>
 					<p class="text-xs leading-relaxed font-medium text-slate-800">
-						Agree a cash fee in any supported currency. The platform records the amount, the fee
-						split and the settlement state separately from the delivery state.
+						{m.home_comp_paid_body()}
 					</p>
 					<span
 						class="inline-block rounded-lg border border-slate-900 bg-white px-2.5 py-1 text-[11px] font-black text-emerald-900"
 					>
-						15% marketplace fee
+						{m.home_comp_paid_tag()}
 					</span>
 				</div>
 
@@ -310,15 +326,14 @@
 					>
 						<Ticket class="h-6 w-6 text-indigo-300" />
 					</div>
-					<h3 class="text-lg font-black text-slate-900">2. Event access</h3>
+					<h3 class="text-lg font-black text-slate-900">{m.home_comp_event_title()}</h3>
 					<p class="text-xs leading-relaxed font-medium text-slate-800">
-						Conferences, summits and festivals offer passes and access in exchange for agreed
-						pre-event and live coverage. The pass itself is the compensation, and it is tracked.
+						{m.home_comp_event_body()}
 					</p>
 					<span
 						class="inline-block rounded-lg border border-slate-900 bg-white px-2.5 py-1 text-[11px] font-black text-indigo-950"
 					>
-						Organiser-managed
+						{m.home_comp_event_tag()}
 					</span>
 				</div>
 
@@ -328,15 +343,14 @@
 					>
 						<Gift class="h-6 w-6 text-amber-300" />
 					</div>
-					<h3 class="text-lg font-black text-slate-900">3. Barter & product</h3>
+					<h3 class="text-lg font-black text-slate-900">{m.home_comp_barter_title()}</h3>
 					<p class="text-xs leading-relaxed font-medium text-slate-800">
-						Hotels, resorts and product brands exchange stays or goods for coverage. What was
-						promised and what proves it was delivered are both recorded.
+						{m.home_comp_barter_body()}
 					</p>
 					<span
 						class="inline-block rounded-lg border border-slate-900 bg-white px-2.5 py-1 text-[11px] font-black text-amber-950"
 					>
-						Micro & nano creator growth
+						{m.home_comp_barter_tag()}
 					</span>
 				</div>
 			</div>
@@ -350,12 +364,12 @@
 				<span
 					class="inline-block rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-black tracking-widest text-emerald-400 uppercase"
 				>
-					For brands & organisations
+					{m.home_brands_eyebrow()}
 				</span>
-				<h2 class="text-2xl font-black text-white sm:text-3xl">Hire a creator in four steps</h2>
+				<h2 class="text-2xl font-black text-white sm:text-3xl">{m.home_brands_title()}</h2>
 
 				<div class="space-y-4 text-xs">
-					{#each [{ n: 1, title: 'Post a brief or book directly', body: 'Set the deliverables, the compensation model and the deadline. Or skip the brief and book a package straight from a profile.' }, { n: 2, title: 'Review pitches and negotiate', body: 'Shortlist applicants, counter on price or scope, and keep the whole exchange on one thread.' }, { n: 3, title: 'Agree terms — they freeze', body: 'When both sides confirm, the agreed scope, price, deadline and revision allowance are locked into the booking.' }, { n: 4, title: 'Approve the work, then settle', body: 'Request a revision with a reason, or approve. Compensation is marked fulfilled and both sides can review.' }] as step (step.n)}
+					{#each brandSteps as step (step.n)}
 						<div class="flex gap-4">
 							<span
 								class="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl border border-white bg-emerald-500 font-black text-slate-950"
@@ -374,7 +388,7 @@
 					href="/register?role=business"
 					class="block w-full rounded-2xl border-2 border-slate-900 bg-emerald-500 py-3.5 text-center text-xs font-black text-slate-950 shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] transition-all hover:bg-emerald-400"
 				>
-					Post a campaign as a brand
+					{m.home_brands_cta()}
 				</a>
 			</div>
 
@@ -382,12 +396,12 @@
 				<span
 					class="inline-block rounded-full border border-slate-900 bg-white px-3 py-1 text-xs font-black tracking-widest text-emerald-950 uppercase"
 				>
-					For content creators
+					{m.home_creators_eyebrow()}
 				</span>
-				<h2 class="text-2xl font-black text-slate-900 sm:text-3xl">How creators get booked</h2>
+				<h2 class="text-2xl font-black text-slate-900 sm:text-3xl">{m.home_creators_title()}</h2>
 
 				<div class="space-y-4 text-xs">
-					{#each [{ n: 1, title: 'Build your media kit', body: 'Link your channels, publish your packages and set your rates in the currency you actually get paid in.' }, { n: 2, title: 'Get verified', body: 'Submit evidence once. Your badge names what was checked, so brands know exactly what it means.' }, { n: 3, title: 'Apply or accept direct bookings', body: 'Pitch on live briefs, or take direct package orders from brands who found you in discovery.' }, { n: 4, title: 'Deliver and get paid', body: 'Submit your link, respond to any revision request, and the completed campaign joins your public record.' }] as step (step.n)}
+					{#each creatorSteps as step (step.n)}
 						<div class="flex gap-4">
 							<span
 								class="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl border border-slate-900 bg-slate-900 font-black text-white"
@@ -406,7 +420,7 @@
 					href="/register?role=creator"
 					class="block w-full rounded-2xl border-2 border-slate-900 bg-slate-900 py-3.5 text-center text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-slate-800"
 				>
-					Join as a creator
+					{m.home_creators_cta()}
 				</a>
 			</div>
 		</div>

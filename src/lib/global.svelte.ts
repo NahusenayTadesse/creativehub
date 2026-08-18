@@ -1,4 +1,5 @@
 import { SvelteDate } from 'svelte/reactivity';
+import { intlLocale } from '$lib/locale';
 
 export const bgGradient = `bg-linear-to-r from-background  to-secondary`;
 
@@ -17,10 +18,17 @@ export function isMobile() {
 	return window.innerWidth <= 768;
 }
 
-export const formatEthiopianDate = (date: Date | string | undefined): string => {
+/**
+ * A long-form date in the request's locale.
+ *
+ * Formerly `formatEthiopianDate`, which was misleading twice over: it produced
+ * a Gregorian date, and it pinned `en-US` regardless of the active locale, so
+ * nothing on the site ever rendered a date in Amharic.
+ */
+export const formatLongDate = (date: Date | string | undefined): string => {
 	if (!date) return '';
 
-	return new Intl.DateTimeFormat('en-US', {
+	return new Intl.DateTimeFormat(intlLocale(), {
 		year: 'numeric',
 		month: 'long',
 		day: 'numeric'

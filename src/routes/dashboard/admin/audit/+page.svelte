@@ -1,6 +1,8 @@
 <script lang="ts">
 	import PageHeader from '$lib/components/page-header.svelte';
 	import { Search, ScrollText } from '@lucide/svelte';
+	import * as m from '$lib/paraglide/messages';
+	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
 
@@ -24,7 +26,7 @@
 	});
 
 	const formatTime = (value: string | Date) =>
-		new Date(value).toLocaleString('en-GB', {
+		new Date(value).toLocaleString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
 			day: 'numeric',
 			month: 'short',
 			year: 'numeric',
@@ -33,13 +35,13 @@
 		});
 </script>
 
-<svelte:head><title>Audit log — Creator Network</title></svelte:head>
+<svelte:head><title>{m.ad_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
 	<PageHeader
-		eyebrow="Platform operations"
-		title="Audit log"
-		description="Append-only. Every state change records who did it, what moved, and why — nothing here can be edited or removed, including by an operator."
+		eyebrow={m.dash_platform_operations()}
+		title={m.ad_title()}
+		description={m.ad_description()}
 	/>
 
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -52,7 +54,7 @@
 					? 'bg-slate-900 text-white'
 					: 'bg-white text-slate-800 hover:bg-slate-100'}"
 			>
-				All ({data.entries.length})
+				{m.ad_all_count({ count: data.entries.length })}
 			</button>
 			{#each entities as entity (entity)}
 				<button
@@ -73,7 +75,7 @@
 			<input
 				type="text"
 				bind:value={query}
-				placeholder="Search actions and reasons…"
+				placeholder={m.ad_search_placeholder()}
 				class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 pr-3 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] outline-none focus:ring-2 focus:ring-emerald-500"
 			/>
 		</div>
@@ -82,27 +84,37 @@
 	{#if filtered.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<ScrollText class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">Nothing recorded yet</h3>
+			<h3 class="text-base font-black text-slate-900">{m.ad_empty()}</h3>
 		</div>
 	{:else}
 		<div class="bento-card bento-card-static overflow-x-auto p-0!">
 			<table class="w-full min-w-[800px] text-sm">
 				<thead>
 					<tr class="border-b-2 border-slate-900 bg-slate-50">
-						<th class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase">
-							When
+						<th
+							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+						>
+							{m.ad_col_when()}
 						</th>
-						<th class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase">
-							Actor
+						<th
+							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+						>
+							{m.ad_col_actor()}
 						</th>
-						<th class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase">
-							Object
+						<th
+							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+						>
+							{m.ad_col_object()}
 						</th>
-						<th class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase">
-							Transition
+						<th
+							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+						>
+							{m.ad_col_transition()}
 						</th>
-						<th class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase">
-							Reason
+						<th
+							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+						>
+							{m.ad_col_reason()}
 						</th>
 					</tr>
 				</thead>
@@ -113,7 +125,7 @@
 								{formatTime(entry.createdAt)}
 							</td>
 							<td class="px-4 py-2.5 text-[11px] font-bold text-slate-700">
-								{entry.actorLabel ?? entry.actorId?.slice(0, 8) ?? 'System'}
+								{entry.actorLabel ?? entry.actorId?.slice(0, 8) ?? m.ad_system()}
 							</td>
 							<td class="px-4 py-2.5">
 								<span

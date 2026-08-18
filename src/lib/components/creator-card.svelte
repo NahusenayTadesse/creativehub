@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import { MapPin, Star, Heart, Award, Eye } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
 	import VerificationBadge from './verification-badge.svelte';
@@ -46,7 +47,7 @@
 				<button
 					type="button"
 					onclick={() => onSave?.(creator)}
-					title={saved ? 'Remove from shortlist' : 'Save to shortlist'}
+					title={saved ? m.card_remove_shortlist() : m.card_save_shortlist()}
 					class="absolute top-2.5 right-2.5 rounded-xl border-2 border-slate-900 p-2 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors {saved
 						? 'bg-red-500 text-white'
 						: 'bg-white text-slate-900 hover:bg-slate-100'}"
@@ -60,13 +61,13 @@
 					class="flex items-center gap-1 rounded-xl border border-slate-900 bg-slate-900 px-2.5 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_0px_rgba(16,185,129,1)]"
 				>
 					<Award class="h-3.5 w-3.5 text-emerald-400" />
-					<span>Score {creator.score}</span>
+					<span>{m.card_score({ score: creator.score })}</span>
 				</div>
 				{#if matchScore !== undefined}
 					<div
 						class="flex items-center gap-1 rounded-xl border border-slate-900 bg-emerald-500 px-2 py-1 text-[11px] font-black text-slate-950 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 					>
-						<span>✨ {matchScore}% Match</span>
+						<span>{m.card_match({ score: matchScore })}</span>
 					</div>
 				{/if}
 			</div>
@@ -75,11 +76,11 @@
 				<button
 					type="button"
 					onclick={() => onQuickView?.(creator)}
-					title="Quick view portfolio and packages"
+					title={m.card_quick_view_title()}
 					class="absolute right-2.5 bottom-2.5 flex cursor-pointer items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/90 px-2.5 py-1 text-[10px] font-black text-white shadow-md backdrop-blur-xs transition-all hover:scale-105 hover:bg-slate-900"
 				>
 					<Eye class="h-3 w-3 text-emerald-400" />
-					<span>Quick View</span>
+					<span>{m.card_quick_view()}</span>
 				</button>
 			{/if}
 
@@ -148,20 +149,28 @@
 				class="mb-4 grid grid-cols-3 gap-2 rounded-2xl border-2 border-slate-900 bg-[#fef9c3] p-2.5 text-center text-xs shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 			>
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">Reach</div>
+					<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+						{m.card_reach()}
+					</div>
 					<div class="mt-0.5 text-sm font-black text-slate-900">
 						{formatReach(creator.totalReach)}
 					</div>
 				</div>
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">Platform</div>
+					<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+						{m.card_platform()}
+					</div>
 					<div class="mt-0.5 text-xs font-black text-emerald-800">
 						{creator.platformName ?? '—'}
 					</div>
 				</div>
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">Rating</div>
-					<div class="mt-0.5 flex items-center justify-center gap-0.5 text-xs font-black text-slate-900">
+					<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+						{m.card_rating()}
+					</div>
+					<div
+						class="mt-0.5 flex items-center justify-center gap-0.5 text-xs font-black text-slate-900"
+					>
 						<Star class="h-3.5 w-3.5 fill-amber-400 text-slate-900" />
 						<span>{creator.averageRating.toFixed(1)}</span>
 					</div>
@@ -176,7 +185,7 @@
 	>
 		<div>
 			<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
-				Starting from
+				{m.starting_from()}
 			</span>
 			<span class="text-sm font-black text-slate-900">
 				{creator.startingPrice.toLocaleString()}
@@ -192,14 +201,14 @@
 					class="flex cursor-pointer items-center gap-1 rounded-xl border-2 border-slate-900 bg-amber-100 px-2.5 py-1.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-amber-200"
 				>
 					<Eye class="h-3.5 w-3.5 text-slate-900" />
-					<span>Quick View</span>
+					<span>{m.card_quick_view()}</span>
 				</button>
 			{/if}
 			<a
 				href={profileHref}
 				class="cursor-pointer rounded-xl border-2 border-slate-900 bg-white px-2.5 py-1.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-slate-100"
 			>
-				View Profile
+				{m.view_profile()}
 			</a>
 			{#if onBook}
 				<button
@@ -207,14 +216,14 @@
 					onclick={() => onBook?.(creator)}
 					class="cursor-pointer rounded-xl border-2 border-slate-900 bg-emerald-600 px-2.5 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700"
 				>
-					Book Creator
+					{m.book_creator()}
 				</button>
 			{:else}
 				<a
 					href="{profileHref}#packages"
 					class="cursor-pointer rounded-xl border-2 border-slate-900 bg-emerald-600 px-2.5 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700"
 				>
-					Book Creator
+					{m.book_creator()}
 				</a>
 			{/if}
 		</div>

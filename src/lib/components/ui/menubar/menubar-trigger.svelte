@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Menubar as MenubarPrimitive } from "bits-ui";
-	import { cn } from "$lib/utils.js";
+	import { Menubar as MenubarPrimitive } from 'bits-ui';
+	import { cn } from '$lib/utils.js';
 
 	let {
 		ref = $bindable(null),
@@ -12,6 +12,9 @@
 <MenubarPrimitive.Trigger
 	bind:ref
 	data-slot="menubar-trigger"
-	class={cn("rounded-none px-2 py-0.75 text-sm font-medium hover:bg-muted aria-expanded:bg-muted flex items-center outline-hidden select-none", className)}
+	class={cn(
+		'flex items-center rounded-none px-2 py-0.75 text-sm font-medium outline-hidden select-none hover:bg-muted aria-expanded:bg-muted',
+		className
+	)}
 	{...restProps}
 />

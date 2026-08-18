@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Select from '$lib/components/ui/select/index.js';
 	import { selectItem, type Item } from '$lib/global.svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let { value = $bindable(), items, name } = $props();
 	function getItemNameById(items: any, value: any) {
@@ -16,7 +17,7 @@
 	const triggerContent = $derived(
 		// Use String coercion to ensure "1" matches 1
 		items.find((f: Item) => String(f.value) === String(value))?.name ??
-			'Select ' + name.replace(/([a-z])([A-Z])/g, '$1 $2')
+			m.form_select_placeholder({ field: name.replace(/([a-z])([A-Z])/g, '$1 $2') })
 	);
 </script>
 

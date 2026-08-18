@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
@@ -20,35 +21,31 @@
 		name: `${c.flag} ${c.name}`
 	}));
 
-	const orgTypes = [
-		{ value: 'company', name: 'Company' },
-		{ value: 'startup', name: 'Startup' },
-		{ value: 'agency', name: 'Agency' },
-		{ value: 'ngo', name: 'NGO / non-profit' },
-		{ value: 'government', name: 'Government / public sector' },
-		{ value: 'event_organizer', name: 'Event organiser' }
-	];
+	const orgTypes = $derived([
+		{ value: 'company', name: m.og_type_company() },
+		{ value: 'startup', name: m.og_type_startup() },
+		{ value: 'agency', name: m.og_type_agency() },
+		{ value: 'ngo', name: m.og_type_ngo() },
+		{ value: 'government', name: m.og_type_government() },
+		{ value: 'event_organizer', name: m.og_type_event() }
+	]);
 </script>
 
-<svelte:head><title>Register your organisation — Creator Network</title></svelte:head>
+<svelte:head><title>{m.ogc_meta_title()}</title></svelte:head>
 
 <div class="mx-auto max-w-2xl space-y-6">
-	<PageHeader
-		eyebrow="Getting started"
-		title="Register your organisation"
-		description="Campaigns, bookings and shortlists all belong to an organisation rather than to you personally, so team members can be added later without moving anything."
-	/>
+	<PageHeader eyebrow={m.ogc_eyebrow()} title={m.ogc_title()} description={m.ogc_description()} />
 
 	<div class="bento-card bento-card-static">
 		<form method="POST" use:enhance enctype="multipart/form-data" class="space-y-2">
 			<Errors allErrors={$allErrors} />
 
-			<InputComp {form} {errors} label="Organisation name" name="name" type="text" required />
+			<InputComp {form} {errors} label={m.og_name()} name="name" type="text" required />
 
 			<InputComp
 				{form}
 				{errors}
-				label="Type"
+				label={m.og_type()}
 				name="orgType"
 				type="select"
 				items={orgTypes}
@@ -59,25 +56,32 @@
 				<InputComp
 					{form}
 					{errors}
-					label="Country"
+					label={m.pf_country()}
 					name="countryId"
 					type="select"
 					items={countryItems}
 					required
 				/>
-				<InputComp {form} {errors} label="City" name="city" type="text" />
+				<InputComp {form} {errors} label={m.pf_city()} name="city" type="text" />
 			</div>
-
-			<InputComp {form} {errors} label="Website" name="website" type="text" placeholder="https://…" />
 
 			<InputComp
 				{form}
 				{errors}
-				label="About the organisation"
+				label={m.og_website()}
+				name="website"
+				type="text"
+				placeholder="https://…"
+			/>
+
+			<InputComp
+				{form}
+				{errors}
+				label={m.ogc_about_label()}
 				name="bio"
 				type="textarea"
 				rows={4}
-				placeholder="What you do and what kind of creators you work with."
+				placeholder={m.ogc_about_placeholder()}
 			/>
 
 			<button
@@ -86,9 +90,9 @@
 				class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
 			>
 				{#if $delayed}
-					<LoadingBtn name="Creating organisation" />
+					<LoadingBtn name={m.ogc_creating()} />
 				{:else}
-					Create and post a brief
+					{m.ogc_submit()}
 					<ArrowRight class="h-4 w-4" />
 				{/if}
 			</button>

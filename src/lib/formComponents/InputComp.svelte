@@ -30,7 +30,6 @@
 		className = ''
 	} = $props();
 
-
 	function flattenErrors(err: unknown): string[] {
 		if (!err) return [];
 		if (typeof err === 'string') return [err];
@@ -95,9 +94,9 @@
 		{/if}
 	{/if} -->
 
-{#if fieldErrors.length}
-	{#each fieldErrors as error}
-		<p class="flex items-center gap-2 text-red-500"><CircleAlert /> {error}</p>
-	{/each}
-{/if}
+	{#if fieldErrors.length}
+		{#each fieldErrors as error}
+			<p class="flex items-center gap-2 text-red-500"><CircleAlert /> {error}</p>
+		{/each}
+	{/if}
 </div>

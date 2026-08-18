@@ -7,6 +7,7 @@
 	import { Trash } from '@lucide/svelte';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
+	import * as m from '$lib/paraglide/messages';
 
 	let {
 		data,
@@ -44,11 +45,11 @@
 	</Dialog.Trigger>
 	<Dialog.Content class="w-full">
 		<Dialog.Header>
-			<Dialog.Title>Delete</Dialog.Title>
+			<Dialog.Title>{m.common_delete()}</Dialog.Title>
 		</Dialog.Header>
 		<ScrollArea class="h-auto rounded-md border p-2">
 			<h5 class="text-center">
-				Delete {name ? `"${name}"` : 'this item'}? This action cannot be undone.
+				{name ? m.del_confirm_named({ name }) : m.del_confirm_generic()}
 			</h5>
 			<div class="flex flex-row items-end justify-center gap-4 pt-4">
 				<form method="post" id={formId} {action} use:enhance>
@@ -56,13 +57,16 @@
 					<input type="hidden" name="id" value={$form.id} />
 					<Button type="submit" variant="destructive" form={formId} class="mt-4">
 						{#if $delayed}
-							<LoadingBtn name="Deleting" />
+							<LoadingBtn name={m.common_deleting()} />
 						{:else}
-							<Trash class="size-4" /> Delete
+							<Trash class="size-4" />
+							{m.common_delete()}
 						{/if}
 					</Button>
 				</form>
-				<Button variant="outline" onclick={() => (open = false)} class="mt-4">Cancel</Button>
+				<Button variant="outline" onclick={() => (open = false)} class="mt-4"
+					>{m.common_cancel()}</Button
+				>
 			</div>
 		</ScrollArea>
 	</Dialog.Content>

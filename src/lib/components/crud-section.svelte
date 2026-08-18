@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
 	import type { Snippet } from 'svelte';
 	import CrudDialog, { type CrudField } from '$lib/components/Table/crud-dialog.svelte';
 	import CrudDelete from '$lib/components/Table/crud-delete.svelte';
@@ -24,7 +25,7 @@
 		deleteForm,
 		nameKey = 'name',
 		row,
-		emptyMessage = 'Nothing here yet.',
+		emptyMessage = undefined,
 		layout = 'grid',
 		extraActions = undefined,
 		editValues = undefined,
@@ -74,11 +75,11 @@
 				{@render extraActions()}
 			{/if}
 			<CrudDialog
-				title="Add {label}"
+				title={m.crud_add({ label })}
 				data={addForm}
 				action="?/add"
 				{fields}
-				trigger="Add {label}"
+				trigger={m.crud_add({ label })}
 			/>
 		{/snippet}
 	</PageHeader>
@@ -86,9 +87,11 @@
 	{#if rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">{emptyMessage}</h3>
+			<h3 class="text-base font-black text-slate-900">
+				{emptyMessage ?? m.crud_empty_default()}
+			</h3>
 			<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
-				Use “Add {label}” above to create the first one.
+				{m.crud_empty_hint({ label })}
 			</p>
 		</div>
 	{:else}
@@ -103,14 +106,14 @@
 
 					<div class="flex items-center justify-end gap-2 border-t-2 border-slate-200 pt-3">
 						<CrudDialog
-							title="Edit {label}"
+							title={m.crud_edit({ label })}
 							data={editForm}
 							action="?/edit"
 							{fields}
 							values={valuesFor(record)}
 							existing={existingFor(record)}
 							variant="outline"
-							trigger="Edit"
+							trigger={m.crud_edit_short()}
 						/>
 						<CrudDelete data={deleteForm} id={record.id} name={record[nameKey] ?? ''} />
 					</div>
