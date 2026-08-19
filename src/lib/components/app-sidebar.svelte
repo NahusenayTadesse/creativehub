@@ -18,6 +18,7 @@
 		Tags,
 		Languages,
 		Settings,
+		GalleryHorizontal,
 		UserRoundCog,
 		ScrollText
 	} from '@lucide/svelte';
@@ -154,6 +155,7 @@
 					{ title: m.sb_categories(), url: '/dashboard/admin/categories', icon: Tags },
 					{ title: m.sb_platforms(), url: '/dashboard/admin/platforms', icon: Radio },
 					{ title: m.sb_languages(), url: '/dashboard/admin/languages', icon: Languages },
+					{ title: m.sb_gallery(), url: '/dashboard/admin/gallery', icon: GalleryHorizontal },
 					{ title: m.sb_site_settings(), url: '/dashboard/admin/settings', icon: Settings }
 				]
 			}

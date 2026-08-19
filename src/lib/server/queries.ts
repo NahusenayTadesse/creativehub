@@ -28,6 +28,14 @@ export const listLanguages = () =>
 
 export const getSettings = async () => (await db.select().from(t.siteSettings).limit(1)).at(0);
 
+/** The homepage gallery, in the order an admin arranged it. */
+export const listGallerySlides = () =>
+	db
+		.select()
+		.from(t.gallerySlides)
+		.where(live(t.gallerySlides))
+		.orderBy(asc(t.gallerySlides.sortOrder));
+
 /** Everything the filter panels need, in one round trip. */
 export async function getReferenceData() {
 	const [countries, regions, categories, platforms, languages] = await Promise.all([

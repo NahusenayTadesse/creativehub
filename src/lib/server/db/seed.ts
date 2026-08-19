@@ -312,6 +312,32 @@ type SeedCreator = {
 const img = (id: string, w = 800) =>
 	`https://images.unsplash.com/photo-${id}?auto=format&fit=crop&q=80&w=${w}`;
 
+/** Opening slides for the homepage gallery. Admins edit these in the dashboard. */
+const GALLERY_SLIDES = [
+	{
+		title: 'Africa’s creators, one marketplace',
+		subtitle:
+			'Verified reach, published rate cards and agreements that hold — from Addis to Lagos.',
+		image: img('1522202176988-66273c2fd55f', 1600),
+		linkUrl: '/discover',
+		linkLabel: 'Browse creators'
+	},
+	{
+		title: 'Brief once, hear from the right creators',
+		subtitle: 'Post a campaign and let matching handle the shortlist instead of your inbox.',
+		image: img('1552664730-d307ca884978', 1600),
+		linkUrl: '/campaigns',
+		linkLabel: 'See live briefs'
+	},
+	{
+		title: 'Get paid for the work you already do',
+		subtitle: 'Set your prices, show your numbers and take bookings without the back and forth.',
+		image: img('1516251193007-45ef944ab0c6', 1600),
+		linkUrl: '/register',
+		linkLabel: 'Join as a creator'
+	}
+];
+
 const CREATORS: SeedCreator[] = [
 	{
 		username: 'joel_tech_ethiopia',
@@ -1792,6 +1818,14 @@ async function seed() {
 	for (const [index, language] of LANGUAGES.entries()) {
 		languageIds[language.name] = await upsert(t.languages, eq(t.languages.code, language.code), {
 			...language,
+			sortOrder: index,
+			isActive: true
+		});
+	}
+
+	for (const [index, slide] of GALLERY_SLIDES.entries()) {
+		await upsert(t.gallerySlides, eq(t.gallerySlides.title, slide.title), {
+			...slide,
 			sortOrder: index,
 			isActive: true
 		});

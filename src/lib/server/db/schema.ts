@@ -737,6 +737,25 @@ export const siteSettings = mysqlTable('site_settings', {
 	...audit()
 });
 
+/**
+ * The slides in the homepage gallery, in the order an admin arranged them.
+ *
+ * Purely presentational, so there is nothing to join to: each row carries its
+ * own image and copy. `image` holds an uploaded file name that `/files/[name]`
+ * serves, or an absolute URL — `assetUrl` in $lib/assets accepts both.
+ */
+export const gallerySlides = mysqlTable('gallery_slides', {
+	id: id(),
+	title: varchar('title', { length: 180 }).notNull(),
+	subtitle: text('subtitle'),
+	image: varchar('image', { length: 500 }).default('').notNull(),
+	/** Where the slide points, if anywhere. Rendered as the call-to-action href. */
+	linkUrl: varchar('link_url', { length: 500 }),
+	linkLabel: varchar('link_label', { length: 80 }),
+	...publishable(),
+	...audit()
+});
+
 /* ================================================================== *
  * 8. TRENDING
  *

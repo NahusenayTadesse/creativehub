@@ -572,6 +572,50 @@ export const settingsSchema = z.object({
 });
 
 /* ------------------------------------------------------------------ *
+ * Homepage gallery
+ * ------------------------------------------------------------------ */
+
+/**
+ * The image is either a freshly uploaded `File` or a string: an absolute URL
+ * an admin pasted, or the file name already stored on the row. `contentCrud`
+ * saves a `File` and drops the string, which is what keeps an edit that does
+ * not touch the picker from wiping the existing picture.
+ */
+const slideImage = z
+	.union([
+		z.instanceof(File),
+		z
+			.string()
+			.trim()
+			.max(500)
+			.refine((v) => !v || v.startsWith('/') || isHttpUrl(v) || !v.includes(':'), {
+				error: () => m.val_full_url()
+			})
+	])
+	.optional()
+	.default('');
+
+const gallerySlideFields = {
+	title: name(180),
+	subtitle: optionalText,
+	image: slideImage,
+	linkUrl: optionalUrl,
+	linkLabel: z.string().trim().max(80).optional().default(''),
+	isActive: active,
+	sortOrder: sortOrderField
+};
+
+/* A new slide with no picture would render an empty box, so add insists on one.
+   An edit does not: an empty picker there means "keep the stored image". */
+export const gallerySlideAdd = z
+	.object(gallerySlideFields)
+	.refine((v) => (v.image instanceof File ? v.image.size > 0 : Boolean(v.image)), {
+		path: ['image'],
+		error: () => m.val_image_required()
+	});
+export const gallerySlideEdit = z.object({ ...gallerySlideFields, ...idSchema.shape });
+
+/* ------------------------------------------------------------------ *
  * Trending
  *
  * Ranges are not decoration here: these values are the algorithm, and a

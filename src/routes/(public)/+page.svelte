@@ -11,6 +11,8 @@
 		Star
 	} from '@lucide/svelte';
 	import CreatorCard from '$lib/components/creator-card.svelte';
+	import * as Carousel from '$lib/components/ui/carousel/index.js';
+	import GalleryCarousel from '$lib/components/gallery-carousel.svelte';
 	import DynamicIcon from '$lib/components/dynamic-icon.svelte';
 	import { formatReach } from '$lib/domain/money';
 	import * as m from '$lib/paraglide/messages';
@@ -216,36 +218,60 @@
 		</div>
 	</section>
 
+	<!-- ================= GALLERY ================= -->
+	{#if data.gallery.length}
+		<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+			<GalleryCarousel slides={data.gallery} />
+		</section>
+	{/if}
+
 	<!-- ================= TRENDING ================= -->
 	{#if data.trending.length}
-		<section class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
-			<div class="flex items-center justify-between">
-				<div>
-					<div
-						class="flex items-center gap-2 text-xs font-bold tracking-wider text-emerald-600 uppercase"
-					>
-						<TrendingUp class="h-4 w-4" />
-						<span>{m.home_trending_eyebrow()}</span>
+		<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+			<Carousel.Root opts={{ align: 'start', containScroll: 'trimSnaps' }} class="space-y-6">
+				<div class="flex flex-wrap items-end justify-between gap-4">
+					<div>
+						<div
+							class="flex items-center gap-2 text-xs font-bold tracking-wider text-emerald-600 uppercase"
+						>
+							<TrendingUp class="h-4 w-4" />
+							<span>{m.home_trending_eyebrow()}</span>
+						</div>
+						<h2 class="mt-1 text-xl font-extrabold text-gray-900 sm:text-2xl">
+							{m.home_trending_title()}
+						</h2>
 					</div>
-					<h2 class="mt-1 text-xl font-extrabold text-gray-900 sm:text-2xl">
-						{m.home_trending_title()}
-					</h2>
+
+					<div class="flex items-center gap-4">
+						<a
+							href="/discover"
+							class="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800"
+						>
+							<span>{m.home_view_all({ count: data.stats.creators })}</span>
+							<ArrowRight class="h-3.5 w-3.5" />
+						</a>
+
+						<div class="flex items-center gap-2">
+							<Carousel.Previous
+								aria-label={m.tbl_previous()}
+								class="static inset-auto my-0 size-9 rounded-xl border-2 border-slate-900 bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-50 disabled:opacity-40 disabled:shadow-none"
+							/>
+							<Carousel.Next
+								aria-label={m.tbl_next()}
+								class="static inset-auto my-0 size-9 rounded-xl border-2 border-slate-900 bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-50 disabled:opacity-40 disabled:shadow-none"
+							/>
+						</div>
+					</div>
 				</div>
 
-				<a
-					href="/discover"
-					class="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800"
-				>
-					<span>{m.home_view_all({ count: data.stats.creators })}</span>
-					<ArrowRight class="h-3.5 w-3.5" />
-				</a>
-			</div>
-
-			<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-				{#each data.trending.slice(0, 4) as creator (creator.id)}
-					<CreatorCard {creator} />
-				{/each}
-			</div>
+				<Carousel.Content class="py-2 pe-2">
+					{#each data.trending as creator (creator.id)}
+						<Carousel.Item class="basis-[86%] sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
+							<CreatorCard {creator} />
+						</Carousel.Item>
+					{/each}
+				</Carousel.Content>
+			</Carousel.Root>
 		</section>
 	{/if}
 
