@@ -1,12 +1,13 @@
 import * as m from '$lib/paraglide/messages';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
-import { and, asc, eq, isNull, type SQL } from 'drizzle-orm';
+import { and, eq, getTableColumns, isNull, type SQL } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { MySqlTable } from 'drizzle-orm/mysql-core';
 import { db } from '$lib/server/db';
 import { saveUploadedFile, UploadError } from '$lib/server/upload';
+import { defineQuery } from '$lib/server/query';
 
 /** A rejected upload is the user's to correct, so it gets its own message. */
 export const uploadErrorText = (err: unknown): string | null =>
@@ -58,6 +59,14 @@ interface CrudOptions {
 	fileFields?: string[];
 	/** Fields entered as one-per-line text and stored as a JSON string array. */
 	listFields?: string[];
+	/**
+	 * Columns the listing's search box looks in. Defaults to whichever of the
+	 * usual naming columns the table actually has, which covers every reference
+	 * table without each one having to say so.
+	 */
+	searchFields?: string[];
+	/** Rows per page. The listing is paged; nothing renders a whole table. */
+	perPage?: number;
 	/** Confines the whole CRUD surface to one owner's rows. */
 	scope?: CrudScope;
 	/**
@@ -102,6 +111,8 @@ export function contentCrud({
 	editSchema,
 	fileFields = [],
 	listFields = [],
+	searchFields,
+	perPage,
 	scope,
 	excludeDeleted = true,
 	defaults = {},
@@ -112,6 +123,48 @@ export function contentCrud({
 	const labelText = () => (typeof label === 'function' ? label() : label);
 	/** Newest content sorts by the admin-chosen order; the rest falls back to id. */
 	const orderColumn = table.sortOrder ?? table.id;
+
+	/*
+	 * The listing goes through the same query builder every other list in the
+	 * app uses, so a managed table gets a search box and pages for free — and,
+	 * more to the point, so that opening one never selects the whole table.
+	 *
+	 * The columns searched are named rather than inferred from their SQL type:
+	 * a text column holding a URL or a serialised list is noise in a search, and
+	 * `LIKE '%…%'` over one is work with no result to show for it.
+	 */
+	const NAMING_COLUMNS = [
+		'name',
+		'title',
+		'fullName',
+		'username',
+		'email',
+		'slug',
+		'code',
+		'caption',
+		'city',
+		'handle'
+	];
+
+	const columns = getTableColumns(table) as Record<string, any>;
+	const searchColumns = (searchFields ?? NAMING_COLUMNS)
+		.map((field) => columns[field])
+		.filter(Boolean);
+
+	const listQuery = defineQuery({
+		table,
+		columns,
+		search: searchColumns,
+		sort: {
+			order: { column: orderColumn, direction: 'asc' },
+			...(table.createdAt ? { newest: { column: table.createdAt, direction: 'desc' } } : {}),
+			...(columns.name ? { name: { column: columns.name, direction: 'asc' } } : {}),
+			...(columns.title ? { title: { column: columns.title, direction: 'asc' } } : {})
+		},
+		defaultSort: 'order',
+		tiebreaker: table.id,
+		perPage
+	});
 
 	/** Conditions applied to every read, and to the row an edit or delete targets. */
 	const guards = (): SQL[] => {
@@ -149,27 +202,30 @@ export function contentCrud({
 		return values;
 	};
 
-	const load = async () => {
-		const conditions = guards();
-
-		const [addForm, editForm, deleteForm, rows] = await Promise.all([
+	const load = async (event: RequestEvent) => {
+		const [addForm, editForm, deleteForm, list] = await Promise.all([
 			superValidate(zod4(addSchema)),
 			superValidate(zod4(editSchema)),
 			superValidate(zod4(idSchema)),
-			conditions.length
-				? db
-						.select()
-						.from(table)
-						.where(and(...conditions))
-						.orderBy(asc(orderColumn))
-				: db.select().from(table).orderBy(asc(orderColumn))
+			/* The ownership and soft-delete conditions are the caller's `where`,
+			   kept apart from anything the query string asked for. */
+			listQuery.run(event.url, { where: guards() })
 		]);
 
 		/*
 		 * The table is generic, so Drizzle cannot narrow the row shape here. Each
 		 * route knows its own columns, so an indexable record is the honest type.
+		 *
+		 * `rows` is this page of them; `list` carries the total and the paging
+		 * state the controls need.
 		 */
-		return { addForm, editForm, deleteForm, rows: rows as Record<string, any>[] };
+		return {
+			addForm,
+			editForm,
+			deleteForm,
+			rows: list.rows as Record<string, any>[],
+			list
+		};
 	};
 
 	const actions = {

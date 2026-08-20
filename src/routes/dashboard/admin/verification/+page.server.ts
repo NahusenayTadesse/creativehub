@@ -6,15 +6,29 @@ import { eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
-import { listVerificationRequests } from '$lib/server/queries';
+import { verificationQuery } from '$lib/server/queries';
 import { requireRole, recordAudit } from '$lib/server/guards';
 import { refreshCreatorScore } from '$lib/server/score-service';
 import { verificationDecision } from '$lib/schemas';
 
-export const load: PageServerLoad = async () => ({
-	requests: await listVerificationRequests(),
-	form: await superValidate(zod4(verificationDecision))
-});
+export const load: PageServerLoad = async ({ url }) => {
+	/*
+	 * A queue opens on what is waiting. With no `status` in the URL the pending
+	 * cases are the view; `?status=all` is a value the filter's vocabulary does
+	 * not contain, so it drops out and every case shows — which is exactly what
+	 * the "all" tab means.
+	 */
+	const chosen = url.searchParams.get('status');
+	const scope = chosen ? [] : [eq(t.verificationRequests.status, 'pending')];
+
+	const [requests, statusCounts, form] = await Promise.all([
+		verificationQuery.run(url, { where: scope }),
+		verificationQuery.facet(url, 'status'),
+		superValidate(zod4(verificationDecision))
+	]);
+
+	return { requests, statusCounts, form };
+};
 
 export const actions: Actions = {
 	decide: async (event) => {

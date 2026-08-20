@@ -1,29 +1,23 @@
 <script lang="ts">
 	import PageHeader from '$lib/components/page-header.svelte';
-	import { Search, ScrollText } from '@lucide/svelte';
+	import PaginationBar from '$lib/components/pagination-bar.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
+	import { ScrollText } from '@lucide/svelte';
+	import { page } from '$app/state';
+	import { withParams } from '$lib/query';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
 
-	let query = $state('');
-	let entityFilter = $state('all');
-
-	const entities = $derived([...new Set(data.entries.map((e) => e.entity))]);
-
-	const filtered = $derived.by(() => {
-		const q = query.trim().toLowerCase();
-		return data.entries.filter((entry) => {
-			if (entityFilter !== 'all' && entry.entity !== entityFilter) return false;
-			if (q) {
-				const haystack = [entry.action, entry.reason ?? '', entry.actorLabel ?? '', entry.entity]
-					.join(' ')
-					.toLowerCase();
-				if (!haystack.includes(q)) return false;
-			}
-			return true;
-		});
-	});
+	/* The chips list the entities the log actually holds, with their tallies —
+	   both from the database, so neither depends on which page is open. */
+	const listState = $derived(data.entries.state);
+	const entityFilter = $derived(listState.values.entity ?? 'all');
+	const entities = $derived(Object.keys(data.entityCounts).sort());
+	const totalEntries = $derived(Object.values(data.entityCounts).reduce((sum, n) => sum + n, 0));
+	const entityLink = (entity: string) =>
+		withParams(page.url, { entity: entity === 'all' ? null : entity });
 
 	const formatTime = (value: string | Date) =>
 		new Date(value).toLocaleString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
@@ -46,42 +40,34 @@
 
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div class="flex flex-wrap items-center gap-2">
-			<button
-				type="button"
-				onclick={() => (entityFilter = 'all')}
+			<a
+				href={entityLink('all')}
+				data-sveltekit-noscroll
 				class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] {entityFilter ===
 				'all'
 					? 'bg-slate-900 text-white'
 					: 'bg-white text-slate-800 hover:bg-slate-100'}"
 			>
-				{m.ad_all_count({ count: data.entries.length })}
-			</button>
+				{m.ad_all_count({ count: totalEntries })}
+			</a>
 			{#each entities as entity (entity)}
-				<button
-					type="button"
-					onclick={() => (entityFilter = entity)}
+				<a
+					href={entityLink(entity)}
+					data-sveltekit-noscroll
 					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black capitalize shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] {entityFilter ===
 					entity
 						? 'bg-slate-900 text-white'
 						: 'bg-white text-slate-800 hover:bg-slate-100'}"
 				>
-					{entity}
-				</button>
+					{entity} ({data.entityCounts[entity]})
+				</a>
 			{/each}
 		</div>
 
-		<div class="relative sm:w-64">
-			<Search class="absolute top-3 left-3 h-4 w-4 text-slate-500" />
-			<input
-				type="text"
-				bind:value={query}
-				placeholder={m.ad_search_placeholder()}
-				class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 pr-3 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] outline-none focus:ring-2 focus:ring-emerald-500"
-			/>
-		</div>
+		<SearchInput value={listState.search} placeholder={m.ad_search_placeholder()} class="sm:w-64" />
 	</div>
 
-	{#if filtered.length === 0}
+	{#if data.entries.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<ScrollText class="mx-auto h-10 w-10 text-slate-400" />
 			<h3 class="text-base font-black text-slate-900">{m.ad_empty()}</h3>
@@ -119,7 +105,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each filtered as entry (entry.id)}
+					{#each data.entries.rows as entry (entry.id)}
 						<tr class="border-b border-slate-200 last:border-0">
 							<td class="px-4 py-2.5 text-[11px] font-bold whitespace-nowrap text-slate-500">
 								{formatTime(entry.createdAt)}
@@ -150,5 +136,7 @@
 				</tbody>
 			</table>
 		</div>
+
+		<PaginationBar result={data.entries} />
 	{/if}
 </div>

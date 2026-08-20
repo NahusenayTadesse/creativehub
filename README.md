@@ -41,12 +41,68 @@ src/lib/
   server/
     crud.ts          Generic add/edit/delete for any content table
     guards.ts        requireUser / requireRole / requireBookingAccess + audit
-    queries.ts       Every read the app performs
+    query.ts         The one query builder: search, filter, sort, page, facet
+    queries.ts       Every read the app performs, defined against that builder
     score-service.ts Recalculates derived creator fields after a write
     trending-service.ts Gathers the trending signals, publishes the board
     db/schema.ts     34 tables
   schemas.ts       Every Zod schema, shared by forms and actions
 ```
+
+### One query builder, used everywhere
+
+Every listing in the app is the same query with different columns: a search,
+some filters, a sort and a page. `server/query.ts` is that query, written once.
+A surface declares what it exposes, and gets back a function that reads a `URL`:
+
+```ts
+export const bookingsQuery = defineQuery({
+	table: t.bookings,
+	columns: bookingColumns,
+	joins: bookingJoins, // applied to the page query and the count alike
+	search: [t.bookings.title, t.bookings.reference, t.creators.fullName],
+	filters: {
+		tab: { type: 'group', column: t.bookings.status, groups: BOOKING_TABS },
+		escrow: { type: 'enum', column: t.bookings.escrowStatus, values: t.escrowStatusEnum }
+	},
+	sort: { newest: { column: t.bookings.createdAt, direction: 'desc' } /* … */ },
+	defaultSort: 'newest',
+	tiebreaker: t.bookings.id
+});
+```
+
+`?q=telebirr&tab=active&sort=value&dir=desc&page=2` is then the whole state of
+the screen, which is what makes a result linkable and the back button correct.
+Two rules hold at every call site:
+
+- **Nothing reaches SQL that the definition did not name.** A sort key is looked
+  up in a map, a filter value is checked against its column's vocabulary, `q` is
+  escaped before it enters a `LIKE`, and the page size is clamped. An
+  unrecognised parameter is dropped rather than passed through.
+- **Ownership is not a filter.** Conditions deciding _whose_ rows these are come
+  from the caller's `where`, derived from the session; filters come from the
+  query string. They are separate arguments precisely so a crafted URL cannot
+  widen a scope.
+
+```ts
+listBookings(url, { role, creatorId: creator?.id, organizationId: organization?.id });
+```
+
+`facet(url, key)` counts what each choice of one filter would return, with every
+_other_ filter applied — the numbers on a set of tabs, or against each market in
+a list of countries. Because the filter excludes itself, the counts stay true
+when you are standing on one of them, and summing them gives the unfiltered
+total. That is why tabs still know their tallies when their rows are three pages
+away.
+
+`hydrate` decorates a page after it has been cut, so the second query that turns
+ids into names runs over twenty-four rows rather than the table. `rank` orders by
+something SQL cannot compute — the campaign fit score in `domain/match.ts` — by
+ranking in the server and paging that order; it is capped, and the result says
+where the cap fell rather than pretending it did not.
+
+`contentCrud` builds on the same thing, so every managed table gets a search box
+and pages without its route asking for them.
 
 ### `crud.ts` does the repetitive work
 

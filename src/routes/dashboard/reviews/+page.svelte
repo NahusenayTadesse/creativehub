@@ -1,20 +1,21 @@
 <script lang="ts">
 	import PageHeader from '$lib/components/page-header.svelte';
+	import PaginationBar from '$lib/components/pagination-bar.svelte';
+	import NoResults from '$lib/components/no-results.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
 	import { Star, Inbox } from '@lucide/svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
 
-	const received = $derived(
-		data.role === 'creator'
-			? data.reviews.filter((r) => r.direction === 'brand_to_creator')
-			: data.reviews.filter((r) => r.direction === 'creator_to_brand')
-	);
-	const given = $derived(data.reviews.filter((r) => !received.includes(r)));
+	/* Counted and averaged in the database over every review, not over the page
+	   on screen — otherwise the headline rating would move as pages turn. */
+	const summary = $derived(data.summary);
 
-	const average = $derived(
-		received.length ? received.reduce((sum, r) => sum + r.rating, 0) / received.length : 0
+	/** Which direction counts as "received" depends on which side is reading. */
+	const receivedDirection = $derived(
+		data.role === 'creator' ? 'brand_to_creator' : 'creator_to_brand'
 	);
 
 	const formatDate = (value: string | Date) =>
@@ -30,7 +31,7 @@
 <div class="space-y-6">
 	<PageHeader eyebrow={m.rv_eyebrow()} title={m.rv_title()} description={m.rv_description()} />
 
-	{#if received.length}
+	{#if summary.received}
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 			<div class="bento-card-mint">
 				<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
@@ -38,25 +39,31 @@
 				</span>
 				<span class="flex items-center gap-1.5 text-3xl font-black text-slate-900">
 					<Star class="h-6 w-6 fill-amber-400 text-amber-500" />
-					{average.toFixed(1)}
+					{summary.average.toFixed(1)}
 				</span>
 			</div>
 			<div class="bento-card bento-card-static">
 				<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
 					{m.rv_received_count()}
 				</span>
-				<span class="text-3xl font-black text-slate-900">{received.length}</span>
+				<span class="text-3xl font-black text-slate-900">{summary.received}</span>
 			</div>
 			<div class="bento-card bento-card-static">
 				<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
 					{m.rv_written_count()}
 				</span>
-				<span class="text-3xl font-black text-slate-900">{given.length}</span>
+				<span class="text-3xl font-black text-slate-900">{summary.given}</span>
 			</div>
 		</div>
 	{/if}
 
-	{#if data.reviews.length === 0}
+	{#if data.reviews.total > 0 || data.reviews.state.search}
+		<SearchInput value={data.reviews.state.search} class="sm:w-72" />
+	{/if}
+
+	{#if data.reviews.rows.length === 0 && data.reviews.state.search}
+		<NoResults search={data.reviews.state.search} />
+	{:else if data.reviews.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
 			<h3 class="text-base font-black text-slate-900">{m.rv_empty_title()}</h3>
@@ -66,14 +73,14 @@
 		</div>
 	{:else}
 		<div class="space-y-3">
-			{#each data.reviews as review (review.id)}
+			{#each data.reviews.rows as review (review.id)}
 				<div class="bento-card bento-card-static space-y-3">
 					<div class="flex flex-wrap items-start justify-between gap-2">
 						<div>
 							<span
 								class="mb-1 inline-block rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-700 uppercase"
 							>
-								{received.includes(review) ? m.rv_received() : m.rv_written_by_you()}
+								{review.direction === receivedDirection ? m.rv_received() : m.rv_written_by_you()}
 							</span>
 							<a
 								href="/dashboard/bookings/{review.bookingId}"
@@ -114,5 +121,7 @@
 				</div>
 			{/each}
 		</div>
+
+		<PaginationBar result={data.reviews} />
 	{/if}
 </div>

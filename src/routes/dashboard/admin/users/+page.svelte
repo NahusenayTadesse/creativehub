@@ -3,26 +3,24 @@
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
-	import { Search, ShieldCheck, Briefcase, UserCheck } from '@lucide/svelte';
+	import PaginationBar from '$lib/components/pagination-bar.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
+	import { ShieldCheck, Briefcase, UserCheck } from '@lucide/svelte';
+	import { page } from '$app/state';
+	import { withParams } from '$lib/query';
 
 	let { data } = $props();
 
-	let query = $state('');
-	let roleFilter = $state('all');
-
-	const filtered = $derived.by(() => {
-		const q = query.trim().toLowerCase();
-		return data.users.filter((user) => {
-			if (roleFilter !== 'all' && (user.role ?? 'creator') !== roleFilter) return false;
-			if (q && !`${user.name} ${user.email}`.toLowerCase().includes(q)) return false;
-			return true;
-		});
-	});
+	/* Role tab and search both live in the URL; the counts are the database's,
+	   over every account rather than the page being shown. */
+	const listState = $derived(data.users.state);
+	const roleFilter = $derived(listState.values.role ?? 'all');
+	const roleLink = (role: string) => withParams(page.url, { role: role === 'all' ? null : role });
 
 	const countFor = (role: string) =>
 		role === 'all'
-			? data.users.length
-			: data.users.filter((u) => (u.role ?? 'creator') === role).length;
+			? Object.values(data.roleCounts).reduce((sum, n) => sum + n, 0)
+			: (data.roleCounts[role] ?? 0);
 
 	const handler = () => {
 		return async ({ result, update }: any) => {
@@ -54,28 +52,20 @@
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div class="flex flex-wrap items-center gap-2">
 			{#each tabs as tab (tab.key)}
-				<button
-					type="button"
-					onclick={() => (roleFilter = tab.key)}
+				<a
+					href={roleLink(tab.key)}
+					data-sveltekit-noscroll
 					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {roleFilter ===
 					tab.key
 						? 'bg-slate-900 text-white'
 						: 'bg-white text-slate-800 hover:bg-slate-100'}"
 				>
 					{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
-				</button>
+				</a>
 			{/each}
 		</div>
 
-		<div class="relative sm:w-64">
-			<Search class="absolute top-3 left-3 h-4 w-4 text-slate-500" />
-			<input
-				type="text"
-				bind:value={query}
-				placeholder={m.au_search_placeholder()}
-				class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 pr-3 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] outline-none focus:ring-2 focus:ring-emerald-500"
-			/>
-		</div>
+		<SearchInput value={listState.search} placeholder={m.au_search_placeholder()} class="sm:w-64" />
 	</div>
 
 	<div class="bento-card bento-card-static overflow-x-auto p-0!">
@@ -105,7 +95,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each filtered as user (user.id)}
+				{#each data.users.rows as user (user.id)}
 					<tr class="border-b border-slate-200 last:border-0">
 						<td class="px-4 py-3">
 							<p class="text-xs font-black text-slate-900">{user.name}</p>
@@ -175,4 +165,6 @@
 			</tbody>
 		</table>
 	</div>
+
+	<PaginationBar result={data.users} />
 </div>

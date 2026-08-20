@@ -105,6 +105,7 @@
 	description={m.ac_description()}
 	label={m.ac_label()}
 	rows={data.rows}
+	list={data.list}
 	{fields}
 	addForm={data.addForm}
 	editForm={data.editForm}

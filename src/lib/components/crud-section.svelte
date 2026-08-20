@@ -4,7 +4,10 @@
 	import CrudDialog, { type CrudField } from '$lib/components/Table/crud-dialog.svelte';
 	import CrudDelete from '$lib/components/Table/crud-delete.svelte';
 	import PageHeader from '$lib/components/page-header.svelte';
-	import { Inbox } from '@lucide/svelte';
+	import PaginationBar from '$lib/components/pagination-bar.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
+	import type { PageResult } from '$lib/query';
+	import { Inbox, SearchX } from '@lucide/svelte';
 
 	/**
 	 * The shape every managed table shares: a header with an add dialog, a card
@@ -19,6 +22,7 @@
 		description = '',
 		label,
 		rows,
+		list = undefined,
 		fields,
 		addForm,
 		editForm,
@@ -36,7 +40,14 @@
 		description?: string;
 		/** Singular noun used in the dialogs, e.g. "Country". */
 		label: string;
+		/** This page of rows. */
 		rows: any[];
+		/**
+		 * The paging state behind `rows`. Present on every managed table — the
+		 * listing is a page of a query, not the table — and what tells an empty
+		 * screen caused by a search apart from one caused by an empty table.
+		 */
+		list?: PageResult<any>;
 		fields: CrudField[];
 		addForm: any;
 		editForm: any;
@@ -84,15 +95,33 @@
 		{/snippet}
 	</PageHeader>
 
+	{#if list && (list.total > 0 || list.state.search)}
+		<div class="flex flex-wrap items-center justify-between gap-3">
+			<SearchInput value={list.state.search} class="w-full sm:w-72" />
+			<span class="text-xs font-bold text-slate-600">
+				{m.pg_showing({ start: list.from, end: list.to, total: list.total })}
+			</span>
+		</div>
+	{/if}
+
 	{#if rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
-			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">
-				{emptyMessage ?? m.crud_empty_default()}
-			</h3>
-			<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
-				{m.crud_empty_hint({ label })}
-			</p>
+			{#if list?.state.search}
+				<!-- The table has rows; this search does not reach them. -->
+				<SearchX class="mx-auto h-10 w-10 text-slate-400" />
+				<h3 class="text-base font-black text-slate-900">{m.pg_no_results()}</h3>
+				<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
+					{m.crud_no_search_match({ search: list.state.search })}
+				</p>
+			{:else}
+				<Inbox class="mx-auto h-10 w-10 text-slate-400" />
+				<h3 class="text-base font-black text-slate-900">
+					{emptyMessage ?? m.crud_empty_default()}
+				</h3>
+				<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
+					{m.crud_empty_hint({ label })}
+				</p>
+			{/if}
 		</div>
 	{:else}
 		<div
@@ -120,5 +149,9 @@
 				</div>
 			{/each}
 		</div>
+
+		{#if list}
+			<PaginationBar result={list} />
+		{/if}
 	{/if}
 </div>

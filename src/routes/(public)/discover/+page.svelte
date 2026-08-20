@@ -1,32 +1,45 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
-	import { Search, RotateCcw, SlidersHorizontal, Globe, X, Sparkles } from '@lucide/svelte';
+	import { RotateCcw, SlidersHorizontal, Globe, X, Sparkles, Search } from '@lucide/svelte';
 	import CreatorCard from '$lib/components/creator-card.svelte';
 	import CreatorQuickView from '$lib/components/creator-quick-view.svelte';
-	import { calculateMatch } from '$lib/domain/match';
+	import PaginationBar from '$lib/components/pagination-bar.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
+	import { withParams, toggleValue } from '$lib/query';
 	import * as Select from '$lib/components/ui/select/index.js';
 
 	let { data } = $props();
 
-	/* ---------------- filter state ---------------- */
-	const initialCategory = page.url.searchParams.get('category') ?? 'all';
-	const initialQuery = page.url.searchParams.get('q') ?? '';
+	/*
+	 * Discovery is filtered in the database, so every control writes to the URL
+	 * and the server answers with one page. Nothing here filters an array: the
+	 * creators that match may well not be among the twenty-four in the browser.
+	 */
+	const listState = $derived(data.creators.state);
+	const go = (changes: Record<string, any>) =>
+		goto(withParams(page.url, changes), { noScroll: true, keepFocus: true });
 
-	let query = $state(initialQuery);
-	let categorySlug = $state(initialCategory);
-	let regionId = $state('all');
-	let platformId = $state('all');
-	let verification = $state('all');
-	let availableOnly = $state(false);
-	let maxPrice = $state(1500000);
-	let sortBy = $state('score');
-	let selectedCountryIds = $state<number[]>([]);
-	let matchCampaignId = $state(String(data.campaigns[0]?.id ?? ''));
-	let matchFilterOn = $state(false);
+	const selectedCountryIds = $derived(listState.filters.country ?? []);
+	const categorySlug = $derived(listState.values.category ?? 'all');
+	const regionId = $derived(listState.values.region ?? 'all');
+	const platformId = $derived(listState.values.platform ?? 'all');
+	const verification = $derived(listState.values.verification ?? 'all');
+	const availableOnly = $derived(listState.values.availability === 'available');
+	const maxPrice = $derived(Number(listState.values.maxPrice ?? 1500000));
+	const sortBy = $derived(listState.sort);
+
+	const matchCampaignId = $derived(String(data.matchCampaignId ?? data.campaigns[0]?.id ?? ''));
+	const selectedCampaign = $derived(
+		data.campaigns.find((c) => String(c.id) === matchCampaignId) ?? null
+	);
+	const matchOn = $derived(sortBy === 'match' && data.matchCampaignId !== null);
+
 	let quickView = $state<any>(null);
+
 	/* Optimistic shortlist state, re-seeded whenever the server sends a new list.
 	   A plain `$state(data.savedIds)` captured the first render only, so the
 	   badges kept showing stale state after an invalidation or a navigation. */
@@ -39,184 +52,47 @@
 
 	const isBusiness = $derived(data.user?.role === 'business' || data.user?.role === 'admin');
 
-	const selectedCampaign = $derived(
-		data.campaigns.find((c) => String(c.id) === matchCampaignId) ?? null
-	);
-
-	/* Adjacency lets a fintech brief still surface a business creator. */
-	const ADJACENCY: Record<string, string[]> = {
-		technology: ['business', 'finance', 'education'],
-		finance: ['technology', 'business', 'lifestyle'],
-		business: ['technology', 'finance', 'lifestyle', 'education'],
-		entertainment: ['lifestyle', 'food-dining', 'beauty-fashion'],
-		'beauty-fashion': ['lifestyle', 'entertainment', 'health-wellness'],
-		'food-dining': ['lifestyle', 'travel-tourism', 'entertainment'],
-		'travel-tourism': ['food-dining', 'lifestyle', 'entertainment'],
-		'sports-fitness': ['health-wellness', 'lifestyle'],
-		'health-wellness': ['sports-fitness', 'lifestyle', 'food-dining'],
-		lifestyle: ['beauty-fashion', 'food-dining', 'travel-tourism', 'entertainment'],
-		agriculture: ['business', 'technology', 'finance'],
-		education: ['technology', 'business', 'finance']
-	};
-
-	const categoryById = $derived(new Map(data.reference.categories.map((c) => [c.id, c] as const)));
-
-	const matchScores = $derived.by(() => {
-		const map = new Map<number, number>();
-		if (!selectedCampaign) return map;
-
-		const campaignCategory = selectedCampaign.categoryId
-			? categoryById.get(selectedCampaign.categoryId)
-			: null;
-		const adjacentIds = (ADJACENCY[campaignCategory?.slug ?? ''] ?? [])
-			.map((slug) => data.reference.categories.find((c) => c.slug === slug)?.id)
-			.filter((id): id is number => id !== undefined);
-
-		for (const creator of data.creators) {
-			map.set(
-				creator.id,
-				calculateMatch({
-					campaign: {
-						categoryId: selectedCampaign.categoryId,
-						platformIds: selectedCampaign.platformIds ?? [],
-						countryId: selectedCampaign.countryId,
-						targetRegions: selectedCampaign.targetRegions ?? [],
-						budgetMax: selectedCampaign.budgetMax,
-						followerMin: selectedCampaign.followerMin,
-						followerMax: selectedCampaign.followerMax,
-						compensationType: selectedCampaign.compensationType,
-						categoryName: campaignCategory?.name
-					},
-					creator: {
-						categoryIds: creator.categoryIds,
-						categories: creator.categories,
-						platformIds: creator.platformIds,
-						platformId: creator.platformId,
-						platformName: creator.platformName,
-						countryId: creator.countryId,
-						countryName: creator.countryName,
-						regionName: creator.regionName,
-						city: creator.city,
-						startingPrice: creator.startingPrice,
-						totalReach: creator.totalReach,
-						engagementRate: creator.engagementRate,
-						averageRating: creator.averageRating,
-						completedBookings: creator.completedBookings,
-						verificationLevel: creator.verificationLevel,
-						overseasPercentage: creator.overseasPercentage,
-						topCountries: creator.topCountries ?? []
-					},
-					adjacentCategoryIds: adjacentIds
-				}).total
-			);
-		}
-		return map;
-	});
-
-	/** The ids the AI filter narrows to: the top ten by match score. */
-	const topMatchIds = $derived(
-		[...matchScores.entries()]
-			.sort((a, b) => b[1] - a[1])
-			.slice(0, 10)
-			.map(([id]) => id)
-	);
-
-	const filtered = $derived.by(() => {
-		const q = query.trim().toLowerCase();
-
-		const rows = data.creators.filter((creator) => {
-			if (matchFilterOn && !topMatchIds.includes(creator.id)) return false;
-
-			if (q) {
-				const haystack = [
-					creator.fullName,
-					creator.username,
-					creator.bio ?? '',
-					creator.city ?? '',
-					creator.countryName ?? '',
-					...creator.categories
-				]
-					.join(' ')
-					.toLowerCase();
-				if (!haystack.includes(q)) return false;
-			}
-
-			if (selectedCountryIds.length && !selectedCountryIds.includes(creator.countryId ?? -1)) {
-				return false;
-			}
-
-			if (categorySlug !== 'all') {
-				const category = data.reference.categories.find((c) => c.slug === categorySlug);
-				if (!category || !creator.categoryIds.includes(category.id)) return false;
-			}
-
-			if (regionId !== 'all' && String(creator.regionId) !== regionId) return false;
-			if (platformId !== 'all' && String(creator.platformId) !== platformId) return false;
-			if (verification !== 'all' && creator.verificationLevel !== verification) return false;
-			if (availableOnly && creator.availability !== 'available') return false;
-			if (creator.startingPrice > maxPrice) return false;
-
-			return true;
-		});
-
-		return rows.sort((a, b) => {
-			switch (sortBy) {
-				case 'match':
-					return (matchScores.get(b.id) ?? 0) - (matchScores.get(a.id) ?? 0);
-				case 'reach':
-					return b.totalReach - a.totalReach;
-				case 'price_low':
-					return a.startingPrice - b.startingPrice;
-				case 'price_high':
-					return b.startingPrice - a.startingPrice;
-				case 'rating':
-					return b.averageRating - a.averageRating;
-				default:
-					return b.score - a.score;
-			}
-		});
-	});
-
 	/* Ethiopian regions only make sense while Ethiopia is in scope. */
 	const ethiopia = $derived(data.reference.countries.find((c) => c.code === 'ET'));
 	const ethiopiaActive = $derived(
-		!selectedCountryIds.length || (ethiopia ? selectedCountryIds.includes(ethiopia.id) : false)
+		!selectedCountryIds.length ||
+			(ethiopia ? selectedCountryIds.includes(String(ethiopia.id)) : false)
 	);
 	const visibleRegions = $derived(
 		data.reference.regions.filter((r) => !ethiopia || r.countryId === ethiopia.id)
 	);
 
-	const countryCount = (countryId: number) =>
-		data.creators.filter((c) => c.countryId === countryId).length;
-
-	function toggleCountry(countryId: number) {
-		selectedCountryIds = selectedCountryIds.includes(countryId)
-			? selectedCountryIds.filter((id) => id !== countryId)
-			: [...selectedCountryIds, countryId];
-		if (!ethiopiaActive) regionId = 'all';
-	}
-
-	function reset() {
-		query = '';
-		categorySlug = 'all';
-		regionId = 'all';
-		platformId = 'all';
-		verification = 'all';
-		availableOnly = false;
-		maxPrice = 1500000;
-		sortBy = 'score';
-		selectedCountryIds = [];
-		matchFilterOn = false;
-	}
+	/*
+	 * The select offers directions as separate choices — "price: low to high" is
+	 * one thing to a reader — while the URL keeps sort and direction apart, so
+	 * every listing speaks the same two parameters.
+	 */
+	const SORTS: Record<string, { sort: string; dir?: 'asc' | 'desc' }> = {
+		match: { sort: 'match' },
+		score: { sort: 'score' },
+		reach: { sort: 'reach' },
+		rating: { sort: 'rating' },
+		price_low: { sort: 'price', dir: 'asc' },
+		price_high: { sort: 'price', dir: 'desc' },
+		newest: { sort: 'newest' }
+	};
 
 	const sortLabels: Record<string, string> = $derived({
 		match: m.discover_sort_match(),
 		score: m.discover_sort_score(),
 		reach: m.discover_sort_reach(),
+		rating: m.discover_sort_rating(),
 		price_low: m.discover_sort_price_low(),
 		price_high: m.discover_sort_price_high(),
-		rating: m.discover_sort_rating()
+		newest: m.discover_sort_newest()
 	});
+
+	const sortChoice = $derived(
+		Object.entries(SORTS).find(
+			([, spec]) =>
+				spec.sort === listState.sort && (spec.dir ?? listState.direction) === listState.direction
+		)?.[0] ?? 'score'
+	);
 
 	const verificationLabels: Record<string, string> = $derived({
 		all: m.discover_verif_all(),
@@ -224,6 +100,12 @@
 		identity_verified: m.discover_verif_identity(),
 		social_verified: m.discover_verif_social(),
 		unverified: m.discover_verif_unverified()
+	});
+
+	/** A local slider that only asks the server once the reader lets go. */
+	let priceDraft = $state(0);
+	$effect(() => {
+		priceDraft = maxPrice;
 	});
 </script>
 
@@ -251,28 +133,29 @@
 			<h1 class="text-2xl font-black text-slate-900 sm:text-3xl">{m.discover_title()}</h1>
 			<p class="mt-1 text-xs font-medium text-slate-600">
 				{m.discover_subtitle({
-					creators: data.creators.length,
+					creators: data.creators.total,
 					markets: data.reference.countries.length
 				})}
 			</p>
 		</div>
 
 		<div class="flex flex-wrap items-center gap-3 sm:flex-nowrap">
-			<div class="relative flex-1 md:w-72">
-				<Search class="absolute top-3 left-3 h-4 w-4 text-slate-500" />
-				<input
-					type="text"
-					bind:value={query}
-					placeholder={m.discover_search_placeholder()}
-					class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 pr-3 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] outline-none focus:ring-2 focus:ring-emerald-500"
-				/>
-			</div>
+			<SearchInput
+				value={listState.search}
+				placeholder={m.discover_search_placeholder()}
+				class="flex-1 md:w-72"
+			/>
 
-			<Select.Root type="single" bind:value={sortBy}>
+			<Select.Root
+				type="single"
+				value={sortChoice}
+				onValueChange={(value) =>
+					go({ sort: value === 'score' ? null : SORTS[value].sort, dir: SORTS[value].dir ?? null })}
+			>
 				<Select.Trigger
 					class="cursor-pointer rounded-2xl border-2 border-slate-900 bg-white px-3 py-2.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 				>
-					{sortLabels[sortBy]}
+					{sortLabels[sortChoice] ?? sortLabels.score}
 				</Select.Trigger>
 				<Select.Content>
 					{#each Object.entries(sortLabels) as [value, label] (value)}
@@ -283,7 +166,7 @@
 		</div>
 	</div>
 
-	<!-- AI match panel -->
+	<!-- Match panel -->
 	{#if data.campaigns.length}
 		<div
 			class="rounded-3xl border-2 border-slate-900 bg-slate-900 p-5 text-white shadow-[4px_4px_0px_0px_rgba(16,185,129,1)]"
@@ -302,7 +185,11 @@
 				</div>
 
 				<div class="flex flex-wrap items-center gap-2">
-					<Select.Root type="single" bind:value={matchCampaignId}>
+					<Select.Root
+						type="single"
+						value={matchCampaignId}
+						onValueChange={(value) => go({ campaign: value, sort: 'match' })}
+					>
 						<Select.Trigger
 							class="min-w-56 cursor-pointer rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-black text-slate-900"
 						>
@@ -319,22 +206,22 @@
 
 					<button
 						type="button"
-						onclick={() => {
-							matchFilterOn = !matchFilterOn;
-							if (matchFilterOn) sortBy = 'match';
-						}}
-						class="cursor-pointer rounded-xl border-2 px-4 py-2 text-xs font-black transition-colors {matchFilterOn
+						onclick={() =>
+							matchOn
+								? go({ sort: null, campaign: null })
+								: go({ sort: 'match', campaign: matchCampaignId })}
+						class="cursor-pointer rounded-xl border-2 px-4 py-2 text-xs font-black transition-colors {matchOn
 							? 'border-slate-900 bg-emerald-500 text-slate-950'
 							: 'border-white bg-transparent text-white hover:bg-white/10'}"
 					>
-						{matchFilterOn ? m.discover_showing_top_matches() : m.discover_show_top_matches()}
+						{matchOn ? m.discover_showing_top_matches() : m.discover_show_top_matches()}
 					</button>
 				</div>
 			</div>
 		</div>
 	{/if}
 
-	<!-- Country chips -->
+	<!-- Country chips. Counts come from the database, over the whole filtered set. -->
 	<div
 		class="bento-card bento-card-static border-2 border-slate-900 bg-gradient-to-r from-emerald-50/50 via-white to-slate-50 p-4 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] sm:p-5"
 	>
@@ -348,7 +235,7 @@
 			{#if selectedCountryIds.length}
 				<button
 					type="button"
-					onclick={() => (selectedCountryIds = [])}
+					onclick={() => go({ country: null, region: null })}
 					class="cursor-pointer text-[10px] font-bold text-rose-600 hover:underline"
 				>
 					{m.discover_clear_count({ count: selectedCountryIds.length })}
@@ -357,20 +244,20 @@
 		</div>
 		<div class="flex flex-wrap gap-2">
 			{#each data.reference.countries as country (country.id)}
-				{@const count = countryCount(country.id)}
-				<button
-					type="button"
-					onclick={() => toggleCountry(country.id)}
-					class="flex cursor-pointer items-center gap-1.5 rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {selectedCountryIds.includes(
-						country.id
-					)
+				{@const active = selectedCountryIds.includes(String(country.id))}
+				<a
+					href={withParams(page.url, {
+						country: toggleValue(selectedCountryIds, String(country.id))
+					})}
+					data-sveltekit-noscroll
+					class="flex cursor-pointer items-center gap-1.5 rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {active
 						? 'bg-slate-900 text-white'
 						: 'bg-white text-slate-800 hover:bg-slate-100'}"
 				>
 					<span>{country.flag}</span>
 					<span>{country.name}</span>
-					<span class="opacity-60">({count})</span>
-				</button>
+					<span class="opacity-60">({data.countryCounts[String(country.id)] ?? 0})</span>
+				</a>
 			{/each}
 		</div>
 	</div>
@@ -386,14 +273,13 @@
 					<SlidersHorizontal class="h-4 w-4 text-emerald-600" />
 					<span>{m.discover_filters()}</span>
 				</span>
-				<button
-					type="button"
-					onclick={reset}
+				<a
+					href={page.url.pathname}
 					class="flex cursor-pointer items-center gap-1 rounded-md border border-slate-900 bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-500 hover:text-emerald-700"
 				>
 					<RotateCcw class="h-3 w-3" />
 					<span>{m.discover_reset()}</span>
-				</button>
+				</a>
 			</div>
 
 			<div>
@@ -405,7 +291,9 @@
 				</label>
 				<select
 					id="filter-category"
-					bind:value={categorySlug}
+					value={categorySlug}
+					onchange={(e) =>
+						go({ category: e.currentTarget.value === 'all' ? null : e.currentTarget.value })}
 					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
 				>
 					<option value="all"
@@ -427,7 +315,9 @@
 					</label>
 					<select
 						id="filter-region"
-						bind:value={regionId}
+						value={regionId}
+						onchange={(e) =>
+							go({ region: e.currentTarget.value === 'all' ? null : e.currentTarget.value })}
 						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
 					>
 						<option value="all">{m.discover_all_regions()}</option>
@@ -447,7 +337,9 @@
 				</label>
 				<select
 					id="filter-platform"
-					bind:value={platformId}
+					value={platformId}
+					onchange={(e) =>
+						go({ platform: e.currentTarget.value === 'all' ? null : e.currentTarget.value })}
 					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
 				>
 					<option value="all">{m.discover_all_platforms()}</option>
@@ -468,7 +360,7 @@
 					<span
 						class="rounded border border-slate-900 bg-[#dcfce7] px-2 py-0.5 text-xs font-black text-emerald-800"
 					>
-						{maxPrice.toLocaleString()}
+						{priceDraft.toLocaleString()}
 					</span>
 				</div>
 				<input
@@ -477,7 +369,8 @@
 					min={1000}
 					max={1500000}
 					step={1000}
-					bind:value={maxPrice}
+					bind:value={priceDraft}
+					onchange={() => go({ maxPrice: priceDraft >= 1500000 ? null : priceDraft })}
 					class="w-full cursor-pointer accent-emerald-600"
 				/>
 				<p class="mt-1 text-right text-[10px] font-bold text-slate-500">
@@ -494,7 +387,9 @@
 				</label>
 				<select
 					id="filter-verification"
-					bind:value={verification}
+					value={verification}
+					onchange={(e) =>
+						go({ verification: e.currentTarget.value === 'all' ? null : e.currentTarget.value })}
 					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
 				>
 					{#each Object.entries(verificationLabels) as [value, label] (value)}
@@ -510,7 +405,8 @@
 				<input
 					id="filter-available"
 					type="checkbox"
-					bind:checked={availableOnly}
+					checked={availableOnly}
+					onchange={(e) => go({ availability: e.currentTarget.checked ? 'available' : null })}
 					class="h-4 w-4 cursor-pointer rounded border-2 border-slate-900 accent-emerald-600"
 				/>
 			</div>
@@ -524,10 +420,10 @@
 				<div class="flex items-center gap-2">
 					<span>
 						{m.discover_showing_creators()}
-						<strong class="text-slate-900">{filtered.length}</strong>
+						<strong class="text-slate-900">{data.creators.total}</strong>
 						{m.discover_creators_word()}
 					</span>
-					{#if sortBy === 'match'}
+					{#if matchOn}
 						<span
 							class="flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-black text-emerald-800"
 						>
@@ -538,27 +434,19 @@
 				</div>
 
 				<div class="flex flex-wrap items-center gap-2">
-					{#if matchFilterOn}
-						<button
-							type="button"
-							onclick={() => (matchFilterOn = false)}
-							class="flex cursor-pointer items-center gap-1 rounded-full border border-slate-900 bg-indigo-100 px-2.5 py-0.5 text-[11px] font-black text-indigo-900 hover:bg-indigo-200"
-						>
-							<span>{m.discover_top_matches_count({ count: topMatchIds.length })}</span>
-							<X class="h-3 w-3" />
-						</button>
-					{/if}
 					{#each selectedCountryIds as countryId (countryId)}
-						{@const country = data.reference.countries.find((c) => c.id === countryId)}
-						<button
-							type="button"
-							onclick={() => toggleCountry(countryId)}
+						{@const country = data.reference.countries.find((c) => String(c.id) === countryId)}
+						<a
+							href={withParams(page.url, {
+								country: toggleValue(selectedCountryIds, countryId)
+							})}
+							data-sveltekit-noscroll
 							class="flex cursor-pointer items-center gap-1 rounded-full border border-slate-900 bg-[#e0e7ff] px-2.5 py-0.5 text-[11px] font-black tracking-wider text-indigo-950 uppercase hover:bg-indigo-200"
 						>
 							<span>{country?.flag}</span>
 							<span>{country?.name}</span>
 							<X class="h-3 w-3 text-indigo-800" />
-						</button>
+						</a>
 					{/each}
 					{#if categorySlug !== 'all'}
 						<span
@@ -570,29 +458,26 @@
 				</div>
 			</div>
 
-			{#if filtered.length === 0}
+			{#if data.creators.rows.length === 0}
 				<div class="bento-card bento-card-static space-y-3 p-12 text-center">
 					<Search class="mx-auto h-10 w-10 text-slate-400" />
 					<h3 class="text-base font-black text-slate-900">{m.discover_empty_title()}</h3>
 					<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
 						{m.discover_empty_body()}
 					</p>
-					<button
-						type="button"
-						onclick={reset}
-						class="cursor-pointer rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+					<a
+						href={page.url.pathname}
+						class="inline-block cursor-pointer rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 					>
 						{m.discover_reset_all()}
-					</button>
+					</a>
 				</div>
 			{:else}
 				<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-					{#each filtered as creator (creator.id)}
+					{#each data.creators.rows as creator (creator.id)}
 						<CreatorCard
 							{creator}
-							matchScore={sortBy === 'match' || matchFilterOn
-								? matchScores.get(creator.id)
-								: undefined}
+							matchScore={data.matchScores[creator.id]}
 							saved={savedIds.includes(creator.id)}
 							onQuickView={(c) => (quickView = c)}
 							onSave={isBusiness
@@ -605,6 +490,8 @@
 						/>
 					{/each}
 				</div>
+
+				<PaginationBar result={data.creators} />
 			{/if}
 		</div>
 	</div>
@@ -625,7 +512,7 @@
 						const nowSaved = (result.data as { saved?: boolean })?.saved;
 						savedOverride = nowSaved
 							? [...savedIds, creatorId]
-							: savedIds.filter((id) => id !== creatorId);
+							: savedIds.filter((id: number) => id !== creatorId);
 						toast.success(nowSaved ? m.discover_saved_toast() : m.discover_removed_toast());
 					} else if (result.type === 'failure') {
 						toast.error(

@@ -44,6 +44,7 @@
 	description={m.co_description()}
 	label={m.co_label()}
 	rows={data.rows}
+	list={data.list}
 	{fields}
 	addForm={data.addForm}
 	editForm={data.editForm}

@@ -6,26 +6,25 @@ import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
-import { listApplications, getSettings } from '$lib/server/queries';
+import { listApplications, applicationFacet, getSettings } from '$lib/server/queries';
 import { requireUser, getCreatorFor, getOrganizationFor, recordAudit } from '$lib/server/guards';
 import { applicationDecision } from '$lib/schemas';
 import { bookingReference, splitFee } from '$lib/domain/booking';
 import { recalcCampaignApplications } from '$lib/server/db/rollups';
 
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ url, parent }) => {
 	const { role, creator, organization } = await parent();
 
-	const applications = await listApplications(
-		role === 'admin'
-			? {}
-			: creator
-				? { creatorId: creator.id }
-				: organization
-					? { organizationId: organization.id }
-					: { creatorId: -1 }
-	);
+	/* Whose applications these are comes from the session, not the query string. */
+	const scope = { role, creatorId: creator?.id, organizationId: organization?.id };
 
-	return { applications, decisionForm: await superValidate(zod4(applicationDecision)) };
+	const [applications, statusCounts, decisionForm] = await Promise.all([
+		listApplications(url, scope),
+		applicationFacet(url, 'status', scope),
+		superValidate(zod4(applicationDecision))
+	]);
+
+	return { applications, statusCounts, decisionForm };
 };
 
 export const actions: Actions = {

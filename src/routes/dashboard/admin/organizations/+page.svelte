@@ -63,6 +63,7 @@
 	description={m.ao_description()}
 	label={m.ao_label()}
 	rows={data.rows}
+	list={data.list}
 	{fields}
 	addForm={data.addForm}
 	editForm={data.editForm}

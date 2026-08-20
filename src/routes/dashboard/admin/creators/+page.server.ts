@@ -21,8 +21,8 @@ const crud = contentCrud({
 	guard: (event) => requireRole(event, 'admin')
 });
 
-export const load = async () => {
-	const [base, reference] = await Promise.all([crud.load(), getReferenceData()]);
+export const load = async (event: RequestEvent) => {
+	const [base, reference] = await Promise.all([crud.load(event), getReferenceData()]);
 	return { ...base, reference };
 };
 

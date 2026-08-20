@@ -26,6 +26,7 @@
 	description={m.pl_description()}
 	label={m.pl_label()}
 	rows={data.rows}
+	list={data.list}
 	{fields}
 	addForm={data.addForm}
 	editForm={data.editForm}

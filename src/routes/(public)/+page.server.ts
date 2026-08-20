@@ -1,5 +1,10 @@
 import type { PageServerLoad } from './$types';
-import { listCreators, getPlatformStats, listGallerySlides } from '$lib/server/queries';
+import {
+	listFeaturedCreators,
+	listTrendingCreators,
+	getPlatformStats,
+	listGallerySlides
+} from '$lib/server/queries';
 import { maybeAutoRefresh } from '$lib/server/trending-service';
 
 export const load: PageServerLoad = async () => {
@@ -12,8 +17,8 @@ export const load: PageServerLoad = async () => {
 	void maybeAutoRefresh();
 
 	const [featured, trending, stats, gallery] = await Promise.all([
-		listCreators({ featured: true }),
-		listCreators({ trending: true }),
+		listFeaturedCreators(),
+		listTrendingCreators(),
 		getPlatformStats(),
 		listGallerySlides()
 	]);

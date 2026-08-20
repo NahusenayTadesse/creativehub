@@ -2,7 +2,11 @@
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
+	import PaginationBar from '$lib/components/pagination-bar.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
+	import { page } from '$app/state';
+	import { withParams } from '$lib/query';
 	import { ShieldCheck, ExternalLink, Inbox } from '@lucide/svelte';
 	import { assetUrl } from '$lib/assets';
 	import * as m from '$lib/paraglide/messages';
@@ -10,17 +14,16 @@
 
 	let { data } = $props();
 
-	let statusFilter = $state('pending');
 	let notes = $state<Record<number, string>>({});
 
-	const filtered = $derived(
-		statusFilter === 'all' ? data.requests : data.requests.filter((r) => r.status === statusFilter)
-	);
-
+	/* The queue opens on the pending cases, so an absent parameter means
+	   "pending" here rather than "everything". */
+	const statusFilter = $derived(page.url.searchParams.get('status') ?? 'pending');
+	const statusLink = (status: string) => withParams(page.url, { status });
 	const countFor = (status: string) =>
 		status === 'all'
-			? data.requests.length
-			: data.requests.filter((r) => r.status === status).length;
+			? Object.values(data.statusCounts).reduce((sum, n) => sum + n, 0)
+			: (data.statusCounts[status] ?? 0);
 
 	const handle = (text: string) => () => {
 		return async ({ result, update }: any) => {
@@ -64,22 +67,26 @@
 		description={m.av_description()}
 	/>
 
-	<div class="flex flex-wrap items-center gap-2">
-		{#each tabs as tab (tab.key)}
-			<button
-				type="button"
-				onclick={() => (statusFilter = tab.key)}
-				class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {statusFilter ===
-				tab.key
-					? 'bg-slate-900 text-white'
-					: 'bg-white text-slate-800 hover:bg-slate-100'}"
-			>
-				{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
-			</button>
-		{/each}
+	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+		<div class="flex flex-wrap items-center gap-2">
+			{#each tabs as tab (tab.key)}
+				<a
+					href={statusLink(tab.key)}
+					data-sveltekit-noscroll
+					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {statusFilter ===
+					tab.key
+						? 'bg-slate-900 text-white'
+						: 'bg-white text-slate-800 hover:bg-slate-100'}"
+				>
+					{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
+				</a>
+			{/each}
+		</div>
+
+		<SearchInput value={data.requests.state.search} class="sm:w-64" />
 	</div>
 
-	{#if filtered.length === 0}
+	{#if data.requests.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
 			<h3 class="text-base font-black text-slate-900">{m.av_empty_title()}</h3>
@@ -87,7 +94,7 @@
 		</div>
 	{:else}
 		<div class="space-y-4">
-			{#each filtered as request (request.id)}
+			{#each data.requests.rows as request (request.id)}
 				{@const open = ['pending', 'under_review', 'more_info'].includes(request.status)}
 				<div class="bento-card bento-card-static space-y-4">
 					<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -243,5 +250,7 @@
 				</div>
 			{/each}
 		</div>
+
+		<PaginationBar result={data.requests} />
 	{/if}
 </div>

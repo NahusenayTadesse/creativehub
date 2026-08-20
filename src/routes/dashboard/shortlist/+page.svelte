@@ -3,6 +3,9 @@
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
+	import PaginationBar from '$lib/components/pagination-bar.svelte';
+	import NoResults from '$lib/components/no-results.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
 	import { Bookmark, Star, MapPin, Award, X } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
@@ -31,7 +34,13 @@
 		{/snippet}
 	</PageHeader>
 
-	{#if data.saved.length === 0}
+	{#if data.saved.total > 0 || data.saved.state.search}
+		<SearchInput value={data.saved.state.search} class="sm:w-72" />
+	{/if}
+
+	{#if data.saved.rows.length === 0 && data.saved.state.search}
+		<NoResults search={data.saved.state.search} />
+	{:else if data.saved.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<Bookmark class="mx-auto h-10 w-10 text-slate-400" />
 			<h3 class="text-base font-black text-slate-900">{m.sl_empty_title()}</h3>
@@ -41,7 +50,7 @@
 		</div>
 	{:else}
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-			{#each data.saved as entry (entry.id)}
+			{#each data.saved.rows as entry (entry.id)}
 				<div class="bento-card bento-card-static flex flex-col justify-between gap-3">
 					<div class="space-y-3">
 						<div class="flex items-start justify-between gap-2">
@@ -141,5 +150,7 @@
 				</div>
 			{/each}
 		</div>
+
+		<PaginationBar result={data.saved} />
 	{/if}
 </div>
