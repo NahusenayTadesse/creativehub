@@ -1,33 +1,120 @@
 import * as m from '$lib/paraglide/messages';
 import { fail } from '@sveltejs/kit';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
-import { listCreators, listCampaigns } from '$lib/server/queries';
+import { listCreators, creatorFacet, getReferenceData } from '$lib/server/queries';
 import { getOrganizationFor } from '$lib/server/guards';
+import { calculateMatch, ADJACENT_CATEGORIES } from '$lib/domain/match';
+import type { CreatorCard } from '$lib/server/queries';
 
-export const load: PageServerLoad = async ({ locals }) => {
-	const [creators, campaigns] = await Promise.all([
-		listCreators(),
-		listCampaigns({ publicOnly: true })
-	]);
+/** How many briefs the match picker offers. It is a chooser, not a listing. */
+const MATCH_PICKER_LIMIT = 40;
 
-	/* A business sees which creators are already on its shortlist. */
-	let savedIds: number[] = [];
-	if (locals.user) {
-		const organization = await getOrganizationFor(locals.user.id);
-		if (organization) {
-			const rows = await db
-				.select({ creatorId: t.savedCreators.creatorId })
-				.from(t.savedCreators)
-				.where(eq(t.savedCreators.organizationId, organization.id));
-			savedIds = rows.map((row) => row.creatorId);
-		}
+export const load: PageServerLoad = async ({ url, locals }) => {
+	const reference = await getReferenceData();
+
+	/*
+	 * The briefs the match panel can score against. A short list on purpose:
+	 * this is a dropdown, and the ranking itself happens below over creators.
+	 */
+	const campaigns = await db
+		.select({
+			id: t.campaigns.id,
+			title: t.campaigns.title,
+			categoryId: t.campaigns.categoryId,
+			platformIds: t.campaigns.platformIds,
+			countryId: t.campaigns.countryId,
+			targetRegions: t.campaigns.targetRegions,
+			budgetMax: t.campaigns.budgetMax,
+			followerMin: t.campaigns.followerMin,
+			followerMax: t.campaigns.followerMax,
+			compensationType: t.campaigns.compensationType
+		})
+		.from(t.campaigns)
+		.where(and(isNull(t.campaigns.deletedAt), eq(t.campaigns.status, 'published')))
+		.orderBy(asc(t.campaigns.title))
+		.limit(MATCH_PICKER_LIMIT);
+
+	/*
+	 * Fit is arithmetic over columns the database does not hold together —
+	 * category membership, channel mix — so ordering by it means ranking in the
+	 * server rather than in SQL. `listCreators` caps how far that reaches and
+	 * says so on the result.
+	 */
+	const matchId = Number(url.searchParams.get('campaign') ?? 0);
+	const selected = campaigns.find((campaign) => campaign.id === matchId) ?? null;
+	const wantsMatch = url.searchParams.get('sort') === 'match' && Boolean(selected);
+
+	const scoreFor = (() => {
+		if (!selected) return undefined;
+		const campaignCategory = reference.categories.find((c) => c.id === selected.categoryId);
+		const adjacentCategoryIds = (ADJACENT_CATEGORIES[campaignCategory?.slug ?? ''] ?? [])
+			.map((slug) => reference.categories.find((c) => c.slug === slug)?.id)
+			.filter((id): id is number => id !== undefined);
+
+		return (creator: CreatorCard) =>
+			calculateMatch({
+				campaign: { ...selected, categoryName: campaignCategory?.name },
+				creator: {
+					...creator,
+					topCountries: creator.topCountries ?? []
+				},
+				adjacentCategoryIds
+			}).total;
+	})();
+
+	const creators = await listCreators(url, wantsMatch ? { rank: scoreFor } : {});
+
+	/* Scores for the cards on this page. Cheap: the page is already in hand. */
+	const matchScores: Record<number, number> = {};
+	if (scoreFor) {
+		for (const creator of creators.rows) matchScores[creator.id] = scoreFor(creator);
 	}
 
-	return { creators, campaigns, savedIds };
+	const [countryCounts, savedIds] = await Promise.all([
+		creatorFacet(url, 'country'),
+		savedFor(
+			locals.user?.id,
+			creators.rows.map((creator) => creator.id)
+		)
+	]);
+
+	return {
+		creators,
+		campaigns,
+		matchScores,
+		matchCampaignId: selected?.id ?? null,
+		countryCounts,
+		savedIds
+	};
 };
+
+/**
+ * Which of the creators on this page the reader's organisation has shortlisted.
+ *
+ * Scoped to the page rather than to the whole shortlist: the badges only need
+ * an answer for the cards on screen, and a brand's saved list has no ceiling.
+ */
+async function savedFor(userId: string | undefined, creatorIds: number[]): Promise<number[]> {
+	if (!userId || !creatorIds.length) return [];
+
+	const organization = await getOrganizationFor(userId);
+	if (!organization) return [];
+
+	const rows = await db
+		.select({ creatorId: t.savedCreators.creatorId })
+		.from(t.savedCreators)
+		.where(
+			and(
+				eq(t.savedCreators.organizationId, organization.id),
+				inArray(t.savedCreators.creatorId, creatorIds)
+			)
+		);
+
+	return rows.map((row) => row.creatorId);
+}
 
 export const actions: Actions = {
 	/** Adds or removes a creator from the acting organisation's shortlist. */

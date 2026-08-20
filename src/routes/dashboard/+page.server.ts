@@ -1,24 +1,40 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { desc } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import {
 	getPlatformStats,
 	getMonthlySpend,
+	getOrganizationTotals,
+	getCreatorTotals,
 	listBookings,
 	listApplications,
-	listCampaigns,
-	countPendingVerifications
+	countPendingVerifications,
+	unfiltered
 } from '$lib/server/queries';
 
+/** The overview shows a handful of the newest rows, not a browsable list. */
+const RECENT = 6;
+
+/**
+ * Every figure here is counted or summed in the database, and every list is
+ * asked for six rows. This page used to load every booking on the platform,
+ * every application and every campaign, and then derive six numbers from the
+ * arrays — which made the cost of opening a dashboard grow with the size of
+ * the marketplace.
+ */
 export const load: PageServerLoad = async ({ parent }) => {
+	/* The strips below are a fixed handful, not a list the reader is paging
+	   through, so they deliberately ignore the URL's list state. */
+	const url = unfiltered();
+
 	const { role, creator, organization } = await parent();
 
 	if (role === 'admin') {
 		const [stats, spend, bookings, verifications, recentAudit] = await Promise.all([
 			getPlatformStats(),
 			getMonthlySpend(),
-			listBookings(),
+			listBookings(url, { role }, { perPage: RECENT }),
 			countPendingVerifications(),
 			db.select().from(t.auditLog).orderBy(desc(t.auditLog.createdAt)).limit(8)
 		]);
@@ -27,71 +43,45 @@ export const load: PageServerLoad = async ({ parent }) => {
 			view: 'admin' as const,
 			stats,
 			spend,
-			bookings: bookings.slice(0, 6),
+			bookings: bookings.rows,
 			pendingVerifications: verifications,
 			recentAudit
 		};
 	}
 
 	if (role === 'business' && organization) {
-		const [bookings, applications, campaigns, spend] = await Promise.all([
-			listBookings({ organizationId: organization.id }),
-			listApplications({ organizationId: organization.id }),
-			listCampaigns({ organizationId: organization.id }),
-			getMonthlySpend(organization.id)
-		]);
+		const scope = { role, organizationId: organization.id };
 
-		const settled = bookings.filter((b) => b.escrowStatus === 'released');
-		const held = bookings.filter((b) => b.escrowStatus === 'held');
+		const [bookings, applications, spend, totals] = await Promise.all([
+			listBookings(url, scope, { perPage: RECENT }),
+			listApplications(url, scope, { perPage: RECENT }),
+			getMonthlySpend(organization.id),
+			getOrganizationTotals(organization.id)
+		]);
 
 		return {
 			view: 'business' as const,
-			bookings: bookings.slice(0, 6),
-			applications: applications.slice(0, 6),
-			campaigns,
+			bookings: bookings.rows,
+			applications: applications.rows,
 			spend,
-			totals: {
-				committed: bookings.reduce((sum, b) => sum + b.price, 0),
-				settled: settled.reduce((sum, b) => sum + b.price, 0),
-				held: held.reduce((sum, b) => sum + b.price, 0),
-				activeCampaigns: campaigns.filter((c) => c.status === 'published').length,
-				pendingApplications: applications.filter((a) => a.status === 'applied').length,
-				activeBookings: bookings.filter((b) => !['completed', 'cancelled'].includes(b.status))
-					.length
-			}
+			totals
 		};
 	}
 
 	if (creator) {
-		const [bookings, applications, reviewRows] = await Promise.all([
-			listBookings({ creatorId: creator.id }),
-			listApplications({ creatorId: creator.id }),
-			db
-				.select({ n: sql<number>`count(*)` })
-				.from(t.reviews)
-				.where(
-					and(eq(t.reviews.creatorId, creator.id), eq(t.reviews.direction, 'brand_to_creator'))
-				)
-		]);
+		const scope = { role, creatorId: creator.id };
 
-		const completed = bookings.filter((b) => b.status === 'completed');
-		const awaitingPayout = bookings.filter((b) =>
-			['approved', 'awaiting_settlement'].includes(b.status)
-		);
+		const [bookings, applications, totals] = await Promise.all([
+			listBookings(url, scope, { perPage: RECENT }),
+			listApplications(url, scope, { perPage: RECENT }),
+			getCreatorTotals(creator.id)
+		]);
 
 		return {
 			view: 'creator' as const,
-			bookings: bookings.slice(0, 6),
-			applications: applications.slice(0, 6),
-			totals: {
-				earned: completed.reduce((sum, b) => sum + b.creatorPayout, 0),
-				pending: awaitingPayout.reduce((sum, b) => sum + b.creatorPayout, 0),
-				activeBookings: bookings.filter((b) => !['completed', 'cancelled'].includes(b.status))
-					.length,
-				openApplications: applications.filter((a) => ['applied', 'shortlisted'].includes(a.status))
-					.length,
-				reviews: Number(reviewRows[0]?.n ?? 0)
-			}
+			bookings: bookings.rows,
+			applications: applications.rows,
+			totals
 		};
 	}
 

@@ -1,9 +1,10 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
+import { reviewsQuery } from '$lib/server/queries';
 
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ url, parent }) => {
 	const { creator, organization, role } = await parent();
 
 	/*
@@ -23,30 +24,34 @@ export const load: PageServerLoad = async ({ parent }) => {
 
 	/* Soft-deleted reviews are excluded from a creator's public rating, so they
 	   are excluded from the average this page shows too. */
-	const where = and(mine, eq(t.reviews.isActive, true), isNull(t.reviews.deletedAt));
+	const visible = and(mine, eq(t.reviews.isActive, true), isNull(t.reviews.deletedAt));
 
-	const reviews = await db
-		.select({
-			id: t.reviews.id,
-			rating: t.reviews.rating,
-			communication: t.reviews.communication,
-			professionalism: t.reviews.professionalism,
-			timeliness: t.reviews.timeliness,
-			quality: t.reviews.quality,
-			body: t.reviews.body,
-			direction: t.reviews.direction,
-			createdAt: t.reviews.createdAt,
-			bookingId: t.reviews.bookingId,
-			bookingTitle: t.bookings.title,
-			creatorName: t.creators.fullName,
-			organizationName: t.organizations.name
-		})
-		.from(t.reviews)
-		.innerJoin(t.bookings, eq(t.bookings.id, t.reviews.bookingId))
-		.innerJoin(t.creators, eq(t.creators.id, t.reviews.creatorId))
-		.innerJoin(t.organizations, eq(t.organizations.id, t.reviews.organizationId))
-		.where(where)
-		.orderBy(desc(t.reviews.createdAt));
+	/*
+	 * The summary is aggregated over every review, not over the page. Averaging
+	 * the twenty-four rows on screen would make the headline rating change as
+	 * the reader turned the page.
+	 */
+	const received = role === 'creator' ? 'brand_to_creator' : 'creator_to_brand';
 
-	return { reviews, role };
+	const [reviews, summary] = await Promise.all([
+		reviewsQuery.run(url, { where: [visible] }),
+		db
+			.select({
+				received: sql<number>`sum(case when ${t.reviews.direction} = ${received} then 1 else 0 end)`,
+				given: sql<number>`sum(case when ${t.reviews.direction} <> ${received} then 1 else 0 end)`,
+				average: sql<number>`coalesce(avg(case when ${t.reviews.direction} = ${received} then ${t.reviews.rating} end), 0)`
+			})
+			.from(t.reviews)
+			.where(visible)
+	]);
+
+	return {
+		reviews,
+		role,
+		summary: {
+			received: Number(summary[0]?.received ?? 0),
+			given: Number(summary[0]?.given ?? 0),
+			average: Number(summary[0]?.average ?? 0)
+		}
+	};
 };

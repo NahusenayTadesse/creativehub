@@ -5,6 +5,7 @@ import { requireRole } from '$lib/server/guards';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { regionAdd, regionEdit } from '$lib/schemas';
+import type { RequestEvent } from '@sveltejs/kit';
 
 const crud = contentCrud({
 	table: t.regions,
@@ -17,9 +18,9 @@ const crud = contentCrud({
 });
 
 /** Regions need their country list so the form can offer a dropdown. */
-export const load = async () => {
+export const load = async (event: RequestEvent) => {
 	const [base, countries] = await Promise.all([
-		crud.load(),
+		crud.load(event),
 		db.select().from(t.countries).orderBy(asc(t.countries.sortOrder))
 	]);
 	return { ...base, countries };

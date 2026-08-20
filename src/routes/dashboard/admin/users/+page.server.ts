@@ -2,31 +2,22 @@ import * as m from '$lib/paraglide/messages';
 import { fail } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
-import { desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { requireRole, recordAudit } from '$lib/server/guards';
 import { userRoleUpdate } from '$lib/schemas';
+import { usersQuery } from '$lib/server/queries';
 
-export const load: PageServerLoad = async () => {
-	const users = await db
-		.select({
-			id: t.user.id,
-			name: t.user.name,
-			email: t.user.email,
-			role: t.user.role,
-			emailVerified: t.user.emailVerified,
-			createdAt: t.user.createdAt,
-			creatorUsername: t.creators.username,
-			organizationName: t.organizations.name
-		})
-		.from(t.user)
-		.leftJoin(t.creators, eq(t.creators.userId, t.user.id))
-		.leftJoin(t.organizations, eq(t.organizations.ownerId, t.user.id))
-		.orderBy(desc(t.user.createdAt));
+export const load: PageServerLoad = async ({ url }) => {
+	const [users, roleCounts, form] = await Promise.all([
+		usersQuery.run(url),
+		usersQuery.facet(url, 'role'),
+		superValidate(zod4(userRoleUpdate))
+	]);
 
-	return { users, form: await superValidate(zod4(userRoleUpdate)) };
+	return { users, roleCounts, form };
 };
 
 export const actions: Actions = {

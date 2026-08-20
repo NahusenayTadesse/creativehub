@@ -82,7 +82,7 @@ export const load = async (event: RequestEvent) => {
 	const crud = buildCrud(organization?.id ?? null);
 
 	const [base, reference, organizations] = await Promise.all([
-		crud.load(),
+		crud.load(event),
 		getReferenceData(),
 		/* Operators post on behalf of an organisation, so they need to pick one. */
 		isOperator

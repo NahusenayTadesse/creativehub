@@ -54,6 +54,7 @@
 	description={m.pk_description()}
 	label={m.pk_label()}
 	rows={data.rows}
+	list={data.list}
 	{fields}
 	addForm={data.addForm}
 	editForm={data.editForm}

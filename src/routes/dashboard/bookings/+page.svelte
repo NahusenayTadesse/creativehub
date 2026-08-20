@@ -2,48 +2,22 @@
 	import PageHeader from '$lib/components/page-header.svelte';
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
-	import { Handshake, ArrowRight, Search, Inbox } from '@lucide/svelte';
+	import PaginationBar from '$lib/components/pagination-bar.svelte';
+	import NoResults from '$lib/components/no-results.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
+	import { Handshake, ArrowRight, Inbox } from '@lucide/svelte';
+	import { page } from '$app/state';
+	import { withParams } from '$lib/query';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
 
-	let query = $state('');
-	let statusFilter = $state('all');
-
-	const GROUPS: Record<string, string[]> = {
-		all: [],
-		negotiating: ['proposed', 'negotiating'],
-		active: ['booked', 'in_production', 'submitted', 'revision', 'approved', 'awaiting_settlement'],
-		completed: ['completed'],
-		closed: ['cancelled', 'disputed']
-	};
-
-	const filtered = $derived.by(() => {
-		const q = query.trim().toLowerCase();
-		return data.bookings.filter((booking) => {
-			const group = GROUPS[statusFilter];
-			if (group?.length && !group.includes(booking.status)) return false;
-
-			if (q) {
-				const haystack = [
-					booking.title,
-					booking.reference,
-					booking.creatorName,
-					booking.organizationName
-				]
-					.join(' ')
-					.toLowerCase();
-				if (!haystack.includes(q)) return false;
-			}
-			return true;
-		});
-	});
-
-	const countFor = (key: string) =>
-		key === 'all'
-			? data.bookings.length
-			: data.bookings.filter((b) => GROUPS[key].includes(b.status)).length;
+	/* The tab and the search live in the URL; the counts beside each tab come
+	   from the database, over the whole result rather than the page on screen. */
+	const listState = $derived(data.bookings.state);
+	const activeTab = $derived(listState.values.tab ?? 'all');
+	const tabLink = (key: string) => withParams(page.url, { tab: key === 'all' ? null : key });
 
 	const formatDate = (value: string | Date | null) =>
 		value
@@ -75,31 +49,25 @@
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div class="flex flex-wrap items-center gap-2">
 			{#each tabs as tab (tab.key)}
-				<button
-					type="button"
-					onclick={() => (statusFilter = tab.key)}
-					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {statusFilter ===
+				<a
+					href={tabLink(tab.key)}
+					data-sveltekit-noscroll
+					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {activeTab ===
 					tab.key
 						? 'bg-slate-900 text-white'
 						: 'bg-white text-slate-800 hover:bg-slate-100'}"
 				>
-					{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
-				</button>
+					{m.bl_tab_count({ label: tab.label, count: data.tabCounts[tab.key] ?? 0 })}
+				</a>
 			{/each}
 		</div>
 
-		<div class="relative sm:w-64">
-			<Search class="absolute top-3 left-3 h-4 w-4 text-slate-500" />
-			<input
-				type="text"
-				bind:value={query}
-				placeholder={m.bl_search_placeholder()}
-				class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 pr-3 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] outline-none focus:ring-2 focus:ring-emerald-500"
-			/>
-		</div>
+		<SearchInput value={listState.search} placeholder={m.bl_search_placeholder()} class="sm:w-64" />
 	</div>
 
-	{#if filtered.length === 0}
+	{#if data.bookings.rows.length === 0 && listState.search}
+		<NoResults search={listState.search} />
+	{:else if data.bookings.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
 			<h3 class="text-base font-black text-slate-900">{m.bl_empty_title()}</h3>
@@ -115,7 +83,7 @@
 		</div>
 	{:else}
 		<div class="space-y-3">
-			{#each filtered as booking (booking.id)}
+			{#each data.bookings.rows as booking (booking.id)}
 				<a
 					href="/dashboard/bookings/{booking.id}"
 					class="bento-card bento-card-static block transition-all hover:border-emerald-600"
@@ -166,5 +134,7 @@
 				</a>
 			{/each}
 		</div>
+
+		<PaginationBar result={data.bookings} />
 	{/if}
 </div>

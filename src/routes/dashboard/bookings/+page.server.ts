@@ -1,18 +1,17 @@
 import type { PageServerLoad } from './$types';
-import { listBookings } from '$lib/server/queries';
+import { listBookings, bookingFacet } from '$lib/server/queries';
 
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ url, parent }) => {
 	const { role, creator, organization } = await parent();
 
-	const bookings = await listBookings(
-		role === 'admin'
-			? {}
-			: creator
-				? { creatorId: creator.id }
-				: organization
-					? { organizationId: organization.id }
-					: { creatorId: -1 }
-	);
+	/* Whose deals these are is settled here, from the session, and passed to the
+	   query as a scope the URL cannot reach. */
+	const scope = { role, creatorId: creator?.id, organizationId: organization?.id };
 
-	return { bookings };
+	const [bookings, tabCounts] = await Promise.all([
+		listBookings(url, scope),
+		bookingFacet(url, 'tab', scope)
+	]);
+
+	return { bookings, tabCounts };
 };

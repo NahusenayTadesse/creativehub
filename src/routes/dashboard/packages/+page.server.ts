@@ -27,7 +27,7 @@ const crudFor = (creatorId: number) =>
 export const load = async (event: RequestEvent) => {
 	const { creator } = await requireCreator(event);
 	const [base, platforms] = await Promise.all([
-		crudFor(creator.id).load(),
+		crudFor(creator.id).load(event),
 		db.select().from(t.platforms).orderBy(asc(t.platforms.sortOrder))
 	]);
 	return { ...base, platforms };

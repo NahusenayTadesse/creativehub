@@ -5,6 +5,11 @@
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import { Inbox, Award, Users, ExternalLink } from '@lucide/svelte';
+	import PaginationBar from '$lib/components/pagination-bar.svelte';
+	import NoResults from '$lib/components/no-results.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
+	import { page } from '$app/state';
+	import { withParams } from '$lib/query';
 	import { formatReach } from '$lib/domain/money';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -13,18 +18,15 @@
 
 	const isCreatorView = $derived(data.role === 'creator');
 
-	let statusFilter = $state('all');
-
-	const filtered = $derived(
-		statusFilter === 'all'
-			? data.applications
-			: data.applications.filter((a) => a.status === statusFilter)
-	);
-
+	/* Tab and search live in the URL. The tallies come from the database, so a
+	   tab still knows its count when its rows are on another page. */
+	const listState = $derived(data.applications.state);
+	const activeTab = $derived(listState.values.status ?? 'all');
+	const tabLink = (key: string) => withParams(page.url, { status: key === 'all' ? null : key });
 	const countFor = (status: string) =>
 		status === 'all'
-			? data.applications.length
-			: data.applications.filter((a) => a.status === status).length;
+			? Object.values(data.statusCounts).reduce((sum, n) => sum + n, 0)
+			: (data.statusCounts[status] ?? 0);
 
 	const tabs = $derived([
 		{ key: 'all', label: m.bl_tab_all() },
@@ -59,22 +61,28 @@
 		description={isCreatorView ? m.ap_description_creator() : m.ap_description_brand()}
 	/>
 
-	<div class="flex flex-wrap items-center gap-2">
-		{#each tabs as tab (tab.key)}
-			<button
-				type="button"
-				onclick={() => (statusFilter = tab.key)}
-				class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {statusFilter ===
-				tab.key
-					? 'bg-slate-900 text-white'
-					: 'bg-white text-slate-800 hover:bg-slate-100'}"
-			>
-				{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
-			</button>
-		{/each}
+	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+		<div class="flex flex-wrap items-center gap-2">
+			{#each tabs as tab (tab.key)}
+				<a
+					href={tabLink(tab.key)}
+					data-sveltekit-noscroll
+					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {activeTab ===
+					tab.key
+						? 'bg-slate-900 text-white'
+						: 'bg-white text-slate-800 hover:bg-slate-100'}"
+				>
+					{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
+				</a>
+			{/each}
+		</div>
+
+		<SearchInput value={listState.search} placeholder={m.ap_search_placeholder()} class="sm:w-64" />
 	</div>
 
-	{#if filtered.length === 0}
+	{#if data.applications.rows.length === 0 && listState.search}
+		<NoResults search={listState.search} />
+	{:else if data.applications.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
 			<h3 class="text-base font-black text-slate-900">{m.ap_empty_title()}</h3>
@@ -90,7 +98,7 @@
 		</div>
 	{:else}
 		<div class="space-y-3">
-			{#each filtered as application (application.id)}
+			{#each data.applications.rows as application (application.id)}
 				<div class="bento-card bento-card-static space-y-3">
 					<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 						<div class="flex min-w-0 items-start gap-3">
@@ -244,5 +252,7 @@
 				</div>
 			{/each}
 		</div>
+
+		<PaginationBar result={data.applications} />
 	{/if}
 </div>

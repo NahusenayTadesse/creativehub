@@ -45,6 +45,7 @@
 	description={m.gal_description()}
 	label={m.gal_label()}
 	rows={data.rows}
+	list={data.list}
 	{fields}
 	{editValues}
 	fileFields={['image']}

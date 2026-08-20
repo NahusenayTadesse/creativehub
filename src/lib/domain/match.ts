@@ -57,6 +57,29 @@ export type MatchBreakdown = {
 	recommendedAngle: string;
 };
 
+/**
+ * Categories that read as adjacent to one another, by slug.
+ *
+ * A fintech brief should still surface a business creator, so the niche factor
+ * gives partial credit across these pairs rather than none. Kept here with the
+ * scoring it feeds, and applied on the server, because the ranking it produces
+ * decides the order of a page rather than a list already in the browser.
+ */
+export const ADJACENT_CATEGORIES: Record<string, string[]> = {
+	technology: ['business', 'finance', 'education'],
+	finance: ['technology', 'business', 'lifestyle'],
+	business: ['technology', 'finance', 'lifestyle', 'education'],
+	entertainment: ['lifestyle', 'food-dining', 'beauty-fashion'],
+	'beauty-fashion': ['lifestyle', 'entertainment', 'health-wellness'],
+	'food-dining': ['lifestyle', 'travel-tourism', 'entertainment'],
+	'travel-tourism': ['food-dining', 'lifestyle', 'entertainment'],
+	'sports-fitness': ['health-wellness', 'lifestyle'],
+	'health-wellness': ['sports-fitness', 'lifestyle', 'food-dining'],
+	lifestyle: ['beauty-fashion', 'food-dining', 'travel-tourism', 'entertainment'],
+	agriculture: ['business', 'technology', 'finance'],
+	education: ['technology', 'business', 'finance']
+};
+
 export function calculateMatch({
 	campaign,
 	creator,

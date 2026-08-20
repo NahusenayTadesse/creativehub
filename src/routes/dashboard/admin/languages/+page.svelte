@@ -26,6 +26,7 @@
 	description={m.la_description()}
 	label={m.la_label()}
 	rows={data.rows}
+	list={data.list}
 	{fields}
 	addForm={data.addForm}
 	editForm={data.editForm}
