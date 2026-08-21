@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { CampaignCard } from '$lib/server/queries';
+	import { resolve } from '$app/paths';
 	import { Calendar, Users, Send, CircleCheckBig } from '@lucide/svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -10,10 +12,10 @@
 		canApply = false,
 		onApply = undefined
 	}: {
-		campaign: any;
+		campaign: CampaignCard;
 		hasApplied?: boolean;
 		canApply?: boolean;
-		onApply?: (campaign: any) => void;
+		onApply?: (campaign: CampaignCard) => void;
 	} = $props();
 
 	const formatDate = (value: string | Date | null) => {
@@ -41,6 +43,9 @@
 					alt={campaign.organizationName}
 					loading="lazy"
 					class="h-12 w-12 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+					decoding="async"
+					width="48"
+					height="48"
 				/>
 				<div>
 					<div class="flex items-center gap-2">
@@ -62,7 +67,7 @@
 		</div>
 
 		<a
-			href="/campaigns/{campaign.slug}"
+			href={resolve(`/campaigns/${campaign.slug}`)}
 			class="mb-2 block text-lg font-black text-slate-900 transition-colors hover:text-emerald-600"
 		>
 			{campaign.title}
@@ -222,7 +227,7 @@
 				</button>
 			{:else}
 				<a
-					href="/campaigns/{campaign.slug}"
+					href={resolve(`/campaigns/${campaign.slug}`)}
 					class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700"
 				>
 					<Send class="h-3.5 w-3.5" />

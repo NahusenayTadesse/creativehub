@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { buttonVariants } from '$lib/components/ui/button/index.js';
 	import { Calendar } from '$lib/components/ui/calendar';
 	import * as Popover from '$lib/components/ui/popover/index.js';
@@ -20,12 +21,25 @@
 
 	const todayDate = $derived(oldDays ? undefined : today(getLocalTimeZone()));
 
-	let form = $state(
-		parseDate(data || todayDate?.toString() || new Date().toISOString().split('T')[0])
-	);
+	/** The bound string as a calendar date, or today when there is nothing yet. */
+	const parse = (value: string) =>
+		parseDate(value || todayDate?.toString() || new Date().toISOString().split('T')[0]);
 
+	let form = $state(untrack(() => parse(data)));
+
+	/* Picking a date writes it back out… */
 	$effect(() => {
 		data = form.toString();
+	});
+
+	/* …and a value arriving from outside — a form reset, a navigation to another
+	   subject — moves the calendar. Guarded on the string, so the two effects
+	   settle instead of chasing each other. */
+	$effect(() => {
+		const incoming = data;
+		if (incoming && incoming !== untrack(() => form.toString())) {
+			form = parse(incoming);
+		}
 	});
 
 	const formatDate = (date: CalendarDate | undefined): string => {

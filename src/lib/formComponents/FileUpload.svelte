@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input/index';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -18,7 +19,9 @@
 
 	const hint = $derived(placeholder ?? m.up_default_hint());
 
-	let file = $state(fileProxy(form, name));
+	/* One proxy per instance: `form` and `name` identify the field this control
+	   is for, and neither changes under it. */
+	let file = $state(untrack(() => fileProxy(form, name)));
 	let isDragging = $state(false);
 	let isProcessing = $state(false);
 
@@ -51,7 +54,7 @@
 			// ✅ Use DataTransfer to build a real FileList
 			const dt = new DataTransfer();
 			processedFiles.forEach((f) => dt.items.add(f));
-			file.set(dt.files as any);
+			file.set(dt.files);
 		} catch (err) {
 			console.error('FULL ERROR:', err);
 		} finally {
@@ -161,6 +164,8 @@
 						src={assetUrl(image)}
 						class="max-h-80 w-full object-contain"
 						alt={m.up_preview_alt()}
+						loading="lazy"
+						decoding="async"
 					/>
 				{/if}
 			</div>
@@ -210,6 +215,8 @@
 						src={URL.createObjectURL($file[0])}
 						class="max-h-80 w-full object-contain"
 						alt={m.up_preview_alt()}
+						loading="lazy"
+						decoding="async"
 					/>
 				{/if}
 			</div>

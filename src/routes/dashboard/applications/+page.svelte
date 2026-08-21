@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
@@ -36,13 +38,15 @@
 		{ key: 'rejected', label: m.ap_tab_rejected() }
 	]);
 
-	const handle = (message: string) => () => {
-		return async ({ result, update }: any) => {
-			if (result.type === 'failure') toast.error(result.data?.message ?? m.ap_refused());
-			else if (result.type === 'success' || result.type === 'redirect') toast.success(message);
-			await update();
+	const handle =
+		(message: string): SubmitFunction =>
+		() => {
+			return async ({ result, update }) => {
+				if (result.type === 'failure') toast.error(result.data?.message ?? m.ap_refused());
+				else if (result.type === 'success' || result.type === 'redirect') toast.success(message);
+				await update();
+			};
 		};
-	};
 
 	const formatDate = (value: string | Date) =>
 		new Date(value).toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
@@ -90,7 +94,7 @@
 				{isCreatorView ? m.ap_empty_creator() : m.ap_empty_brand()}
 			</p>
 			<a
-				href={isCreatorView ? '/campaigns' : '/dashboard/campaigns'}
+				href={isCreatorView ? resolve('/campaigns') : resolve('/dashboard/campaigns')}
 				class="inline-block rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 			>
 				{isCreatorView ? m.bl_browse_briefs() : m.ap_manage_campaigns()}
@@ -107,6 +111,10 @@
 									src={application.creatorAvatar ?? ''}
 									alt=""
 									class="h-11 w-11 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+									loading="lazy"
+									decoding="async"
+									width="44"
+									height="44"
 								/>
 							{/if}
 							<div class="min-w-0">
@@ -120,7 +128,7 @@
 
 								{#if isCreatorView}
 									<a
-										href="/campaigns/{application.campaignSlug}"
+										href={resolve(`/campaigns/${application.campaignSlug}`)}
 										class="text-sm font-black text-slate-900 hover:text-emerald-600"
 									>
 										{application.campaignTitle}
@@ -130,7 +138,7 @@
 									</p>
 								{:else}
 									<a
-										href="/creators/{application.creatorUsername}"
+										href={resolve(`/creators/${application.creatorUsername}`)}
 										class="text-sm font-black text-slate-900 hover:text-emerald-600"
 									>
 										{application.creatorName}
@@ -202,7 +210,7 @@
 								</form>
 							{/if}
 							<a
-								href="/campaigns/{application.campaignSlug}"
+								href={resolve(`/campaigns/${application.campaignSlug}`)}
 								class="inline-flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-slate-900 hover:bg-slate-50"
 							>
 								<ExternalLink class="h-3 w-3" />

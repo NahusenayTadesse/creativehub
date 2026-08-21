@@ -84,23 +84,35 @@ const valuesOf = (data: Record<string, unknown>): TrendingConfigValues =>
 	({ ...TRENDING_DEFAULTS, ...data }) as TrendingConfigValues;
 
 /** A ranked row, trimmed to what the table renders. */
-const toPreviewRow = (entry: Awaited<ReturnType<typeof buildBoard>>['ranked'][number]) => ({
-	creatorId: entry.creatorId,
-	rank: entry.rank,
-	username: entry.candidate.username,
-	fullName: entry.candidate.fullName,
-	avatar: entry.candidate.avatar,
-	countryName: entry.candidate.countryName,
-	verificationLevel: entry.candidate.verificationLevel,
-	followers: entry.candidate.followers,
-	source: entry.source,
-	score: entry.score,
-	baseScore: entry.baseScore,
-	multiplier: entry.multiplier,
-	note: entry.note,
-	components: entry.scored?.components ?? [],
-	values: entry.candidate.values
-});
+export type PreviewRow = ReturnType<typeof toPreviewRow>;
+
+function toPreviewRow(entry: Awaited<ReturnType<typeof buildBoard>>['ranked'][number]) {
+	return {
+		creatorId: entry.creatorId,
+		rank: entry.rank,
+		username: entry.candidate.username,
+		fullName: entry.candidate.fullName,
+		avatar: entry.candidate.avatar,
+		countryName: entry.candidate.countryName,
+		verificationLevel: entry.candidate.verificationLevel,
+		followers: entry.candidate.followers,
+		source: entry.source,
+		score: entry.score,
+		baseScore: entry.baseScore,
+		multiplier: entry.multiplier,
+		note: entry.note,
+		components: entry.scored?.components ?? [],
+		values: entry.candidate.values
+	};
+}
+
+/** What `?/preview` hands back — a dry run, written nowhere. */
+export type TrendingPreview = {
+	stats: Awaited<ReturnType<typeof buildBoard>>['stats'];
+	rows: PreviewRow[];
+	entering: string[];
+	leaving: string[];
+};
 
 /** Blank means "no expiry"; a date means the end of that day. */
 const parseExpiry = (value: string): Date | null => {

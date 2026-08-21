@@ -77,6 +77,10 @@
 					src={org.logo ?? ''}
 					alt=""
 					class="h-10 w-10 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+					loading="lazy"
+					decoding="async"
+					width="40"
+					height="40"
 				/>
 				<div class="min-w-0">
 					<h3 class="truncate text-sm font-black text-slate-900">{org.name}</h3>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
@@ -10,7 +11,9 @@
 
 	let { data } = $props();
 
-	const { form, errors, enhance, delayed, allErrors, message } = superForm(data.form);
+	const { form, errors, enhance, delayed, allErrors, message } = superForm(
+		untrack(() => data.form)
+	);
 
 	$effect(() => {
 		if (!$message) return;

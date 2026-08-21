@@ -2,6 +2,7 @@
 	import { type VariantProps, tv } from 'tailwind-variants';
 	import { cn, type WithElementRef } from '$lib/utils.js';
 	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
+	import type { ResolvedPathname } from '$app/types';
 
 	export const buttonVariants = tv({
 		base: "rounded-none border border-transparent bg-clip-padding text-xs font-semibold tracking-widest uppercase focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 active:not-aria-[haspopup]:translate-y-px aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-3.5 group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
@@ -40,9 +41,14 @@
 	export type ButtonSize = VariantProps<typeof buttonVariants>['size'];
 
 	export type ButtonProps = WithElementRef<HTMLButtonAttributes> &
-		WithElementRef<HTMLAnchorAttributes> & {
+		WithElementRef<Omit<HTMLAnchorAttributes, 'href'>> & {
 			variant?: ButtonVariant;
 			size?: ButtonSize;
+			/**
+			 * Narrowed from `string`: a button that navigates is a link, and a link
+			 * has to know its base path. Callers pass `resolve('/somewhere')`.
+			 */
+			href?: ResolvedPathname;
 		};
 </script>
 

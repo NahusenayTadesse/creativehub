@@ -2,15 +2,16 @@ import type { PageServerLoad } from './$types';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
-import { listCampaigns, campaignFacet } from '$lib/server/queries';
+import { listCampaigns, campaignFacet, countCampaignsAcrossMarkets } from '$lib/server/queries';
 import { getCreatorFor } from '$lib/server/guards';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
 	const scope = { publicOnly: true } as const;
 
-	const [campaigns, typeCounts] = await Promise.all([
+	const [campaigns, typeCounts, allMarketsTotal] = await Promise.all([
 		listCampaigns(url, scope),
-		campaignFacet(url, 'type', scope)
+		campaignFacet(url, 'type', scope),
+		countCampaignsAcrossMarkets(url, scope)
 	]);
 
 	/*
@@ -42,5 +43,5 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		}
 	}
 
-	return { campaigns, typeCounts, appliedCampaignIds, creatorId };
+	return { campaigns, typeCounts, allMarketsTotal, appliedCampaignIds, creatorId };
 };

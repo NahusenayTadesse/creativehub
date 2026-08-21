@@ -1346,5 +1346,18 @@
 	"vf_title": "Verification",
 	"vf_what_verify": "What should we verify?",
 	"vf_your_cases": "Your cases",
-	"view_profile": "View Profile"
+	"view_profile": "View Profile",
+	"err_unexpected": "Something went wrong on our side.",
+	"err_title_404": "Page not found",
+	"err_body_404": "That link does not lead anywhere. It may have been moved or removed.",
+	"err_title_403": "Not your call",
+	"err_body_403": "Your account does not have access to this page.",
+	"err_title_generic": "Something went wrong",
+	"err_body_generic": "We could not finish that. Trying again often works; if it does not, the reference below will help us find it.",
+	"err_reference": "Reference",
+	"err_go_home": "Back to the homepage",
+	"err_go_dashboard": "Back to the dashboard",
+	"err_status": "Error {status}",
+	"srv_upload_content_mismatch": "That file is not the kind of image it claims to be. Re-save it and try again.",
+	"au_role_label": "Role"
 }

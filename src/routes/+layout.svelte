@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ResolvedPathname } from '$app/types';
 	import { page } from '$app/state';
 	import { locales, localizeHref } from '$lib/paraglide/runtime';
 	import './layout.css';
@@ -12,7 +13,12 @@
 	 * analysis happy. These are hidden and never navigated to by a person.
 	 */
 	const localeLinks = $derived(
-		locales.map((locale) => ({ locale, href: localizeHref(page.url.pathname, { locale }) }))
+		locales.map((locale) => ({
+			locale,
+			/* `localizeHref` builds from the current pathname, which already carries
+			   `paths.base` — so this is resolved, not a route id to resolve. */
+			href: localizeHref(page.url.pathname, { locale }) as ResolvedPathname
+		}))
 	);
 </script>
 

@@ -1,4 +1,7 @@
 <script lang="ts">
+	import type { BookingRow, ApplicationRow } from '$lib/server/queries';
+	import type { ResolvedPathname } from '$app/types';
+	import { resolve } from '$app/paths';
 	import {
 		TrendingUp,
 		Wallet,
@@ -6,8 +9,6 @@
 		Send,
 		ShieldCheck,
 		Users,
-		Megaphone,
-		Star,
 		ArrowRight,
 		Plus,
 		Building2,
@@ -35,7 +36,7 @@
 		<PageHeader eyebrow={m.ob_eyebrow()} title={m.ob_title()} description={m.ob_description()} />
 
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-			<a href="/dashboard/profile/create" class="bento-card space-y-3">
+			<a href={resolve('/dashboard/profile/create')} class="bento-card space-y-3">
 				<div
 					class="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-slate-900 bg-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 				>
@@ -47,7 +48,7 @@
 				</p>
 			</a>
 
-			<a href="/dashboard/organization/create" class="bento-card space-y-3">
+			<a href={resolve('/dashboard/organization/create')} class="bento-card space-y-3">
 				<div
 					class="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-slate-900 bg-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 				>
@@ -69,7 +70,7 @@
 		>
 			{#snippet actions()}
 				<a
-					href="/campaigns"
+					href={resolve('/campaigns')}
 					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 				>
 					<Send class="h-4 w-4" />
@@ -114,8 +115,8 @@
 		</div>
 
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-			{@render bookingList(data.bookings, m.dashc_your_bookings(), '/dashboard/bookings')}
-			{@render applicationList(data.applications, '/dashboard/applications')}
+			{@render bookingList(data.bookings, m.dashc_your_bookings(), resolve('/dashboard/bookings'))}
+			{@render applicationList(data.applications, resolve('/dashboard/applications'))}
 		</div>
 
 		<!-- ============================= BUSINESS ============================= -->
@@ -127,14 +128,14 @@
 		>
 			{#snippet actions()}
 				<a
-					href="/dashboard/campaigns"
+					href={resolve('/dashboard/campaigns')}
 					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 				>
 					<Plus class="h-4 w-4" />
 					{m.dashb_post_brief()}
 				</a>
 				<a
-					href="/discover"
+					href={resolve('/discover')}
 					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-white px-4 py-2.5 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50"
 				>
 					<Users class="h-4 w-4 text-emerald-600" />
@@ -191,8 +192,12 @@
 		{/if}
 
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-			{@render bookingList(data.bookings, m.dashb_recent_bookings(), '/dashboard/bookings')}
-			{@render applicationList(data.applications, '/dashboard/applications')}
+			{@render bookingList(
+				data.bookings,
+				m.dashb_recent_bookings(),
+				resolve('/dashboard/bookings')
+			)}
+			{@render applicationList(data.applications, resolve('/dashboard/applications'))}
 		</div>
 
 		<!-- ============================= ADMIN ============================= -->
@@ -204,7 +209,7 @@
 		>
 			{#snippet actions()}
 				<a
-					href="/dashboard/admin/verification"
+					href={resolve('/dashboard/admin/verification')}
 					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 				>
 					<ShieldCheck class="h-4 w-4" />
@@ -264,13 +269,17 @@
 		{/if}
 
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-			{@render bookingList(data.bookings, m.dashb_recent_bookings(), '/dashboard/bookings')}
+			{@render bookingList(
+				data.bookings,
+				m.dashb_recent_bookings(),
+				resolve('/dashboard/bookings')
+			)}
 
 			<div class="bento-card bento-card-static space-y-3">
 				<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
 					<h3 class="text-sm font-black text-slate-900">{m.dasha_recent_activity()}</h3>
 					<a
-						href="/dashboard/admin/audit"
+						href={resolve('/dashboard/admin/audit')}
 						class="flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline"
 					>
 						{m.dasha_full_log()}
@@ -316,7 +325,7 @@
 
 <!-- ---------------- shared snippets ---------------- -->
 
-{#snippet bookingList(bookings: any[], title: string, href: string)}
+{#snippet bookingList(bookings: BookingRow[], title: string, href: ResolvedPathname)}
 	<div class="bento-card bento-card-static space-y-3">
 		<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
 			<h3 class="flex items-center gap-1.5 text-sm font-black text-slate-900">
@@ -334,13 +343,17 @@
 				{#each bookings as booking (booking.id)}
 					<li>
 						<a
-							href="/dashboard/bookings/{booking.id}"
+							href={resolve(`/dashboard/bookings/${booking.id}`)}
 							class="flex items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-3 transition-colors hover:border-slate-900"
 						>
 							<img
 								src={booking.creatorAvatar ?? booking.organizationLogo ?? ''}
 								alt=""
 								class="h-9 w-9 shrink-0 rounded-xl border border-slate-900 object-cover"
+								loading="lazy"
+								decoding="async"
+								width="36"
+								height="36"
 							/>
 							<div class="min-w-0 flex-1">
 								<p class="truncate text-xs font-black text-slate-900">{booking.title}</p>
@@ -365,7 +378,7 @@
 	</div>
 {/snippet}
 
-{#snippet applicationList(applications: any[], href: string)}
+{#snippet applicationList(applications: ApplicationRow[], href: ResolvedPathname)}
 	<div class="bento-card bento-card-static space-y-3">
 		<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
 			<h3 class="flex items-center gap-1.5 text-sm font-black text-slate-900">
@@ -386,6 +399,10 @@
 							src={application.creatorAvatar ?? ''}
 							alt=""
 							class="h-9 w-9 shrink-0 rounded-xl border border-slate-900 object-cover"
+							loading="lazy"
+							decoding="async"
+							width="36"
+							height="36"
 						/>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-xs font-black text-slate-900">

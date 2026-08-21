@@ -1,4 +1,7 @@
 <script lang="ts">
+	import InputComp from '$lib/formComponents/InputComp.svelte';
+	import type { ResolvedPathname } from '$app/types';
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import {
 		Search,
@@ -23,7 +26,12 @@
 
 	const hero = $derived(data.featured[0] ?? data.trending[0] ?? null);
 
-	const search = () => goto(`/discover${query ? `?q=${encodeURIComponent(query)}` : ''}`);
+	/* Resolved once, then given its query string — appending to a resolved path
+	   keeps it resolved, which is what `goto` needs to be handed. */
+	const searchHref = $derived(
+		`${resolve('/discover')}${query ? `?q=${encodeURIComponent(query)}` : ''}` as ResolvedPathname
+	);
+	const search = () => goto(searchHref);
 
 	const brandSteps = $derived([
 		{ n: 1, title: m.home_brands_step1_title(), body: m.home_brands_step1_body() },
@@ -76,13 +84,15 @@
 						}}
 						class="flex flex-col items-center gap-2 rounded-2xl border-2 border-slate-900 bg-white p-2 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] sm:flex-row"
 					>
-						<div class="flex w-full items-center gap-2 px-3 py-2 text-slate-900">
+						<div class="flex w-full items-center gap-2 px-3 text-slate-900">
 							<Search class="h-5 w-5 shrink-0 text-emerald-600" />
-							<input
-								type="text"
-								bind:value={query}
+							<InputComp
+								name="q"
+								label={m.search_placeholder()}
+								labelHidden
 								placeholder={m.search_placeholder()}
-								class="w-full bg-transparent text-sm font-bold text-slate-900 placeholder-slate-400 focus:outline-none"
+								bind:value={query}
+								className="border-none bg-transparent shadow-none focus-visible:ring-0"
 							/>
 						</div>
 						<button
@@ -95,14 +105,14 @@
 
 					<div class="flex flex-wrap items-center gap-3 pt-2">
 						<a
-							href="/campaigns"
+							href={resolve('/campaigns')}
 							class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-white px-5 py-2.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-slate-100"
 						>
 							<span>{m.home_cta_view_briefs()}</span>
 							<ArrowRight class="h-4 w-4" />
 						</a>
 						<a
-							href="/register"
+							href={resolve('/register')}
 							class="flex items-center gap-2 rounded-xl border-2 border-slate-900 bg-[#fef9c3] px-5 py-2.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]"
 						>
 							<span>{m.home_cta_create_account()}</span>
@@ -162,6 +172,10 @@
 								src={hero.avatar ?? ''}
 								alt={hero.fullName}
 								class="h-14 w-14 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+								loading="lazy"
+								decoding="async"
+								width="56"
+								height="56"
 							/>
 							<div class="min-w-0">
 								<h3 class="text-base font-black text-slate-900">{hero.fullName}</h3>
@@ -196,7 +210,7 @@
 								<span class="font-black text-emerald-700">{hero.score}/100</span>
 							</div>
 							<a
-								href="/creators/{hero.username}"
+								href={resolve(`/creators/${hero.username}`)}
 								class="rounded-xl border border-slate-900 bg-slate-900 px-3.5 py-1.5 text-xs font-black text-white shadow-[1px_1px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-800"
 							>
 								{m.home_view()}
@@ -244,7 +258,7 @@
 
 					<div class="flex items-center gap-4">
 						<a
-							href="/discover"
+							href={resolve('/discover')}
 							class="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800"
 						>
 							<span>{m.home_view_all({ count: data.stats.creators })}</span>
@@ -290,7 +304,7 @@
 		<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
 			{#each data.reference.categories as category (category.id)}
 				<a
-					href="/discover?category={category.slug}"
+					href={resolve(`/discover?category=${category.slug}`)}
 					class="bento-card group flex flex-col justify-between"
 				>
 					<div>
@@ -411,7 +425,7 @@
 				</div>
 
 				<a
-					href="/register?role=business"
+					href={resolve('/register?role=business')}
 					class="block w-full rounded-2xl border-2 border-slate-900 bg-emerald-500 py-3.5 text-center text-xs font-black text-slate-950 shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] transition-all hover:bg-emerald-400"
 				>
 					{m.home_brands_cta()}
@@ -443,7 +457,7 @@
 				</div>
 
 				<a
-					href="/register?role=creator"
+					href={resolve('/register?role=creator')}
 					class="block w-full rounded-2xl border-2 border-slate-900 bg-slate-900 py-3.5 text-center text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-slate-800"
 				>
 					{m.home_creators_cta()}

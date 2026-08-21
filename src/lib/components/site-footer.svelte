@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import { ShieldCheck, Heart, MapPin, Sparkles, CircleCheckBig } from '@lucide/svelte';
 
@@ -27,7 +28,7 @@
 					{m.footer_brands_body()}
 				</p>
 				<a
-					href="/register"
+					href={resolve('/register')}
 					class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
 				>
 					{m.footer_brands_cta()}
@@ -44,7 +45,7 @@
 					{m.footer_creators_body()}
 				</p>
 				<a
-					href="/register"
+					href={resolve('/register')}
 					class="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-gray-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-gray-800"
 				>
 					{m.footer_creators_cta()}
@@ -60,7 +61,7 @@
 					{#each categories.slice(0, 5) as category (category.slug)}
 						<li>
 							<a
-								href="/discover?category={category.slug}"
+								href={resolve(`/discover?category=${category.slug}`)}
 								class="transition-colors hover:text-white"
 							>
 								{category.name}

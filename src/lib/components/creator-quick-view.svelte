@@ -1,11 +1,13 @@
 <script lang="ts">
+	import type { CreatorCard } from '$lib/server/queries';
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Star, MapPin, Award, ArrowRight } from '@lucide/svelte';
 	import VerificationBadge from './verification-badge.svelte';
 	import { formatReach } from '$lib/domain/money';
 
-	let { creator = null, onClose }: { creator: any | null; onClose: () => void } = $props();
+	let { creator = null, onClose }: { creator: CreatorCard | null; onClose: () => void } = $props();
 
 	const open = $derived(creator !== null);
 </script>
@@ -20,7 +22,13 @@
 		{#if creator}
 			<div class="relative h-28 border-b-2 border-slate-900 bg-slate-100">
 				{#if creator.cover}
-					<img src={creator.cover} alt="" class="h-full w-full object-cover" />
+					<img
+						src={creator.cover}
+						alt=""
+						class="h-full w-full object-cover"
+						loading="lazy"
+						decoding="async"
+					/>
 				{/if}
 				<div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent"></div>
 				<div
@@ -37,6 +45,10 @@
 						src={creator.avatar ?? ''}
 						alt={creator.fullName}
 						class="-mt-10 h-16 w-16 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+						loading="lazy"
+						decoding="async"
+						width="64"
+						height="64"
 					/>
 					<div class="min-w-0 flex-1">
 						<Dialog.Title class="text-lg font-black text-slate-900">
@@ -125,7 +137,7 @@
 						</span>
 					</div>
 					<a
-						href="/creators/{creator.username}"
+						href={resolve(`/creators/${creator.username}`)}
 						class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 					>
 						<span>{m.quick_full_profile()}</span>

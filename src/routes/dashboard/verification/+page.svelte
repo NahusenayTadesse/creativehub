@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
@@ -12,7 +13,9 @@
 
 	let { data } = $props();
 
-	const { form, errors, enhance, delayed, allErrors, message } = superForm(data.form);
+	const { form, errors, enhance, delayed, allErrors, message } = superForm(
+		untrack(() => data.form)
+	);
 
 	$effect(() => {
 		if (!$message) return;

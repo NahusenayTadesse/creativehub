@@ -72,7 +72,7 @@
 				{#if selectedDates.length > 0}
 					<ScrollArea class="m-2 max-h-24">
 						<ul class="flex max-h-24 max-w-72 flex-row flex-wrap gap-2 rounded-lg border">
-							{#each selectedDates as date}
+							{#each selectedDates as date (String(date))}
 								<li
 									class="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs text-primary"
 								>

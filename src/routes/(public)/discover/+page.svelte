@@ -1,4 +1,7 @@
 <script lang="ts">
+	import InputComp from '$lib/formComponents/InputComp.svelte';
+	import type { ParamValue } from '$lib/query';
+	import type { CreatorCard as CreatorCardRow } from '$lib/server/queries';
 	import * as m from '$lib/paraglide/messages';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -19,8 +22,11 @@
 	 * and the server answers with one page. Nothing here filters an array: the
 	 * creators that match may well not be among the twenty-four in the browser.
 	 */
+	/** Above this the price filter means "any", so the parameter is dropped. */
+	const MAX_PRICE = 1_500_000;
+
 	const listState = $derived(data.creators.state);
-	const go = (changes: Record<string, any>) =>
+	const go = (changes: Record<string, ParamValue>) =>
 		goto(withParams(page.url, changes), { noScroll: true, keepFocus: true });
 
 	const selectedCountryIds = $derived(listState.filters.country ?? []);
@@ -29,7 +35,7 @@
 	const platformId = $derived(listState.values.platform ?? 'all');
 	const verification = $derived(listState.values.verification ?? 'all');
 	const availableOnly = $derived(listState.values.availability === 'available');
-	const maxPrice = $derived(Number(listState.values.maxPrice ?? 1500000));
+	const maxPrice = $derived(Number(listState.values.maxPrice ?? MAX_PRICE));
 	const sortBy = $derived(listState.sort);
 
 	const matchCampaignId = $derived(String(data.matchCampaignId ?? data.campaigns[0]?.id ?? ''));
@@ -38,17 +44,13 @@
 	);
 	const matchOn = $derived(sortBy === 'match' && data.matchCampaignId !== null);
 
-	let quickView = $state<any>(null);
+	let quickView = $state<CreatorCardRow | null>(null);
 
-	/* Optimistic shortlist state, re-seeded whenever the server sends a new list.
+	/* Optimistic shortlist state, as a writable `$derived`: toggling a badge
+	   assigns to it for the round trip, and the next server answer re-seeds it.
 	   A plain `$state(data.savedIds)` captured the first render only, so the
 	   badges kept showing stale state after an invalidation or a navigation. */
-	let savedOverride = $state<number[] | null>(null);
-	const savedIds = $derived(savedOverride ?? data.savedIds);
-	$effect(() => {
-		data.savedIds;
-		savedOverride = null;
-	});
+	let savedIds = $derived(data.savedIds);
 
 	const isBusiness = $derived(data.user?.role === 'business' || data.user?.role === 'admin');
 
@@ -61,6 +63,21 @@
 	const visibleRegions = $derived(
 		data.reference.regions.filter((r) => !ethiopia || r.countryId === ethiopia.id)
 	);
+
+	/**
+	 * The link a market chip points at.
+	 *
+	 * The region select is the one control whose relevance depends on another
+	 * control, so the link has to carry that dependency now that the link *is*
+	 * the state: picking a market that takes Ethiopia out of scope hides the
+	 * select, and a `region` left in the URL would keep filtering from a control
+	 * the reader can no longer see or clear.
+	 */
+	const countryLink = (id: string) => {
+		const next = toggleValue(selectedCountryIds, id);
+		const stillEthiopian = !next.length || (ethiopia ? next.includes(String(ethiopia.id)) : false);
+		return withParams(page.url, { country: next, ...(stillEthiopian ? {} : { region: null }) });
+	};
 
 	/*
 	 * The select offers directions as separate choices — "price: low to high" is
@@ -102,11 +119,31 @@
 		unverified: m.discover_verif_unverified()
 	});
 
-	/** A local slider that only asks the server once the reader lets go. */
-	let priceDraft = $state(0);
-	$effect(() => {
-		priceDraft = maxPrice;
-	});
+	/* Filter options. Each carries an "all" entry, because clearing a filter is
+	   a choice the control has to offer rather than something only Reset can do. */
+	const categoryFilterItems = $derived([
+		{ value: 'all', name: m.discover_all_categories({ count: data.reference.categories.length }) },
+		...data.reference.categories.map((c) => ({ value: c.slug, name: c.name }))
+	]);
+	const regionFilterItems = $derived([
+		{ value: 'all', name: m.discover_all_regions() },
+		...visibleRegions.map((r) => ({ value: String(r.id), name: r.name }))
+	]);
+	const platformFilterItems = $derived([
+		{ value: 'all', name: m.discover_all_platforms() },
+		...data.reference.platforms.map((p) => ({ value: String(p.id), name: p.name }))
+	]);
+	const verificationFilterItems = $derived(
+		Object.entries(verificationLabels).map(([value, name]) => ({ value, name }))
+	);
+
+	/**
+	 * A local slider that only asks the server once the reader lets go.
+	 *
+	 * A writable `$derived`: dragging assigns to it, and the next server answer
+	 * re-seeds it, so the handle can never sit somewhere the results are not.
+	 */
+	let priceDraft = $derived(maxPrice);
 </script>
 
 <svelte:head>
@@ -246,9 +283,7 @@
 			{#each data.reference.countries as country (country.id)}
 				{@const active = selectedCountryIds.includes(String(country.id))}
 				<a
-					href={withParams(page.url, {
-						country: toggleValue(selectedCountryIds, String(country.id))
-					})}
+					href={countryLink(String(country.id))}
 					data-sveltekit-noscroll
 					class="flex cursor-pointer items-center gap-1.5 rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {active
 						? 'bg-slate-900 text-white'
@@ -282,132 +317,66 @@
 				</a>
 			</div>
 
-			<div>
-				<label
-					for="filter-category"
-					class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase"
-				>
-					{m.discover_category()}
-				</label>
-				<select
-					id="filter-category"
-					value={categorySlug}
-					onchange={(e) =>
-						go({ category: e.currentTarget.value === 'all' ? null : e.currentTarget.value })}
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
-				>
-					<option value="all"
-						>{m.discover_all_categories({ count: data.reference.categories.length })}</option
-					>
-					{#each data.reference.categories as category (category.id)}
-						<option value={category.slug}>{category.name}</option>
-					{/each}
-				</select>
-			</div>
+			<InputComp
+				name="category"
+				type="select"
+				label={m.discover_category()}
+				items={categoryFilterItems}
+				value={categorySlug}
+				onChange={(next) => go({ category: next === 'all' ? null : String(next) })}
+			/>
 
 			{#if ethiopiaActive && visibleRegions.length}
-				<div>
-					<label
-						for="filter-region"
-						class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase"
-					>
-						{m.discover_ethiopian_region()}
-					</label>
-					<select
-						id="filter-region"
-						value={regionId}
-						onchange={(e) =>
-							go({ region: e.currentTarget.value === 'all' ? null : e.currentTarget.value })}
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
-					>
-						<option value="all">{m.discover_all_regions()}</option>
-						{#each visibleRegions as region (region.id)}
-							<option value={String(region.id)}>{region.name}</option>
-						{/each}
-					</select>
-				</div>
+				<InputComp
+					name="region"
+					type="select"
+					label={m.discover_ethiopian_region()}
+					items={regionFilterItems}
+					value={regionId}
+					onChange={(next) => go({ region: next === 'all' ? null : String(next) })}
+				/>
 			{/if}
 
-			<div>
-				<label
-					for="filter-platform"
-					class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase"
-				>
-					{m.discover_primary_platform()}
-				</label>
-				<select
-					id="filter-platform"
-					value={platformId}
-					onchange={(e) =>
-						go({ platform: e.currentTarget.value === 'all' ? null : e.currentTarget.value })}
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
-				>
-					<option value="all">{m.discover_all_platforms()}</option>
-					{#each data.reference.platforms as platform (platform.id)}
-						<option value={String(platform.id)}>{platform.name}</option>
-					{/each}
-				</select>
-			</div>
+			<InputComp
+				name="platform"
+				type="select"
+				label={m.discover_primary_platform()}
+				items={platformFilterItems}
+				value={platformId}
+				onChange={(next) => go({ platform: next === 'all' ? null : String(next) })}
+			/>
 
-			<div>
-				<div class="mb-1 flex items-center justify-between text-xs">
-					<label
-						for="filter-price"
-						class="text-[11px] font-black tracking-wider text-slate-900 uppercase"
-					>
-						{m.discover_max_starting_price()}
-					</label>
-					<span
-						class="rounded border border-slate-900 bg-[#dcfce7] px-2 py-0.5 text-xs font-black text-emerald-800"
-					>
-						{priceDraft.toLocaleString()}
-					</span>
-				</div>
-				<input
-					id="filter-price"
-					type="range"
-					min={1000}
-					max={1500000}
-					step={1000}
-					bind:value={priceDraft}
-					onchange={() => go({ maxPrice: priceDraft >= 1500000 ? null : priceDraft })}
-					class="w-full cursor-pointer accent-emerald-600"
-				/>
-				<p class="mt-1 text-right text-[10px] font-bold text-slate-500">
-					{m.discover_own_currency_note()}
-				</p>
-			</div>
+			<InputComp
+				name="maxPrice"
+				type="range"
+				label={m.discover_max_starting_price()}
+				min={1000}
+				max={MAX_PRICE}
+				step={1000}
+				hint={m.discover_own_currency_note()}
+				bind:value={priceDraft}
+				onChange={(next) => go({ maxPrice: Number(next) >= MAX_PRICE ? null : Number(next) })}
+			/>
 
-			<div>
-				<label
-					for="filter-verification"
-					class="mb-2 block text-xs font-black tracking-wider text-slate-900 uppercase"
-				>
-					{m.discover_verification_level()}
-				</label>
-				<select
-					id="filter-verification"
-					value={verification}
-					onchange={(e) =>
-						go({ verification: e.currentTarget.value === 'all' ? null : e.currentTarget.value })}
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900"
-				>
-					{#each Object.entries(verificationLabels) as [value, label] (value)}
-						<option {value}>{label}</option>
-					{/each}
-				</select>
-			</div>
+			<InputComp
+				name="verification"
+				type="select"
+				label={m.discover_verification_level()}
+				items={verificationFilterItems}
+				value={verification}
+				onChange={(next) => go({ verification: next === 'all' ? null : String(next) })}
+			/>
 
-			<div class="flex items-center justify-between border-t-2 border-slate-900 pt-3 text-xs">
-				<label for="filter-available" class="font-black text-slate-900"
-					>{m.discover_only_available()}</label
-				>
-				<input
-					id="filter-available"
-					type="checkbox"
-					checked={availableOnly}
-					onchange={(e) => go({ availability: e.currentTarget.checked ? 'available' : null })}
-					class="h-4 w-4 cursor-pointer rounded border-2 border-slate-900 accent-emerald-600"
+			<div class="border-t-2 border-slate-900 pt-3">
+				<InputComp
+					name="availability"
+					type="checkboxSingle"
+					align="between"
+					label={m.discover_only_available()}
+					labelHidden
+					placeholder={m.discover_only_available()}
+					value={availableOnly}
+					onChange={(next) => go({ availability: next ? 'available' : null })}
 				/>
 			</div>
 		</aside>
@@ -437,9 +406,7 @@
 					{#each selectedCountryIds as countryId (countryId)}
 						{@const country = data.reference.countries.find((c) => String(c.id) === countryId)}
 						<a
-							href={withParams(page.url, {
-								country: toggleValue(selectedCountryIds, countryId)
-							})}
+							href={countryLink(countryId)}
 							data-sveltekit-noscroll
 							class="flex cursor-pointer items-center gap-1 rounded-full border border-slate-900 bg-[#e0e7ff] px-2.5 py-0.5 text-[11px] font-black tracking-wider text-indigo-950 uppercase hover:bg-indigo-200"
 						>
@@ -510,7 +477,7 @@
 							(document.getElementById('save-form') as HTMLFormElement).creatorId.value
 						);
 						const nowSaved = (result.data as { saved?: boolean })?.saved;
-						savedOverride = nowSaved
+						savedIds = nowSaved
 							? [...savedIds, creatorId]
 							: savedIds.filter((id: number) => id !== creatorId);
 						toast.success(nowSaved ? m.discover_saved_toast() : m.discover_removed_toast());

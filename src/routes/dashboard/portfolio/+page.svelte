@@ -57,7 +57,13 @@
 	{#snippet row(item)}
 		<div class="space-y-3">
 			<div class="relative h-40 overflow-hidden rounded-2xl border-2 border-slate-900 bg-slate-100">
-				<img src={assetUrl(item.url)} alt={item.caption ?? ''} class="h-full w-full object-cover" />
+				<img
+					src={assetUrl(item.url)}
+					alt={item.caption ?? ''}
+					class="h-full w-full object-cover"
+					loading="lazy"
+					decoding="async"
+				/>
 				{#if platformName(item.platformId)}
 					<span
 						class="absolute top-2 left-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white uppercase backdrop-blur-md"

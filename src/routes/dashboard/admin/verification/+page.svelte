@@ -1,8 +1,11 @@
 <script lang="ts">
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import PaginationBar from '$lib/components/pagination-bar.svelte';
+	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import SearchInput from '$lib/components/search-input.svelte';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
 	import { page } from '$app/state';
@@ -25,13 +28,15 @@
 			? Object.values(data.statusCounts).reduce((sum, n) => sum + n, 0)
 			: (data.statusCounts[status] ?? 0);
 
-	const handle = (text: string) => () => {
-		return async ({ result, update }: any) => {
-			if (result.type === 'failure') toast.error(result.data?.message ?? m.common_refused());
-			else if (result.type === 'success') toast.success(text);
-			await update();
+	const handle =
+		(text: string): SubmitFunction =>
+		() => {
+			return async ({ result, update }) => {
+				if (result.type === 'failure') toast.error(result.data?.message ?? m.common_refused());
+				else if (result.type === 'success') toast.success(text);
+				await update();
+			};
 		};
-	};
 
 	const formatDate = (value: string | Date) =>
 		new Date(value).toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
@@ -104,6 +109,10 @@
 									src={request.creatorAvatar}
 									alt=""
 									class="h-11 w-11 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+									loading="lazy"
+									decoding="async"
+									width="44"
+									height="44"
 								/>
 							{/if}
 							<div>
@@ -124,7 +133,7 @@
 
 								{#if request.creatorUsername}
 									<a
-										href="/creators/{request.creatorUsername}"
+										href={resolve(`/creators/${request.creatorUsername}`)}
 										target="_blank"
 										class="text-sm font-black text-slate-900 hover:text-emerald-600"
 									>
@@ -159,7 +168,7 @@
 							<a
 								href={assetUrl(request.documentUrl)}
 								target="_blank"
-								rel="noreferrer"
+								rel="noreferrer external"
 								class="inline-flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline"
 							>
 								<ExternalLink class="h-3.5 w-3.5" />
@@ -176,7 +185,7 @@
 										<a
 											href={proof}
 											target="_blank"
-											rel="noreferrer"
+											rel="noreferrer external"
 											class="text-[11px] font-bold text-slate-600 hover:text-emerald-700 hover:underline"
 										>
 											{proof}
@@ -196,16 +205,17 @@
 
 					{#if open}
 						<div class="space-y-2 border-t-2 border-slate-200 pt-3">
-							<label for="note-{request.id}" class="text-xs font-black text-slate-900">
-								{m.av_decision_note()}
-							</label>
-							<textarea
-								id="note-{request.id}"
-								rows="2"
-								bind:value={notes[request.id]}
+							<!-- Outside the three forms below on purpose: one note is carried
+							     into whichever decision the operator picks, as a hidden
+							     field, so switching between them keeps what was typed. -->
+							<InputComp
+								name="note-{request.id}"
+								type="textarea"
+								rows={2}
+								label={m.av_decision_note()}
 								placeholder={m.av_decision_placeholder()}
-								class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-medium"
-							></textarea>
+								bind:value={notes[request.id]}
+							/>
 
 							<div class="flex flex-wrap justify-end gap-2">
 								<form method="POST" action="?/decide" use:enhance={handle(m.av_more_info_toast())}>

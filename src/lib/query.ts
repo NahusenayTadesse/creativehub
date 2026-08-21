@@ -11,6 +11,8 @@
  * these parameters into SQL, and it validates every one of them first.
  */
 
+import type { ResolvedPathname } from '$app/types';
+
 export const PARAM = {
 	page: 'page',
 	perPage: 'per',
@@ -55,7 +57,17 @@ export type PageResult<Row> = {
 	rankedWithin?: number;
 };
 
-type ParamValue = string | number | boolean | null | undefined | readonly string[];
+export type ParamValue = string | number | boolean | null | undefined | readonly string[];
+
+/**
+ * A link this module built is already base-path correct.
+ *
+ * Every one of them is derived from `url.pathname`, which is the pathname the
+ * browser is actually on — so it already carries `paths.base` if there is one.
+ * Running it back through `resolve()` would prepend the base a second time,
+ * which is why these are asserted rather than resolved.
+ */
+const resolved = (path: string) => path as ResolvedPathname;
 
 /**
  * `url`'s query string with `changes` applied, as a relative link.
@@ -64,7 +76,7 @@ type ParamValue = string | number | boolean | null | undefined | readonly string
  * result that a new filter just cut to two pages shows an empty screen, and the
  * reader has no way to tell an over-filtered search from a mistaken one.
  */
-export function withParams(url: URL, changes: Record<string, ParamValue>): string {
+export function withParams(url: URL, changes: Record<string, ParamValue>): ResolvedPathname {
 	const params = new URLSearchParams(url.searchParams);
 
 	for (const [key, value] of Object.entries(changes)) {
@@ -81,11 +93,11 @@ export function withParams(url: URL, changes: Record<string, ParamValue>): strin
 	if (!(PARAM.page in changes)) params.delete(PARAM.page);
 
 	const query = params.toString();
-	return query ? `${url.pathname}?${query}` : url.pathname;
+	return resolved(query ? `${url.pathname}?${query}` : url.pathname);
 }
 
 /** The link to one page of the current result, keeping everything else. */
-export const pageLink = (url: URL, page: number): string =>
+export const pageLink = (url: URL, page: number): ResolvedPathname =>
 	withParams(url, { [PARAM.page]: page > 1 ? page : null });
 
 /** Adds or removes one value of a multi-select filter. */

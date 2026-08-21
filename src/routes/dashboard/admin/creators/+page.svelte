@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
@@ -129,6 +130,10 @@
 						src={creator.avatar ?? ''}
 						alt=""
 						class="h-10 w-10 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+						loading="lazy"
+						decoding="async"
+						width="40"
+						height="40"
 					/>
 					<div class="min-w-0">
 						<h3 class="truncate text-sm font-black text-slate-900">{creator.fullName}</h3>
@@ -138,7 +143,7 @@
 				<div class="flex shrink-0 flex-col items-end gap-1">
 					{#if creator.isPublished}
 						<a
-							href="/creators/{creator.username}"
+							href={resolve(`/creators/${creator.username}`)}
 							target="_blank"
 							class="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 hover:underline"
 						>

@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run's answer irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: check · lint · unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # `svelte-kit sync` generates ./$types and paraglide compiles the message
+      # modules; both are gitignored, so nothing below type-checks without them.
+      - name: Compile messages and generate types
+        run: |
+          npx @inlang/paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide
+          npx svelte-kit sync
+
+      - name: Type-check
+        run: npm run check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:unit -- --run
+
+  # The build is its own job: it is the slowest step and it fails for reasons
+  # the checks above cannot see, so running them in parallel means a type error
+  # is reported in a minute rather than after a full production build.
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          # The build only needs these to exist — nothing connects at build time,
+          # and `db/index.ts` throws on an absent DATABASE_URL.
+          DATABASE_URL: mysql://ci:ci@127.0.0.1:3306/ci
+          ORIGIN: http://localhost:3000
+          BETTER_AUTH_SECRET: ci-secret-not-used-for-anything-real-0000
+
+  e2e:
+    name: end to end
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: ci
+          MARIADB_DATABASE: creator_network
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: mysql://root:ci@127.0.0.1:3306/creator_network
+      ORIGIN: http://localhost:4173
+      BETTER_AUTH_SECRET: ci-secret-not-used-for-anything-real-0000
+      FILES_DIR: ${{ github.workspace }}/.ci-files
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Compile messages and generate types
+        run: |
+          npx @inlang/paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide
+          npx svelte-kit sync
+
+      # The migration path, exercised on every run. A migration that does not
+      # apply to an empty database is a broken deploy, and this is the only
+      # place that finds out before production does.
+      - name: Migrate and seed
+        run: |
+          npm run db:migrate
+          npm run db:seed
+
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

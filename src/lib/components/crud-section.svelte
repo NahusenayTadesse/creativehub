@@ -1,4 +1,11 @@
 <script lang="ts">
+	/* eslint-disable @typescript-eslint/no-explicit-any --
+	   This component is generic over *any* managed content table: `contentCrud`
+	   selects every column of whatever table it was given, and the `row` snippet
+	   below renders whichever of those columns that page cares about. Narrowing
+	   the row to `Record<string, unknown>` types the shape and destroys every
+	   property access in the eleven pages that use it, which is a worse trade
+	   than one documented `any` per prop. */
 	import * as m from '$lib/paraglide/messages';
 	import type { Snippet } from 'svelte';
 	import CrudDialog, { type CrudField } from '$lib/components/Table/crud-dialog.svelte';
@@ -98,9 +105,13 @@
 	{#if list && (list.total > 0 || list.state.search)}
 		<div class="flex flex-wrap items-center justify-between gap-3">
 			<SearchInput value={list.state.search} class="w-full sm:w-72" />
-			<span class="text-xs font-bold text-slate-600">
-				{m.pg_showing({ start: list.from, end: list.to, total: list.total })}
-			</span>
+			<!-- The box stays so a fruitless search can be cleared, but "Showing
+			     0 – 0 of 0" above a "No results" panel says nothing twice. -->
+			{#if list.total > 0}
+				<span class="text-xs font-bold text-slate-600">
+					{m.pg_showing({ start: list.from, end: list.to, total: list.total })}
+				</span>
+			{/if}
 		</div>
 	{/if}
 

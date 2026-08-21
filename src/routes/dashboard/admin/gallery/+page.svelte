@@ -26,7 +26,7 @@
 	 * The picker is left empty on edit: an empty file field means "keep the
 	 * stored image", and the current one is shown next to it as a preview.
 	 */
-	const editValues = (slide: Record<string, any>) => ({
+	const editValues = (slide: Record<string, unknown>) => ({
 		id: slide.id,
 		title: slide.title,
 		subtitle: slide.subtitle ?? '',
@@ -61,7 +61,13 @@
 				class="relative h-32 overflow-hidden rounded-2xl border-2 border-slate-900 bg-slate-100 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 			>
 				{#if slide.image}
-					<img src={assetUrl(slide.image)} alt={slide.title} class="h-full w-full object-cover" />
+					<img
+						src={assetUrl(slide.image)}
+						alt={slide.title}
+						class="h-full w-full object-cover"
+						loading="lazy"
+						decoding="async"
+					/>
 				{:else}
 					<div class="flex h-full w-full items-center justify-center text-slate-400">
 						<ImageOff class="h-6 w-6" />

@@ -4,7 +4,7 @@ import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { and, eq, sql } from 'drizzle-orm';
 import type { PageServerLoad, Actions, RequestEvent } from './$types';
-import { db } from '$lib/server/db';
+import { db, rowsAffected } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { getBookingDetail, getSettings } from '$lib/server/queries';
 import { requireBookingAccess, recordAudit } from '$lib/server/guards';
@@ -299,7 +299,7 @@ export const actions: Actions = {
 		 * the read above: two concurrent posts both passed that check and both
 		 * wrote a deposit record. Zero rows here means the other one won.
 		 */
-		const funded: any = await db
+		const funded = await db
 			.update(t.bookings)
 			.set({
 				escrowStatus: 'held',
@@ -309,7 +309,7 @@ export const actions: Actions = {
 			})
 			.where(and(eq(t.bookings.id, id), eq(t.bookings.escrowStatus, 'unfunded')));
 
-		if ((funded?.rowsAffected ?? funded?.[0]?.affectedRows ?? 1) === 0) {
+		if (rowsAffected(funded) === 0) {
 			return fail(409, { message: m.srv_already_funded() });
 		}
 

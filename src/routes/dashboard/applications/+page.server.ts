@@ -4,7 +4,7 @@ import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
-import { db } from '$lib/server/db';
+import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { listApplications, applicationFacet, getSettings } from '$lib/server/queries';
 import { requireUser, getCreatorFor, getOrganizationFor, recordAudit } from '$lib/server/guards';
@@ -117,7 +117,7 @@ export const actions: Actions = {
 		const price = row.campaign.compensationType === 'paid' ? row.application.proposedPrice : 0;
 		const { platformFee, creatorPayout } = splitFee(price, settings?.platformFeePercent ?? 15);
 
-		const result: any = await db.insert(t.bookings).values({
+		const result = await db.insert(t.bookings).values({
 			reference: bookingReference(),
 			campaignId: row.campaign.id,
 			applicationId: row.application.id,
@@ -140,7 +140,7 @@ export const actions: Actions = {
 			createdBy: user.id
 		});
 
-		const bookingId = Number(result.insertId ?? result[0]?.insertId);
+		const bookingId = insertedId(result);
 
 		await db.insert(t.termProposals).values({
 			bookingId,

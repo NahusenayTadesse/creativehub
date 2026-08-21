@@ -17,6 +17,12 @@ declare global {
 		interface Locals {
 			user?: AppUser;
 			session?: Session;
+			/**
+			 * One flight of reference data per request, shared by the root layout
+			 * and by every form that needs the same option lists. The promise is
+			 * what is cached, so parallel loads join it rather than racing.
+			 */
+			referenceData?: Promise<import('$lib/server/queries').ReferenceData>;
 		}
 
 		// interface Error {}

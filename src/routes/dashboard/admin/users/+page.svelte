@@ -1,4 +1,7 @@
 <script lang="ts">
+	import InputComp from '$lib/formComponents/InputComp.svelte';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
@@ -11,6 +14,12 @@
 
 	let { data } = $props();
 
+	const ROLE_ITEMS = $derived([
+		{ value: 'creator', name: m.au_role_creator() },
+		{ value: 'business', name: m.au_role_brand() },
+		{ value: 'admin', name: m.au_role_operator() }
+	]);
+
 	/* Role tab and search both live in the URL; the counts are the database's,
 	   over every account rather than the page being shown. */
 	const listState = $derived(data.users.state);
@@ -22,8 +31,8 @@
 			? Object.values(data.roleCounts).reduce((sum, n) => sum + n, 0)
 			: (data.roleCounts[role] ?? 0);
 
-	const handler = () => {
-		return async ({ result, update }: any) => {
+	const handler: SubmitFunction = () => {
+		return async ({ result, update }) => {
 			if (result.type === 'failure') toast.error(result.data?.message ?? m.common_refused());
 			else if (result.type === 'success') toast.success(m.au_role_updated());
 			await update();
@@ -104,7 +113,7 @@
 						<td class="px-4 py-3 text-[11px] font-bold text-slate-600">
 							{#if user.creatorUsername}
 								<a
-									href="/creators/{user.creatorUsername}"
+									href={resolve(`/creators/${user.creatorUsername}`)}
 									class="hover:text-emerald-700 hover:underline"
 								>
 									@{user.creatorUsername}
@@ -143,15 +152,16 @@
 								class="flex items-center justify-end gap-2"
 							>
 								<input type="hidden" name="userId" value={user.id} />
-								<select
-									name="role"
-									value={user.role ?? 'creator'}
-									class="rounded-lg border-2 border-slate-900 bg-white px-2 py-1 text-xs font-bold"
-								>
-									<option value="creator">{m.au_role_creator()}</option>
-									<option value="business">{m.au_role_brand()}</option>
-									<option value="admin">{m.au_role_operator()}</option>
-								</select>
+								<div class="w-40">
+									<InputComp
+										name="role"
+										type="select"
+										label={m.au_role_label()}
+										labelHidden
+										items={ROLE_ITEMS}
+										value={user.role ?? 'creator'}
+									/>
+								</div>
 								<button
 									type="submit"
 									class="rounded-lg border-2 border-slate-900 bg-emerald-600 px-3 py-1 text-xs font-black text-white hover:bg-emerald-700"

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import {
 		LayoutDashboard,
@@ -40,7 +41,7 @@
 	const navigation = $derived.by(() => {
 		const overview = {
 			section: null,
-			items: [{ title: m.sb_overview(), url: '/dashboard', icon: LayoutDashboard }]
+			items: [{ title: m.sb_overview(), url: resolve('/dashboard'), icon: LayoutDashboard }]
 		};
 
 		if (role === 'creator') {
@@ -51,27 +52,31 @@
 					items: [
 						{
 							title: m.sb_bookings(),
-							url: '/dashboard/bookings',
+							url: resolve('/dashboard/bookings'),
 							icon: Handshake,
 							counter: counts.bookings
 						},
 						{
 							title: m.sb_applications(),
-							url: '/dashboard/applications',
+							url: resolve('/dashboard/applications'),
 							icon: Send,
 							counter: counts.applications
 						},
-						{ title: m.sb_reviews(), url: '/dashboard/reviews', icon: Star }
+						{ title: m.sb_reviews(), url: resolve('/dashboard/reviews'), icon: Star }
 					]
 				},
 				{
 					section: m.sb_my_profile(),
 					items: [
-						{ title: m.sb_profile(), url: '/dashboard/profile', icon: UserRoundCog },
-						{ title: m.sb_packages(), url: '/dashboard/packages', icon: Package },
-						{ title: m.sb_channels(), url: '/dashboard/channels', icon: Radio },
-						{ title: m.sb_portfolio(), url: '/dashboard/portfolio', icon: Image },
-						{ title: m.sb_verification(), url: '/dashboard/verification', icon: ShieldCheck }
+						{ title: m.sb_profile(), url: resolve('/dashboard/profile'), icon: UserRoundCog },
+						{ title: m.sb_packages(), url: resolve('/dashboard/packages'), icon: Package },
+						{ title: m.sb_channels(), url: resolve('/dashboard/channels'), icon: Radio },
+						{ title: m.sb_portfolio(), url: resolve('/dashboard/portfolio'), icon: Image },
+						{
+							title: m.sb_verification(),
+							url: resolve('/dashboard/verification'),
+							icon: ShieldCheck
+						}
 					]
 				}
 			];
@@ -83,16 +88,16 @@
 				{
 					section: m.sb_campaigns(),
 					items: [
-						{ title: m.sb_my_campaigns(), url: '/dashboard/campaigns', icon: Megaphone },
+						{ title: m.sb_my_campaigns(), url: resolve('/dashboard/campaigns'), icon: Megaphone },
 						{
 							title: m.sb_applications(),
-							url: '/dashboard/applications',
+							url: resolve('/dashboard/applications'),
 							icon: Send,
 							counter: counts.applications
 						},
 						{
 							title: m.sb_bookings(),
-							url: '/dashboard/bookings',
+							url: resolve('/dashboard/bookings'),
 							icon: Handshake,
 							counter: counts.bookings
 						}
@@ -101,9 +106,17 @@
 				{
 					section: m.sb_organisation(),
 					items: [
-						{ title: m.sb_shortlist(), url: '/dashboard/shortlist', icon: Bookmark },
-						{ title: m.sb_organisation(), url: '/dashboard/organization', icon: Building2 },
-						{ title: m.sb_verification(), url: '/dashboard/verification', icon: ShieldCheck }
+						{ title: m.sb_shortlist(), url: resolve('/dashboard/shortlist'), icon: Bookmark },
+						{
+							title: m.sb_organisation(),
+							url: resolve('/dashboard/organization'),
+							icon: Building2
+						},
+						{
+							title: m.sb_verification(),
+							url: resolve('/dashboard/verification'),
+							icon: ShieldCheck
+						}
 					]
 				}
 			];
@@ -117,27 +130,31 @@
 				items: [
 					{
 						title: m.sb_verification_queue(),
-						url: '/dashboard/admin/verification',
+						url: resolve('/dashboard/admin/verification'),
 						icon: ShieldCheck,
 						counter: counts.verifications
 					},
 					{
 						title: m.sb_all_bookings(),
-						url: '/dashboard/bookings',
+						url: resolve('/dashboard/bookings'),
 						icon: Handshake,
 						counter: counts.bookings
 					},
-					{ title: m.sb_all_campaigns(), url: '/dashboard/campaigns', icon: Megaphone },
-					{ title: m.sb_audit_log(), url: '/dashboard/admin/audit', icon: ScrollText }
+					{ title: m.sb_all_campaigns(), url: resolve('/dashboard/campaigns'), icon: Megaphone },
+					{ title: m.sb_audit_log(), url: resolve('/dashboard/admin/audit'), icon: ScrollText }
 				]
 			},
 			{
 				section: m.sb_marketplace(),
 				items: [
-					{ title: m.sb_creators(), url: '/dashboard/admin/creators', icon: Users },
-					{ title: m.sb_trending(), url: '/dashboard/admin/trending', icon: Flame },
-					{ title: m.sb_organisations(), url: '/dashboard/admin/organizations', icon: Building2 },
-					{ title: m.sb_users_roles(), url: '/dashboard/admin/users', icon: UserRoundCog }
+					{ title: m.sb_creators(), url: resolve('/dashboard/admin/creators'), icon: Users },
+					{ title: m.sb_trending(), url: resolve('/dashboard/admin/trending'), icon: Flame },
+					{
+						title: m.sb_organisations(),
+						url: resolve('/dashboard/admin/organizations'),
+						icon: Building2
+					},
+					{ title: m.sb_users_roles(), url: resolve('/dashboard/admin/users'), icon: UserRoundCog }
 				]
 			},
 			{
@@ -145,18 +162,22 @@
 				items: [
 					{
 						title: m.sb_countries(),
-						url: '/dashboard/admin/countries',
+						url: resolve('/dashboard/admin/countries'),
 						icon: Globe,
 						items: [
-							{ title: m.sb_countries(), url: '/dashboard/admin/countries' },
-							{ title: m.sb_regions(), url: '/dashboard/admin/regions' }
+							{ title: m.sb_countries(), url: resolve('/dashboard/admin/countries') },
+							{ title: m.sb_regions(), url: resolve('/dashboard/admin/regions') }
 						]
 					},
-					{ title: m.sb_categories(), url: '/dashboard/admin/categories', icon: Tags },
-					{ title: m.sb_platforms(), url: '/dashboard/admin/platforms', icon: Radio },
-					{ title: m.sb_languages(), url: '/dashboard/admin/languages', icon: Languages },
-					{ title: m.sb_gallery(), url: '/dashboard/admin/gallery', icon: GalleryHorizontal },
-					{ title: m.sb_site_settings(), url: '/dashboard/admin/settings', icon: Settings }
+					{ title: m.sb_categories(), url: resolve('/dashboard/admin/categories'), icon: Tags },
+					{ title: m.sb_platforms(), url: resolve('/dashboard/admin/platforms'), icon: Radio },
+					{ title: m.sb_languages(), url: resolve('/dashboard/admin/languages'), icon: Languages },
+					{
+						title: m.sb_gallery(),
+						url: resolve('/dashboard/admin/gallery'),
+						icon: GalleryHorizontal
+					},
+					{ title: m.sb_site_settings(), url: resolve('/dashboard/admin/settings'), icon: Settings }
 				]
 			}
 		];
@@ -179,7 +200,7 @@
 <Sidebar.Root collapsible="offcanvas" {...restProps}>
 	<Sidebar.Content class="thin-scroll z-[9999] flex h-full flex-col overflow-y-auto bg-white pt-0">
 		<div class="sticky top-0 z-10 border-b-2 border-slate-900 bg-white px-4 py-4">
-			<a href="/" title={m.sb_go_public_site()} class="flex flex-row items-center gap-2">
+			<a href={resolve('/')} title={m.sb_go_public_site()} class="flex flex-row items-center gap-2">
 				<div
 					class="flex h-8 w-8 items-center justify-center rounded-xl border-2 border-slate-900 bg-slate-900 text-sm font-black text-white shadow-[2px_2px_0px_0px_rgba(16,185,129,1)]"
 				>

@@ -4,7 +4,7 @@ import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
-import { listCreators, creatorFacet, getReferenceData } from '$lib/server/queries';
+import { listCreators, creatorFacet } from '$lib/server/queries';
 import { getOrganizationFor } from '$lib/server/guards';
 import { calculateMatch, ADJACENT_CATEGORIES } from '$lib/domain/match';
 import type { CreatorCard } from '$lib/server/queries';
@@ -12,8 +12,11 @@ import type { CreatorCard } from '$lib/server/queries';
 /** How many briefs the match picker offers. It is a chooser, not a listing. */
 const MATCH_PICKER_LIMIT = 40;
 
-export const load: PageServerLoad = async ({ url, locals }) => {
-	const reference = await getReferenceData();
+export const load: PageServerLoad = async ({ url, locals, parent }) => {
+	/* `src/routes/+layout.server.ts` already loaded this for every page. Asking
+	   again would add five queries to the busiest public route — nothing
+	   memoises `getReferenceData`, the comment beside it notwithstanding. */
+	const { reference } = await parent();
 
 	/*
 	 * The briefs the match panel can score against. A short list on purpose:

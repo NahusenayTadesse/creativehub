@@ -1,10 +1,10 @@
 import * as m from '$lib/paraglide/messages';
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
-import { db } from '$lib/server/db';
+import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { getCreatorByUsername, getSettings } from '$lib/server/queries';
 import { getOrganizationFor, recordAudit } from '$lib/server/guards';
@@ -84,7 +84,7 @@ export const actions: Actions = {
 			.filter(Boolean);
 
 		try {
-			const result: any = await db.insert(t.bookings).values({
+			const result = await db.insert(t.bookings).values({
 				reference: bookingReference(),
 				creatorId: creator.id,
 				organizationId: organization.id,
@@ -104,7 +104,7 @@ export const actions: Actions = {
 				createdBy: event.locals.user.id
 			});
 
-			const bookingId = Number(result.insertId ?? result[0]?.insertId);
+			const bookingId = insertedId(result);
 
 			/* The opening offer is the first link in the negotiation chain. */
 			await db.insert(t.termProposals).values({

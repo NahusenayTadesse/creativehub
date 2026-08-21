@@ -15,7 +15,7 @@
 		</div>
 
 		<ul class="mt-2 ml-4 list-inside list-disc space-y-1 text-sm">
-			{#each allErrors as error}
+			{#each allErrors as error (error.path)}
 				<li class="flex items-center gap-2"><CircleAlert /> {error.messages}</li>
 			{/each}
 		</ul>

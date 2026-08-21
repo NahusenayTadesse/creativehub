@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import PaginationBar from '$lib/components/pagination-bar.svelte';
 	import NoResults from '$lib/components/no-results.svelte';
@@ -83,7 +84,7 @@
 								{review.direction === receivedDirection ? m.rv_received() : m.rv_written_by_you()}
 							</span>
 							<a
-								href="/dashboard/bookings/{review.bookingId}"
+								href={resolve(`/dashboard/bookings/${review.bookingId}`)}
 								class="block text-sm font-black text-slate-900 hover:text-emerald-600"
 							>
 								{review.bookingTitle}

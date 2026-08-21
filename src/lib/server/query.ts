@@ -12,9 +12,18 @@
  *
  * 1. **Nothing reaches SQL that the definition did not name.** A sort key is
  *    looked up in a map, a filter value is checked against its column's allowed
- *    values, `q` is escaped before it enters a LIKE pattern, and the page size
- *    is clamped. A parameter that is not recognised is dropped, never passed
- *    through.
+ *    values, `q` is escaped before it enters a LIKE pattern, and the page and
+ *    page size are clamped. A parameter that is not recognised is dropped, never
+ *    passed through. Every lookup uses `Object.hasOwn`, because `in` and plain
+ *    truthiness both answer for `__proto__`, `constructor` and the rest of
+ *    `Object.prototype` — keys no definition ever declared.
+ *
+ *    Two kinds of "unrecognised" are deliberately told apart. A value outside a
+ *    vocabulary this file was *given* — an `enum`, a `group` — is not a choice
+ *    the listing offers, so it is **dropped** and the reader sees the unfiltered
+ *    list. A syntactically valid reference to a row that does not exist — an id,
+ *    a slug — is a choice the listing does offer, pointed at nothing, so it is
+ *    **applied** and the reader correctly sees no results.
  * 2. **Ownership is not a filter.** Conditions that decide *whose* rows these
  *    are come from the caller's `where`, derived from the session. Filters come
  *    from the query string. Keeping them in separate arguments is what stops a
@@ -25,6 +34,15 @@
  * rows.
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   The `any`s below all sit on one seam: Drizzle's `$dynamic()` builder. Its
+   `.leftJoin()` returns a *wider* type than it received — the selection map
+   grows with every join — so a function that adds joins cannot be typed as
+   `(qb: T) => T`, and a selection assembled at runtime cannot be checked
+   against a fixed shape. What is actually checked is `columns`, which fixes the
+   row type callers receive (see `RowOf`), and every value read out of the URL,
+   which is validated before it reaches any of this. */
+
 import {
 	and,
 	asc,
@@ -34,9 +52,11 @@ import {
 	eq,
 	gte,
 	inArray,
+	isNull,
 	like,
 	lte,
 	or,
+	type GetColumnData,
 	type SQL
 } from 'drizzle-orm';
 import type { AnyMySqlColumn, MySqlTable } from 'drizzle-orm/mysql-core';
@@ -51,10 +71,39 @@ export const MAX_PER_PAGE = 100;
 /** How many rows an in-memory ranking may consider before SQL order takes over. */
 export const DEFAULT_RANK_LIMIT = 500;
 
+/**
+ * The highest page number a URL may name.
+ *
+ * `perPage` has always been clamped; `page` was not, and it is the value that
+ * becomes an OFFSET. The past-the-end recovery below lands anyone who asks for
+ * more on the last real page, so this only has to be larger than any genuine
+ * result set.
+ */
+const MAX_PAGE = 1_000_000;
+
 /** At most this many words are taken from `q`; the rest is noise in a LIKE. */
 const MAX_SEARCH_TERMS = 6;
 
 type Sortable = AnyMySqlColumn | SQL;
+
+/**
+ * The row a selection map produces.
+ *
+ * `columns` on a definition is the select shape *and* the row type callers get,
+ * so this reads the data type out of each entry — the column's own type, or
+ * whatever an `sql<T>` fragment was annotated with. It replaces the
+ * `{ [K in keyof C]: any }` these row types used to be, which typed the shape
+ * and nothing else.
+ */
+export type RowOf<TColumns> = {
+	[K in keyof TColumns]: TColumns[K] extends AnyMySqlColumn
+		? GetColumnData<TColumns[K]>
+		: TColumns[K] extends SQL<infer T>
+			? T
+			: TColumns[K] extends SQL.Aliased<infer T>
+				? T
+				: unknown;
+};
 
 /** A sort option: a column, or a column with the direction it reads best in. */
 type SortSpec = Sortable | { column: Sortable; direction?: SortDirection };
@@ -73,8 +122,15 @@ export type Filter =
 	| { type: 'numbers'; column: AnyMySqlColumn }
 	/** `?code=ET` — an exact string match. */
 	| { type: 'text'; column: AnyMySqlColumn }
-	| { type: 'enum'; column: AnyMySqlColumn; values: readonly string[] }
-	| { type: 'enums'; column: AnyMySqlColumn; values: readonly string[] }
+	/**
+	 * `?role=admin` — one value from a vocabulary this definition names.
+	 *
+	 * `nullAs` is for a nullable column with a default: a row whose value was
+	 * never written still *means* that default, and without this it is reachable
+	 * only from the "all" choice while the facet counts it under nothing.
+	 */
+	| { type: 'enum'; column: AnyMySqlColumn; values: readonly string[]; nullAs?: string }
+	| { type: 'enums'; column: AnyMySqlColumn; values: readonly string[]; nullAs?: string }
 	/** `?tab=active` — one named set of states, e.g. the tabs above a list. */
 	| { type: 'group'; column: AnyMySqlColumn; groups: Record<string, readonly string[]> }
 	/** `?minReach=10000` — inclusive lower bound. */
@@ -86,11 +142,14 @@ export type Filter =
 	/**
 	 * Anything the shapes above cannot say — a join-table membership, a bound
 	 * spanning two columns. `build` receives the raw values and returns a
-	 * condition or nothing; `column` is optional and only enables faceting.
+	 * condition or nothing.
+	 *
+	 * There is deliberately no `column` here: what a custom filter matches on is
+	 * whatever `build` decides, so `facet()` cannot count it honestly and refuses
+	 * to try.
 	 */
 	| {
 			type: 'custom';
-			column?: AnyMySqlColumn;
 			build: (values: string[]) => SQL | undefined;
 	  };
 
@@ -118,6 +177,15 @@ export interface QueryDefinition<TColumns extends Record<string, unknown>, TRow>
 	 * than rows, and reports more results than the pages can show.
 	 */
 	countColumn?: AnyMySqlColumn;
+	/**
+	 * Collapses the page query to one row per value of this column.
+	 *
+	 * The companion to `countColumn`: that one stops a fan-out join from
+	 * inflating the *total*, this one stops it from repeating a *row*. Set both
+	 * wherever a join can match more than once, or the page shows four rows over
+	 * a total of three. Columns taken from the joined side must be aggregated.
+	 */
+	groupBy?: AnyMySqlColumn;
 	/** Columns `q` searches, matched case-insensitively as substrings. */
 	search?: AnyMySqlColumn[];
 	filters?: Record<string, Filter>;
@@ -185,7 +253,12 @@ const readInt = (value: string): number | null => {
 	const trimmed = value.trim();
 	if (!trimmed) return null;
 	const parsed = Number(trimmed);
-	return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+	if (!Number.isFinite(parsed)) return null;
+	const truncated = Math.trunc(parsed);
+	/* Past MAX_SAFE_INTEGER a number stringifies in exponent form — `2.4e+22`
+	   is not valid SQL, so an offset built from it is a 500 rather than an
+	   empty page. Anything that large is a crafted URL, not a reader. */
+	return Number.isSafeInteger(truncated) ? truncated : null;
 };
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
@@ -215,14 +288,31 @@ function buildFilter(filter: Filter, raw: string[]): { values: string[]; conditi
 			return { values: [raw[0]], condition: eq(filter.column, raw[0]) };
 		case 'enum': {
 			if (!filter.values.includes(raw[0])) return { values: [] };
-			return { values: [raw[0]], condition: eq(filter.column, raw[0]) };
+			const match = eq(filter.column, raw[0]);
+			return {
+				values: [raw[0]],
+				condition: raw[0] === filter.nullAs ? or(match, isNull(filter.column)) : match
+			};
 		}
 		case 'enums': {
 			const allowed = raw.filter((value) => filter.values.includes(value));
 			if (!allowed.length) return { values: [] };
-			return { values: allowed, condition: inArray(filter.column, allowed) };
+			const match = inArray(filter.column, allowed);
+			return {
+				values: allowed,
+				condition:
+					filter.nullAs && allowed.includes(filter.nullAs)
+						? or(match, isNull(filter.column))
+						: match
+			};
 		}
 		case 'group': {
+			/* `in`/truthiness would also answer for `constructor`, `toString` and
+			   everything else inherited from Object.prototype: `groups.constructor`
+			   is a function, whose `.length` is its arity, so it reads as either a
+			   state list or an "all" tab depending on which key was asked for. Only
+			   a key this definition actually declared may pass. */
+			if (!Object.hasOwn(filter.groups, raw[0])) return { values: [] };
 			const members = filter.groups[raw[0]];
 			/* A group naming no states — an "all" tab — is a valid choice that
 			   filters nothing, so it is kept as state without a condition. */
@@ -269,6 +359,7 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 		search = [],
 		filters = {},
 		countColumn,
+		groupBy,
 		sort,
 		defaultSort,
 		defaultDirection = 'desc',
@@ -292,7 +383,9 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 			: [];
 
 		const requestedSort = params.get(PARAM.sort) ?? '';
-		const sortKey = requestedSort in sort ? requestedSort : defaultSort;
+		/* `in` answers for `__proto__`, `constructor` and every other inherited
+		   key, which is not what "a sort this definition declared" means. */
+		const sortKey = Object.hasOwn(sort, requestedSort) ? requestedSort : defaultSort;
 		const requestedDirection = params.get(PARAM.direction);
 		const direction: SortDirection =
 			requestedDirection === 'asc' || requestedDirection === 'desc'
@@ -322,13 +415,15 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 	}
 
 	/** The page query and the count query, over the same joins and conditions. */
-	const rowsQuery = (where: SQL | undefined) =>
-		joins(
+	const rowsQuery = (where: SQL | undefined) => {
+		const qb = joins(
 			db
 				.select(columns as any)
 				.from(table)
 				.$dynamic()
 		).where(where);
+		return groupBy ? qb.groupBy(groupBy) : qb;
+	};
 
 	const counted = () => (countColumn ? countDistinct(countColumn) : count());
 
@@ -357,14 +452,23 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 			1,
 			maxPerPage
 		);
-		const requestedPage = Math.max(1, options.page ?? readInt(params.get(PARAM.page) ?? '') ?? 1);
+		const requestedPage = clamp(
+			options.page ?? readInt(params.get(PARAM.page) ?? '') ?? 1,
+			1,
+			MAX_PAGE
+		);
 
 		const decorate = async (rows: any[]): Promise<TRow[]> =>
 			hydrate ? await hydrate(rows) : (rows as TRow[]);
 
-		const finish = (rows: TRow[], total: number, page: number, rankedWithin?: number) => {
-			const pageCount = Math.max(1, Math.ceil(total / perPage));
-			const from = total === 0 ? 0 : (page - 1) * perPage + 1;
+		const finishRanked = (
+			rows: TRow[],
+			total: number,
+			page: number,
+			pageCount: number,
+			rankedWithin?: number
+		) => {
+			const from = rows.length === 0 ? 0 : (page - 1) * perPage + 1;
 			return {
 				rows,
 				page,
@@ -372,13 +476,16 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 				total,
 				pageCount,
 				from,
-				to: total === 0 ? 0 : from + rows.length - 1,
+				to: rows.length === 0 ? 0 : from + rows.length - 1,
 				hasPrev: page > 1,
 				hasNext: page < pageCount,
 				state,
 				...(rankedWithin === undefined ? {} : { rankedWithin })
 			};
 		};
+
+		const finish = (rows: TRow[], total: number, page: number) =>
+			finishRanked(rows, total, page, Math.max(1, Math.ceil(total / perPage)));
 
 		/*
 		 * A ranked list is ordered by a value the database cannot compute, so the
@@ -398,11 +505,19 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 			const ranked = (await decorate(raw)).sort(
 				(a, b) => options.rank!.by(b) - options.rank!.by(a)
 			);
-			const pageCount = Math.max(1, Math.ceil(total / perPage));
+			/*
+			 * Page within what was ranked, not within the true total. `total` can
+			 * exceed `limit`, and pages past the cut would then slice past the end
+			 * of `ranked` — an empty grid under a "Showing 577 – 576 of 1000" line,
+			 * with `hasNext` still offering another one. `rankedWithin` is how the
+			 * result says the order stops here; the pager has to agree with it.
+			 */
+			const reachable = Math.min(total, ranked.length);
+			const pageCount = Math.max(1, Math.ceil(reachable / perPage));
 			const page = Math.min(requestedPage, pageCount);
 			const slice = ranked.slice((page - 1) * perPage, page * perPage);
 
-			return finish(slice, total, page, total > limit ? limit : undefined);
+			return finishRanked(slice, total, page, pageCount, total > limit ? limit : undefined);
 		}
 
 		const [raw, total] = await Promise.all([
@@ -444,8 +559,15 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 		key: string,
 		options: { where?: (SQL | undefined)[] } = {}
 	): Promise<Record<string, number>> {
-		const filter = filters[key];
-		const column = filter && 'column' in filter ? filter.column : undefined;
+		const filter = Object.hasOwn(filters, key) ? filters[key] : undefined;
+		/*
+		 * A `custom` filter's `column` is a hint, not what it matches on — the
+		 * campaigns `market` filter accepts a null country and a name inside
+		 * `targetRegions` as well as an exact id. Grouping by the column would
+		 * count something the filter does not, which is worse than no counts.
+		 */
+		if (!filter || filter.type === 'custom') return {};
+		const column = 'column' in filter ? filter.column : undefined;
 		if (!column) return {};
 
 		const { searchConditions, filterConditions } = parse(url.searchParams);
@@ -460,10 +582,15 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 			.where(where)
 			.groupBy(column);
 
+		const nullAs = filter.type === 'enum' || filter.type === 'enums' ? filter.nullAs : undefined;
+
 		const counts: Record<string, number> = {};
 		for (const row of rows) {
-			if (row.value === null || row.value === undefined) continue;
-			counts[String(row.value)] = Number(row.n);
+			/* A NULL group key belongs to whatever the column's default means, so
+			   that the tallies still sum to the unfiltered total. */
+			const key = row.value === null || row.value === undefined ? nullAs : String(row.value);
+			if (key === undefined) continue;
+			counts[key] = (counts[key] ?? 0) + Number(row.n);
 		}
 
 		/* A group filter is asked about by group name, not by the column values
@@ -481,5 +608,28 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 		return counts;
 	}
 
-	return { run, facet, parse };
+	/**
+	 * The total this listing would return with some of its filters dropped.
+	 *
+	 * `facet` answers "how many for each value of one filter", which is what a
+	 * set of chips needs — except for the chip that means *no* filter. Summing a
+	 * facet gives the total under every *other* filter, so the "all markets"
+	 * chip built that way silently reports "briefs in the market you already
+	 * chose". This asks the question that chip is actually asking.
+	 *
+	 * Also the only honest way to count a `custom` filter, which `facet` refuses.
+	 */
+	async function countWithout(
+		url: URL,
+		keys: string[],
+		options: { where?: (SQL | undefined)[] } = {}
+	): Promise<number> {
+		const { searchConditions, filterConditions } = parse(url.searchParams);
+		for (const key of keys) filterConditions.delete(key);
+
+		const scope = (options.where ?? []).filter(Boolean) as SQL[];
+		return countQuery(and(...scope, ...searchConditions, ...filterConditions.values()));
+	}
+
+	return { run, facet, countWithout, parse };
 }

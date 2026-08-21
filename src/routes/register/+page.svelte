@@ -1,25 +1,50 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
 	import { UserCheck, Briefcase } from '@lucide/svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
+	import InputComp from '$lib/formComponents/InputComp.svelte';
+	import RadioCards from '$lib/formComponents/RadioCards.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 
 	let { data } = $props();
 
-	const { form, errors, enhance, delayed, allErrors, message } = superForm(data.form);
+	const { form, errors, enhance, delayed, allErrors, message } = superForm(
+		untrack(() => data.form)
+	);
 
 	$effect(() => {
 		if ($message?.type === 'error') toast.error($message.text);
 	});
+
+	const roleOptions = $derived([
+		{
+			value: 'creator',
+			title: m.register_as_creator(),
+			description: m.register_as_creator_note(),
+			icon: UserCheck,
+			selectedClass: 'bg-[#dcfce7]',
+			iconClass: 'text-emerald-700'
+		},
+		{
+			value: 'business',
+			title: m.register_as_brand(),
+			description: m.register_as_brand_note(),
+			icon: Briefcase,
+			selectedClass: 'bg-[#e0e7ff]',
+			iconClass: 'text-indigo-700'
+		}
+	]);
 </script>
 
 <svelte:head><title>{m.register_meta_title()}</title></svelte:head>
 
 <div class="flex min-h-screen items-center justify-center px-4 py-12">
 	<div class="w-full max-w-md space-y-6">
-		<a href="/" class="flex items-center justify-center gap-3">
+		<a href={resolve('/')} class="flex items-center justify-center gap-3">
 			<div
 				class="flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-slate-900 bg-slate-900 text-xl font-black text-white shadow-[3px_3px_0px_0px_rgba(16,185,129,1)]"
 			>
@@ -39,118 +64,53 @@
 			<form method="POST" action="?/register" use:enhance class="space-y-4">
 				<Errors allErrors={$allErrors} />
 
-				<!-- Role picker -->
-				<fieldset class="space-y-2">
-					<legend class="text-xs font-black text-slate-900">{m.register_joining_as()}</legend>
-					<div class="grid grid-cols-2 gap-3">
-						<label
-							class="flex cursor-pointer flex-col gap-1 rounded-2xl border-2 p-3 transition-all {$form.role ===
-							'creator'
-								? 'border-slate-900 bg-[#dcfce7] shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]'
-								: 'border-slate-300 bg-white hover:border-slate-900'}"
-						>
-							<input
-								type="radio"
-								name="role"
-								value="creator"
-								bind:group={$form.role}
-								class="sr-only"
-							/>
-							<UserCheck class="h-5 w-5 text-emerald-700" />
-							<span class="text-sm font-black text-slate-900">{m.register_as_creator()}</span>
-							<span class="text-[11px] font-medium text-slate-600">
-								{m.register_as_creator_note()}
-							</span>
-						</label>
+				<RadioCards
+					{form}
+					{errors}
+					name="role"
+					legend={m.register_joining_as()}
+					options={roleOptions}
+				/>
 
-						<label
-							class="flex cursor-pointer flex-col gap-1 rounded-2xl border-2 p-3 transition-all {$form.role ===
-							'business'
-								? 'border-slate-900 bg-[#e0e7ff] shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]'
-								: 'border-slate-300 bg-white hover:border-slate-900'}"
-						>
-							<input
-								type="radio"
-								name="role"
-								value="business"
-								bind:group={$form.role}
-								class="sr-only"
-							/>
-							<Briefcase class="h-5 w-5 text-indigo-700" />
-							<span class="text-sm font-black text-slate-900">{m.register_as_brand()}</span>
-							<span class="text-[11px] font-medium text-slate-600">
-								{m.register_as_brand_note()}
-							</span>
-						</label>
-					</div>
-				</fieldset>
+				<InputComp
+					{form}
+					{errors}
+					name="name"
+					label={m.register_your_name()}
+					autocomplete="name"
+					required
+				/>
 
-				<div class="space-y-1.5">
-					<label for="name" class="text-xs font-black text-slate-900"
-						>{m.register_your_name()}</label
-					>
-					<input
-						id="name"
-						name="name"
-						type="text"
-						autocomplete="name"
-						bind:value={$form.name}
-						required
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-					/>
-					{#if $errors.name}<p class="text-xs font-bold text-red-600">{$errors.name}</p>{/if}
-				</div>
-
-				<div class="space-y-1.5">
-					<label for="email" class="text-xs font-black text-slate-900">{m.login_email()}</label>
-					<input
-						id="email"
-						name="email"
-						type="email"
-						autocomplete="email"
-						bind:value={$form.email}
-						required
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-					/>
-					{#if $errors.email}<p class="text-xs font-bold text-red-600">{$errors.email}</p>{/if}
-				</div>
+				<InputComp
+					{form}
+					{errors}
+					name="email"
+					type="email"
+					label={m.login_email()}
+					autocomplete="email"
+					required
+				/>
 
 				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-					<div class="space-y-1.5">
-						<label for="password" class="text-xs font-black text-slate-900"
-							>{m.login_password()}</label
-						>
-						<input
-							id="password"
-							name="password"
-							type="password"
-							autocomplete="new-password"
-							bind:value={$form.password}
-							required
-							class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-						/>
-						{#if $errors.password}<p class="text-xs font-bold text-red-600">
-								{$errors.password}
-							</p>{/if}
-					</div>
+					<InputComp
+						{form}
+						{errors}
+						name="password"
+						type="password"
+						label={m.login_password()}
+						autocomplete="new-password"
+						required
+					/>
 
-					<div class="space-y-1.5">
-						<label for="confirm" class="text-xs font-black text-slate-900"
-							>{m.register_confirm()}</label
-						>
-						<input
-							id="confirm"
-							name="confirm"
-							type="password"
-							autocomplete="new-password"
-							bind:value={$form.confirm}
-							required
-							class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-						/>
-						{#if $errors.confirm}<p class="text-xs font-bold text-red-600">
-								{$errors.confirm}
-							</p>{/if}
-					</div>
+					<InputComp
+						{form}
+						{errors}
+						name="confirm"
+						type="password"
+						label={m.register_confirm()}
+						autocomplete="new-password"
+						required
+					/>
 				</div>
 
 				<button
@@ -168,7 +128,9 @@
 
 			<p class="text-center text-xs font-medium text-slate-600">
 				{m.register_already()}
-				<a href="/login" class="font-black text-emerald-700 hover:underline">{m.login_title()}</a>
+				<a href={resolve('/login')} class="font-black text-emerald-700 hover:underline"
+					>{m.login_title()}</a
+				>
 			</p>
 		</div>
 	</div>
