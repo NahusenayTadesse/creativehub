@@ -79,6 +79,7 @@
 								alt={slide.title}
 								loading={index === 0 ? 'eager' : 'lazy'}
 								class="h-full w-full object-cover"
+								decoding="async"
 							/>
 							<div
 								class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/35 to-transparent"
@@ -92,8 +93,11 @@
 									</p>
 								{/if}
 								{#if slide.linkUrl}
+									<!-- An operator types this destination, and it may well leave the
+									     site, so it is a navigation rather than a route. -->
 									<a
 										href={slide.linkUrl}
+										rel="external"
 										class="inline-flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-[#fef9c3] px-5 py-2.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]"
 									>
 										<span>{slide.linkLabel || m.home_gallery_cta()}</span>

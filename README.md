@@ -12,11 +12,22 @@ sveltekit-superforms with Zod 4, Tailwind 4 and shadcn-svelte.
 
 ```bash
 npm install
-cp .env.example .env        # then fill in DATABASE_URL, ORIGIN, BETTER_AUTH_SECRET
-npm run db:push             # create the tables
+cp .env.example .env        # then fill in DATABASE_URL, ORIGIN, BETTER_AUTH_SECRET, FILES_DIR
+npm run db:migrate          # apply everything in drizzle/
 npm run db:seed             # reference data, 14 creators, 5 organisations, 6 campaigns
 npm run dev
 ```
+
+The schema is applied by **committed migrations**, not by `drizzle-kit push`.
+`push` diffs the live database and rewrites it in place: there is no record of
+what ran, no way back, and no way to tell two environments apart. Changing a
+table means `npm run db:generate`, reviewing the SQL it writes into `drizzle/`,
+and committing it alongside the schema change.
+
+A database that predates `drizzle/` was created by `push` and already holds
+every table, so `0000` would fail on "table already exists". Run
+`npm run db:baseline` **once** against it; that records the migrations as
+applied without running them. On an empty database, use `db:migrate`.
 
 ### Signing in
 
@@ -26,6 +37,22 @@ git-ignored and deliberately not referenced anywhere in the interface.
 
 `npm run db:seed` is idempotent — rows are matched on their natural key, so
 re-running it after correcting the seed updates in place rather than duplicating.
+
+### Uploads
+
+`FILES_DIR` is where avatars, portfolio images and verification evidence are
+written. It defaults to `.tempFiles` beside the working directory, which is
+fine in development and wrong in production: a deploy that replaces the
+application directory takes every uploaded file with it. Point it somewhere
+outside the deploy.
+
+Deletes in this app are soft, so a delete must not remove the file — the row can
+come back. Files only accumulate, and reclaiming them is deliberate:
+
+```bash
+npm run uploads:prune              # list what no row points at
+npm run uploads:prune -- --apply   # remove it
+```
 
 ## How it is put together
 
@@ -135,6 +162,52 @@ With a scope set, the owning column filters every read, filters the row an edit
 or delete targets, and is stamped onto inserts from the session — so a creator
 cannot reach another creator's package by changing the id in the form.
 
+### Every form is built from the same field components
+
+`$lib/formComponents/` is where a form control is defined, once. A page names
+fields; it does not write inputs.
+
+```svelte
+<InputComp
+	{form}
+	{errors}
+	name="email"
+	type="email"
+	label={m.login_email()}
+	autocomplete="email"
+	required
+/>
+```
+
+`InputComp` covers eleven shapes — text, number, url, password, textarea,
+select, combobox, date, multi-date, checkbox list, single checkbox, range — and
+owns the label, the `id`/`for` pairing, `aria-invalid`, `aria-describedby`, the
+error list and the hint. Three richer controls live beside it, for the choices
+that deserve more room than a native widget gives them: `RadioCards` (the
+creator/brand picker on sign-up), `ChipSelect` (categories and languages as
+toggleable pills) and `StarRating` (a 1–5 score over a hidden field). Each is a
+real `<input>` underneath, so every one of them posts, takes focus and works
+with scripting off.
+
+Each binds two ways:
+
+- **To a superform** — pass `form` and `errors`, and the field reads and writes
+  `$form[name]` and shows `$errors[name]`.
+- **To a plain value** — pass `bind:value`, and optionally `onChange`. This is
+  what lets a discovery filter, whose value lives in the URL rather than in any
+  form, use the same component as a schema-backed field instead of a
+  hand-rolled `<select>`.
+
+The point is that a field cannot be half-built. A page that writes its own
+`<input>` gets to forget the label, or the error slot, or the `aria-describedby`
+— and each of the twelve that did forgot something different.
+
+A superform is seeded **once**, with `untrack`, because it owns its state after
+that. The exception is a `[param]` route: SvelteKit reuses the component across
+`/creators/a` → `/creators/b`, so those pages re-seed explicitly when the
+subject changes. Without it the second profile opens with the first one's
+half-written booking.
+
 ### The lifecycle
 
 ```
@@ -187,6 +260,65 @@ Three properties are deliberate:
   and `creators.is_trending` is rewritten from the board so the badge on a card
   and the strip on the homepage cannot disagree.
 
+## Tests
+
+```bash
+npm run test:unit     # vitest, watch mode
+npm test              # unit (once) + Playwright end to end
+```
+
+The unit tests cover `domain/` and the two query layers, because that is where
+the claims are. `canTransition` refusing to move a completed booking, weights
+being ratios rather than percentages, `withParams` returning to page one — each
+of those is a sentence in this README, and each has a test that fails if it
+stops being true.
+
+Several of them target holes that were live. `?sort=__proto__` was a 500 on
+every listing including two public ones, because `in` answers for everything on
+`Object.prototype`; the same shape was in `canTransition` and in the currency
+table, where `convert(…, 'toString', …)` produced `NaN` on a price. All three
+are now `Object.hasOwn`, and all three have a test that catches the regression.
+
+The Playwright suite runs against a production build and a real database: the
+CSP is generated at build time and the Origin check only exists there, so the
+dev server cannot exercise either.
+
+CI (`.github/workflows/ci.yml`) runs check, lint and unit tests in one job, the
+build in another, and the end-to-end suite against MariaDB in a third — which is
+also the only place the migrations are proved to apply to an empty database
+before a deploy does it.
+
+## Operations
+
+| Route          | For                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `/health`      | A proxy or uptime check. Touches the database, because "Node is listening" is not the question being asked. |
+| `/robots.txt`  | A route rather than a static file, so `Sitemap:` can be absolute.                                           |
+| `/sitemap.xml` | Published creators and briefs only.                                                                         |
+
+`handleError` in `hooks.server.ts` logs one JSON line per fault — id, route,
+method, actor — and hands the reader the id and nothing else. `+error.svelte`
+renders it in the reader's language; a stack trace on an error page tells an
+attacker about the file layout and tells everyone else nothing.
+
+Security headers are set in two places by necessity. The CSP is generated by
+SvelteKit from `kit.csp` in `vite.config.ts`, because only the build knows the
+hashes of the inline scripts it emits for hydration. The rest —
+`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`,
+`Permissions-Policy` — are set in `hooks.server.ts`, which needs no such
+knowledge.
+
+better-auth rate-limits its own endpoints: ten sign-ins a minute, five sign-ups
+per ten minutes. Vague login errors stop an attacker _reading_ an answer out of
+one response; they do nothing about asking a hundred thousand times. The
+counters are per process, which fits a single-node deployment — behind more than
+one instance, move them to `storage: 'database'`.
+
+Uploads are checked three ways: a declared size, the bytes actually written, and
+the file's magic number against the type it claims to be. The `accept`
+attribute is a hint to a browser, and a direct multipart POST ignores all three
+until they are enforced here.
+
 ## What is not connected
 
 No payment provider is integrated. Deposits and payouts are **recorded** by an
@@ -195,14 +327,22 @@ operator and the interface says so rather than implying money has moved. The
 
 ## Scripts
 
-| Command             | Does                                       |
-| ------------------- | ------------------------------------------ |
-| `npm run dev`       | Dev server                                 |
-| `npm run build`     | Production build (node adapter)            |
-| `npm run check`     | svelte-check                               |
-| `npm run lint`      | prettier + eslint                          |
-| `npm run db:push`   | Sync schema to the database                |
-| `npm run db:seed`   | Seed reference data and demonstration rows |
-| `npm run db:studio` | Drizzle Studio                             |
+| Command                 | Does                                                         |
+| ----------------------- | ------------------------------------------------------------ |
+| `npm run dev`           | Dev server                                                   |
+| `npm run build`         | Production build (node adapter)                              |
+| `npm run check`         | svelte-check                                                 |
+| `npm run lint`          | prettier + eslint                                            |
+| `npm run format`        | prettier --write                                             |
+| `npm run test:unit`     | vitest                                                       |
+| `npm run test:e2e`      | Playwright, against a production build                       |
+| `npm test`              | Both                                                         |
+| `npm run db:generate`   | Write a migration for the current schema                     |
+| `npm run db:migrate`    | Apply everything in `drizzle/`                               |
+| `npm run db:baseline`   | Record migrations as applied — for a database `push` created |
+| `npm run db:push`       | Rewrite the schema in place. Not the deploy path; see above. |
+| `npm run db:seed`       | Seed reference data and demonstration rows                   |
+| `npm run db:studio`     | Drizzle Studio                                               |
+| `npm run uploads:prune` | Find files no row points at (`-- --apply` to remove them)    |
 
 # creativehub

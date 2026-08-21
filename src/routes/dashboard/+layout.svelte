@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
@@ -45,7 +46,7 @@
 
 				<div class="flex items-center gap-2">
 					<a
-						href="/"
+						href={resolve('/')}
 						class="hidden items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 sm:flex"
 					>
 						<ExternalLink class="h-3.5 w-3.5" />

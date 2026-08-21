@@ -64,18 +64,32 @@ export type MatchBreakdown = {
  * gives partial credit across these pairs rather than none. Kept here with the
  * scoring it feeds, and applied on the server, because the ranking it produces
  * decides the order of a page rather than a list already in the browser.
+ *
+ * **Symmetric, and tested for it.** Only the forward direction is read today —
+ * adjacency is looked up from the *campaign's* category — so a one-way entry
+ * has no visible effect and is indistinguishable from a typo. Eleven of them
+ * had crept in. "Adjacent" is a claim about a pair, so both halves say it.
  */
 export const ADJACENT_CATEGORIES: Record<string, string[]> = {
-	technology: ['business', 'finance', 'education'],
-	finance: ['technology', 'business', 'lifestyle'],
-	business: ['technology', 'finance', 'lifestyle', 'education'],
-	entertainment: ['lifestyle', 'food-dining', 'beauty-fashion'],
+	technology: ['business', 'finance', 'education', 'agriculture'],
+	finance: ['technology', 'business', 'lifestyle', 'education', 'agriculture'],
+	business: ['technology', 'finance', 'lifestyle', 'education', 'agriculture'],
+	entertainment: ['lifestyle', 'food-dining', 'beauty-fashion', 'travel-tourism'],
 	'beauty-fashion': ['lifestyle', 'entertainment', 'health-wellness'],
-	'food-dining': ['lifestyle', 'travel-tourism', 'entertainment'],
+	'food-dining': ['lifestyle', 'travel-tourism', 'entertainment', 'health-wellness'],
 	'travel-tourism': ['food-dining', 'lifestyle', 'entertainment'],
 	'sports-fitness': ['health-wellness', 'lifestyle'],
-	'health-wellness': ['sports-fitness', 'lifestyle', 'food-dining'],
-	lifestyle: ['beauty-fashion', 'food-dining', 'travel-tourism', 'entertainment'],
+	'health-wellness': ['sports-fitness', 'lifestyle', 'food-dining', 'beauty-fashion'],
+	lifestyle: [
+		'beauty-fashion',
+		'food-dining',
+		'travel-tourism',
+		'entertainment',
+		'finance',
+		'business',
+		'sports-fitness',
+		'health-wellness'
+	],
 	agriculture: ['business', 'technology', 'finance'],
 	education: ['technology', 'business', 'finance']
 };

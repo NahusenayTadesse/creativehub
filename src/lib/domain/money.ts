@@ -35,6 +35,17 @@ export function buildRates(
 	return rates;
 }
 
+/**
+ * A currency this table actually declares, or nothing.
+ *
+ * `rates` is a plain object, so `rates['toString']` is a function — truthy,
+ * with no `usdRate`. Read straight through, that turned a conversion into
+ * `NaN` and a formatted amount into "undefined 500". A currency code arrives
+ * from a form or a column; neither is a reason to trust an inherited key.
+ */
+const rateFor = (rates: Record<string, Rate>, code: string): Rate | undefined =>
+	Object.hasOwn(rates, code) ? rates[code] : undefined;
+
 /** Convert through USD. Returns the input untouched if either code is unknown. */
 export function convert(
 	amount: number,
@@ -43,14 +54,14 @@ export function convert(
 	rates: Record<string, Rate>
 ): number {
 	if (from === to) return amount;
-	const source = rates[from];
-	const target = rates[to];
-	if (!source || !target || !source.usdRate) return amount;
+	const source = rateFor(rates, from);
+	const target = rateFor(rates, to);
+	if (!source || !target || !source.usdRate || !target.usdRate) return amount;
 	return (amount / source.usdRate) * target.usdRate;
 }
 
 export function formatMoney(amount: number, code: string, rates: Record<string, Rate>): string {
-	const rate = rates[code] ?? FALLBACK;
+	const rate = rateFor(rates, code) ?? FALLBACK;
 	const decimals = ZERO_DECIMAL.has(code) ? 0 : 2;
 	return `${rate.symbol} ${amount.toLocaleString(intlLocale(), {
 		minimumFractionDigits: decimals,

@@ -1,4 +1,8 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import type { BookingStatus } from '$lib/domain/booking';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { resolve } from '$app/paths';
 	import { superForm } from 'sveltekit-superforms';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
@@ -20,6 +24,8 @@
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
+	import InputComp from '$lib/formComponents/InputComp.svelte';
+	import StarRating from '$lib/formComponents/StarRating.svelte';
 	import { pipelineSteps, stepIndex } from '$lib/domain/booking';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -31,7 +37,7 @@
 	const isBrand = $derived(data.side === 'organization');
 	const isOperator = $derived(data.side === 'admin');
 
-	const currentStep = $derived(stepIndex(booking.status as any));
+	const currentStep = $derived(stepIndex(booking.status as BookingStatus));
 	const openProposal = $derived(data.proposals.find((p) => p.status === 'pending') ?? null);
 	const openSubmission = $derived(data.submissions.find((s) => s.status === 'submitted') ?? null);
 	const myReview = $derived(
@@ -56,50 +62,100 @@
 	let rateOpen = $state(false);
 	let revisionNote = $state('');
 
+	/*
+	 * Four forms, each seeded once.
+	 *
+	 * `untrack`, because a superform owns its state after it is created:
+	 * re-reading `data.*Form` on every change would fight the store, and a fresh
+	 * `SuperValidated` landing mid-edit would throw away a half-written pitch or
+	 * review. Navigating to a *different booking* is the one case where
+	 * re-seeding is correct, and the effect below does it explicitly — this is a
+	 * `[id]` route, so SvelteKit reuses the component and none of this would
+	 * otherwise reset.
+	 */
+	const proposalSuper = superForm(
+		untrack(() => data.proposalForm),
+		{
+			id: 'proposal',
+			onUpdated: ({ form }) => {
+				if (form.valid) counterOpen = false;
+			}
+		}
+	);
 	const {
 		form: proposalForm,
+		errors: proposalErrors,
 		enhance: proposalEnhance,
 		delayed: proposalDelayed,
 		allErrors: proposalAllErrors,
 		message: proposalMessage
-	} = superForm(data.proposalForm, {
-		id: 'proposal',
-		onUpdated: ({ form }) => {
-			if (form.valid) counterOpen = false;
-		}
-	});
+	} = proposalSuper;
 
+	const submissionSuper = superForm(
+		untrack(() => data.submitForm),
+		{
+			id: 'submission',
+			onUpdated: ({ form }) => {
+				if (form.valid) submitOpen = false;
+			}
+		}
+	);
 	const {
 		form: submissionForm,
+		errors: submissionErrors,
 		enhance: submissionEnhance,
 		delayed: submissionDelayed,
 		allErrors: submissionAllErrors,
 		message: submissionMessage
-	} = superForm(data.submitForm, {
-		id: 'submission',
-		onUpdated: ({ form }) => {
-			if (form.valid) submitOpen = false;
-		}
-	});
+	} = submissionSuper;
 
+	const ratingSuper = superForm(
+		untrack(() => data.reviewForm),
+		{
+			id: 'review',
+			onUpdated: ({ form }) => {
+				if (form.valid) rateOpen = false;
+			}
+		}
+	);
 	const {
 		form: ratingForm,
+		errors: ratingErrors,
 		enhance: ratingEnhance,
 		delayed: ratingDelayed,
 		allErrors: ratingAllErrors,
 		message: ratingMessage
-	} = superForm(data.reviewForm, {
-		id: 'review',
-		onUpdated: ({ form }) => {
-			if (form.valid) rateOpen = false;
-		}
-	});
+	} = ratingSuper;
 
+	const chatSuper = superForm(
+		untrack(() => data.messageForm),
+		{
+			id: 'message',
+			resetForm: true
+		}
+	);
 	const {
 		form: chatForm,
+		errors: chatErrors,
 		enhance: chatEnhance,
 		message: chatMessage
-	} = superForm(data.messageForm, { id: 'message', resetForm: true });
+	} = chatSuper;
+
+	/** Everything that has to forget when the reader opens a different booking. */
+	let openBookingId = $state(untrack(() => data.booking.id));
+	$effect(() => {
+		if (booking.id === openBookingId) return;
+		openBookingId = booking.id;
+		counterOpen = false;
+		submitOpen = false;
+		reviewOpen = false;
+		rateOpen = false;
+		revisionNote = '';
+		proposalSuper.reset({ data: data.proposalForm.data, newState: data.proposalForm.data });
+		submissionSuper.reset({ data: data.submitForm.data, newState: data.submitForm.data });
+		ratingSuper.reset({ data: data.reviewForm.data, newState: data.reviewForm.data });
+		chatSuper.reset({ data: data.messageForm.data, newState: data.messageForm.data });
+	});
 
 	/** One toast rule for every form on the page. */
 	const announce = (msg: { type: string; text: string } | undefined) => {
@@ -133,6 +189,11 @@
 			minute: '2-digit'
 		});
 
+	/** The currencies a counter-proposal may be denominated in. */
+	const CURRENCY_ITEMS = ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'].map(
+		(code) => ({ value: code, name: code })
+	);
+
 	/** The four sub-scores, keyed so the star rows stay type-safe. */
 	const SUB_RATINGS = $derived([
 		{ key: 'communication', label: m.profile_rating_communication() },
@@ -142,23 +203,25 @@
 	] as const);
 
 	/** Plain form posts share one handler so every outcome toasts consistently. */
-	const actionEnhance = (successText: string) => () => {
-		return async ({ result, update }: any) => {
-			if (result.type === 'failure') {
-				toast.error(result.data?.message ?? m.bk_action_refused());
-			} else if (result.type === 'success') {
-				toast.success(successText);
-			}
-			await update();
+	const actionEnhance =
+		(successText: string): SubmitFunction =>
+		() => {
+			return async ({ result, update }) => {
+				if (result.type === 'failure') {
+					toast.error(result.data?.message ?? m.bk_action_refused());
+				} else if (result.type === 'success') {
+					toast.success(successText);
+				}
+				await update();
+			};
 		};
-	};
 </script>
 
 <svelte:head><title>{m.bk_meta_title({ ref: booking.reference })}</title></svelte:head>
 
 <div class="space-y-6">
 	<a
-		href="/dashboard/bookings"
+		href={resolve('/dashboard/bookings')}
 		class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
 	>
 		<ArrowLeft class="h-3.5 w-3.5" />
@@ -178,7 +241,7 @@
 				</div>
 				<h1 class="text-xl font-black text-slate-900 sm:text-2xl">{booking.title}</h1>
 				<p class="mt-1 text-xs font-bold text-slate-500">
-					<a href="/creators/{booking.creatorUsername}" class="hover:underline">
+					<a href={resolve(`/creators/${booking.creatorUsername}`)} class="hover:underline">
 						{booking.creatorName}
 					</a>
 					· {booking.organizationName} · {m.bk_due({ date: formatDate(booking.deadline) })}
@@ -685,13 +748,16 @@
 					class="flex items-center gap-2 border-t border-slate-200 pt-3"
 				>
 					<input type="hidden" name="bookingId" value={booking.id} />
-					<input
-						type="text"
-						name="body"
-						bind:value={$chatForm.body}
-						placeholder={m.bk_message_placeholder()}
-						class="flex-1 rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500"
-					/>
+					<div class="flex-1">
+						<InputComp
+							form={chatForm}
+							errors={chatErrors}
+							name="body"
+							label={m.bk_send_message()}
+							labelHidden
+							placeholder={m.bk_message_placeholder()}
+						/>
+					</div>
 					<button
 						type="submit"
 						class="rounded-xl border-2 border-slate-900 bg-emerald-600 p-2 text-white hover:bg-emerald-700"
@@ -721,82 +787,65 @@
 			<input type="hidden" name="bookingId" value={booking.id} />
 
 			<div class="grid grid-cols-3 gap-2">
-				<div class="col-span-2 space-y-1.5">
-					<label for="p-price" class="font-black text-slate-900">{m.bk_fee()}</label>
-					<input
-						id="p-price"
+				<div class="col-span-2">
+					<InputComp
+						form={proposalForm}
+						errors={proposalErrors}
 						name="price"
 						type="number"
 						min="0"
-						bind:value={$proposalForm.price}
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
+						label={m.bk_fee()}
 					/>
 				</div>
-				<div class="space-y-1.5">
-					<label for="p-currency" class="font-black text-slate-900">{m.campaign_currency()}</label>
-					<select
-						id="p-currency"
-						name="currencyCode"
-						bind:value={$proposalForm.currencyCode}
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-2 py-2 font-bold"
-					>
-						{#each ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'] as c (c)}
-							<option value={c}>{c}</option>
-						{/each}
-					</select>
-				</div>
+				<InputComp
+					form={proposalForm}
+					errors={proposalErrors}
+					name="currencyCode"
+					type="select"
+					label={m.campaign_currency()}
+					items={CURRENCY_ITEMS}
+				/>
 			</div>
 
-			<div class="space-y-1.5">
-				<label for="p-deliverables" class="font-black text-slate-900">
-					{m.profile_deliverables_label()}
-					<span class="font-medium text-slate-500">{m.profile_one_per_line()}</span>
-				</label>
-				<textarea
-					id="p-deliverables"
-					name="deliverables"
-					rows="4"
-					bind:value={$proposalForm.deliverables}
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
-				></textarea>
-			</div>
+			<InputComp
+				form={proposalForm}
+				errors={proposalErrors}
+				name="deliverables"
+				type="textarea"
+				rows={4}
+				label={m.profile_deliverables_label()}
+				hint={m.profile_one_per_line()}
+			/>
 
 			<div class="grid grid-cols-2 gap-2">
-				<div class="space-y-1.5">
-					<label for="p-deadline" class="font-black text-slate-900">{m.bk_deadline()}</label>
-					<input
-						id="p-deadline"
-						name="deadline"
-						type="date"
-						bind:value={$proposalForm.deadline}
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<label for="p-revisions" class="font-black text-slate-900">{m.bk_revisions()}</label>
-					<input
-						id="p-revisions"
-						name="revisionsAllowed"
-						type="number"
-						min="0"
-						max="10"
-						bind:value={$proposalForm.revisionsAllowed}
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
-					/>
-				</div>
+				<InputComp
+					form={proposalForm}
+					errors={proposalErrors}
+					name="deadline"
+					type="date"
+					label={m.bk_deadline()}
+					futureDays
+				/>
+				<InputComp
+					form={proposalForm}
+					errors={proposalErrors}
+					name="revisionsAllowed"
+					type="number"
+					min="0"
+					max="10"
+					label={m.bk_revisions()}
+				/>
 			</div>
 
-			<div class="space-y-1.5">
-				<label for="p-note" class="font-black text-slate-900">{m.bk_note()}</label>
-				<textarea
-					id="p-note"
-					name="note"
-					rows="3"
-					bind:value={$proposalForm.note}
-					placeholder={m.bk_note_placeholder()}
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
-				></textarea>
-			</div>
+			<InputComp
+				form={proposalForm}
+				errors={proposalErrors}
+				name="note"
+				type="textarea"
+				rows={3}
+				label={m.bk_note()}
+				placeholder={m.bk_note_placeholder()}
+			/>
 
 			<button
 				type="submit"
@@ -823,30 +872,25 @@
 			<Errors allErrors={$submissionAllErrors} />
 			<input type="hidden" name="bookingId" value={booking.id} />
 
-			<div class="space-y-1.5">
-				<label for="s-url" class="font-black text-slate-900">{m.bk_content_url()}</label>
-				<input
-					id="s-url"
-					name="contentUrl"
-					type="url"
-					required
-					bind:value={$submissionForm.contentUrl}
-					placeholder={m.bk_content_url_placeholder()}
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
-				/>
-			</div>
+			<InputComp
+				form={submissionForm}
+				errors={submissionErrors}
+				name="contentUrl"
+				type="url"
+				label={m.bk_content_url()}
+				placeholder={m.bk_content_url_placeholder()}
+				required
+			/>
 
-			<div class="space-y-1.5">
-				<label for="s-notes" class="font-black text-slate-900">{m.bk_notes_for_brand()}</label>
-				<textarea
-					id="s-notes"
-					name="notes"
-					rows="4"
-					bind:value={$submissionForm.notes}
-					placeholder={m.bk_notes_placeholder()}
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
-				></textarea>
-			</div>
+			<InputComp
+				form={submissionForm}
+				errors={submissionErrors}
+				name="notes"
+				type="textarea"
+				rows={4}
+				label={m.bk_notes_for_brand()}
+				placeholder={m.bk_notes_placeholder()}
+			/>
 
 			<button
 				type="submit"
@@ -912,18 +956,15 @@
 						<input type="hidden" name="submissionId" value={openSubmission.id} />
 						<input type="hidden" name="decision" value="revision" />
 
-						<label for="r-note" class="font-black text-slate-900">
-							{m.bk_request_revision_label()}
-						</label>
-						<textarea
-							id="r-note"
+						<InputComp
 							name="reviewNote"
-							rows="3"
+							type="textarea"
+							rows={3}
+							label={m.bk_request_revision_label()}
+							placeholder={m.bk_revision_placeholder()}
 							bind:value={revisionNote}
 							required
-							placeholder={m.bk_revision_placeholder()}
-							class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
-						></textarea>
+						/>
 
 						<button
 							type="submit"
@@ -956,29 +997,16 @@
 				<span class="block text-xs font-black tracking-wider text-slate-700 uppercase">
 					{m.bk_overall_rating()}
 				</span>
-				<div class="flex items-center justify-center gap-2">
-					{#each [1, 2, 3, 4, 5] as star (star)}
-						<button
-							type="button"
-							onclick={() => {
-								$ratingForm.rating = star;
-								$ratingForm.communication = star;
-								$ratingForm.professionalism = star;
-								$ratingForm.timeliness = star;
-								$ratingForm.quality = star;
-							}}
-							class="cursor-pointer p-1.5 transition-transform hover:scale-110"
-							aria-label={star === 1 ? m.bk_star_label_one() : m.bk_star_label({ count: star })}
-						>
-							<Star
-								class="h-8 w-8 {star <= $ratingForm.rating
-									? 'fill-amber-400 text-amber-400'
-									: 'text-slate-300'}"
-							/>
-						</button>
-					{/each}
-				</div>
-				<input type="hidden" name="rating" value={$ratingForm.rating} />
+				<StarRating
+					form={ratingForm}
+					errors={ratingErrors}
+					name="rating"
+					onPick={(star) => {
+						/* The overall score seeds the four below it, so the common case
+						   — "it was all fine" — is one click rather than five. */
+						for (const row of SUB_RATINGS) $ratingForm[row.key] = star;
+					}}
+				/>
 			</div>
 
 			<div class="space-y-2.5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -989,39 +1017,27 @@
 				{#each SUB_RATINGS as row (row.key)}
 					<div class="flex items-center justify-between">
 						<span class="font-bold text-slate-700">{row.label}</span>
-						<div class="flex gap-1">
-							{#each [1, 2, 3, 4, 5] as s (s)}
-								<button
-									type="button"
-									onclick={() => ($ratingForm[row.key] = s)}
-									class="p-0.5"
-									aria-label={m.bk_sub_rating_label({ label: row.label, value: s })}
-								>
-									<Star
-										class="h-4 w-4 {s <= $ratingForm[row.key]
-											? 'fill-amber-400 text-amber-400'
-											: 'text-slate-300'}"
-									/>
-								</button>
-							{/each}
-						</div>
-						<input type="hidden" name={row.key} value={$ratingForm[row.key]} />
+						<StarRating
+							form={ratingForm}
+							errors={ratingErrors}
+							name={row.key}
+							label={row.label}
+							size="sm"
+						/>
 					</div>
 				{/each}
 			</div>
 
-			<div class="space-y-1.5">
-				<label for="rev-body" class="font-black text-slate-900">{m.bk_written_review()}</label>
-				<textarea
-					id="rev-body"
-					name="body"
-					rows="4"
-					required
-					bind:value={$ratingForm.body}
-					placeholder={m.bk_written_review_placeholder()}
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
-				></textarea>
-			</div>
+			<InputComp
+				form={ratingForm}
+				errors={ratingErrors}
+				name="body"
+				type="textarea"
+				rows={4}
+				label={m.bk_written_review()}
+				placeholder={m.bk_written_review_placeholder()}
+				required
+			/>
 
 			<button
 				type="submit"

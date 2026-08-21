@@ -125,7 +125,12 @@ export const load = async (event: RequestEvent) => {
  * written either way, so a failed write still recorded a `created` entry.
  */
 const succeeded = (result: unknown): boolean =>
-	!(result && typeof result === 'object' && 'status' in result && (result as any).status >= 400);
+	!(
+		result &&
+		typeof result === 'object' &&
+		'status' in result &&
+		Number((result as { status: unknown }).status) >= 400
+	);
 
 export const actions = {
 	add: async (event: RequestEvent) => {

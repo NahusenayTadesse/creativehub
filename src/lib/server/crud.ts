@@ -1,3 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   `contentCrud` is generic over any content table and any pair of Zod schemas,
+   and it reads columns off a `MySqlTable` by name at runtime. The guarantees
+   that matter here are enforced with values rather than types — the scope
+   column filters every read and is re-stamped onto every write, and the schema
+   validates the payload before a row is built from it. */
+
 import * as m from '$lib/paraglide/messages';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
@@ -6,16 +13,16 @@ import { z } from 'zod/v4';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { MySqlTable } from 'drizzle-orm/mysql-core';
 import { db } from '$lib/server/db';
-import { saveUploadedFile, UploadError } from '$lib/server/upload';
+import { deleteUploadedFile, saveUploadedFile, UploadError } from '$lib/server/upload';
 import { defineQuery } from '$lib/server/query';
 
 /** A rejected upload is the user's to correct, so it gets its own message. */
-export const uploadErrorText = (err: unknown): string | null =>
-	err instanceof UploadError
-		? err.reason === 'too_large'
-			? m.srv_upload_too_large()
-			: m.srv_upload_bad_type()
-		: null;
+export const uploadErrorText = (err: unknown): string | null => {
+	if (!(err instanceof UploadError)) return null;
+	if (err.reason === 'too_large') return m.srv_upload_too_large();
+	if (err.reason === 'content_mismatch') return m.srv_upload_content_mismatch();
+	return m.srv_upload_bad_type();
+};
 
 /** Every content table is keyed by an autoincrement id. */
 export const idSchema = z.object({ id: z.coerce.number() });
@@ -270,6 +277,24 @@ export function contentCrud({
 
 			try {
 				const data = form.data as FormData;
+
+				/*
+				 * What the file columns hold *now*, read before the update.
+				 *
+				 * A replaced upload used to leave its predecessor on disk forever:
+				 * the row stopped pointing at it and nothing else ever would. Read
+				 * first, delete after the write succeeds — the other order loses the
+				 * old file if the update then fails.
+				 */
+				const previousFiles = fileFields.length
+					? await db
+							.select(Object.fromEntries(fileFields.map((field) => [field, columns[field]])))
+							.from(table)
+							.where(and(eq(table.id, data.id), ...guards()))
+							.limit(1)
+							.then((rows) => rows.at(0) as Record<string, string | null> | undefined)
+					: undefined;
+
 				const values = await toRow(data);
 				const result: any = await db
 					.update(table)
@@ -291,6 +316,17 @@ export function contentCrud({
 						{ type: 'error', text: m.srv_crud_not_yours({ label: labelText().toLowerCase() }) },
 						{ status: 403 }
 					);
+				}
+
+				/* Superseded uploads, now that the row no longer names them. */
+				if (previousFiles) {
+					for (const field of fileFields) {
+						const before = previousFiles[field];
+						const after = (values as Record<string, unknown>)[field];
+						if (before && typeof after === 'string' && after !== before) {
+							await deleteUploadedFile(before);
+						}
+					}
 				}
 
 				await afterWrite?.(event);

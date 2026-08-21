@@ -35,8 +35,18 @@ const TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
 	disputed: ['completed', 'cancelled']
 };
 
+/**
+ * Whether `to` may follow `from`.
+ *
+ * `Object.hasOwn` rather than an index and a `?.`: `TRANSITIONS` is a plain
+ * object literal, so `TRANSITIONS['constructor']` is a function and
+ * `TRANSITIONS['toString']` is another — the first throws on `.includes`, and
+ * neither is a state this table ever declared. The same hole made
+ * `?sort=__proto__` a 500 in the query layer; it is worth closing wherever a
+ * literal is used as a lookup table.
+ */
 export const canTransition = (from: BookingStatus, to: BookingStatus) =>
-	TRANSITIONS[from]?.includes(to) ?? false;
+	Object.hasOwn(TRANSITIONS, from) && TRANSITIONS[from].includes(to);
 
 /** The five steps the pipeline stepper draws, and where a status sits on it. */
 export const pipelineSteps = () =>

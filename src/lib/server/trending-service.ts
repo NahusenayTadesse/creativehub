@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, isNull, ne, notInArray } from 'drizzle-orm';
-import { db } from '$lib/server/db';
+import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
 import {
@@ -124,7 +124,7 @@ export const weightsOf = (config: Partial<TrendingConfigValues>): TrendingWeight
 	Object.fromEntries(
 		TRENDING_SIGNALS.map((key) => [
 			key,
-			Math.max(0, Number((config as any)[WEIGHT_COLUMN[key]] ?? 0))
+			Math.max(0, Number(config[WEIGHT_COLUMN[key] as keyof TrendingConfigValues] ?? 0))
 		])
 	) as TrendingWeights;
 
@@ -744,7 +744,7 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 			note: options.note ?? null,
 			configSnapshot: snapshotOf(values)
 		});
-		const id = Number((insert as any).insertId ?? (insert as any)[0]?.insertId ?? 0) || null;
+		const id = insertedId(insert) || null;
 
 		await tx.delete(t.trendingEntries);
 		if (board.entries.length) {
@@ -897,7 +897,12 @@ const emptyStats = (): BoardResult['stats'] => ({
 
 /** The knobs as they stood for a run, minus the bookkeeping columns. */
 const snapshotOf = (values: TrendingConfigValues): Record<string, unknown> =>
-	Object.fromEntries(Object.keys(TRENDING_DEFAULTS).map((key) => [key, (values as any)[key]]));
+	Object.fromEntries(
+		(Object.keys(TRENDING_DEFAULTS) as (keyof TrendingConfigValues)[]).map((key) => [
+			key,
+			values[key]
+		])
+	);
 
 const round = (value: number) => Math.round(value * 100) / 100;
 

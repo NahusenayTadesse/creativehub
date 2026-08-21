@@ -3,8 +3,6 @@
 		type ColumnDef,
 		getCoreRowModel,
 		getPaginationRowModel,
-		type ColumnFilter,
-		ColumnFiltering,
 		getSortedRowModel,
 		type RowSelectionState,
 		getFilteredRowModel,
@@ -42,7 +40,16 @@
 	import { isMobile } from '$lib/global.svelte';
 	import * as m from '$lib/paraglide/messages';
 
-	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: data.length });
+	/*
+	 * One client-side page holding everything it was given.
+	 *
+	 * The rows arrive already paged by the server, so this table's own paging
+	 * exists only to satisfy TanStack. `pageSize` therefore has to follow the row
+	 * count: read once, it kept the first page's size forever, and a later page
+	 * with more rows was silently cut off.
+	 */
+	let pagination = $derived<PaginationState>({ pageIndex: 0, pageSize: data.length || 10 });
+
 	let columnFilters = $state<ColumnFiltersState>([]);
 
 	type DataTableProps<TData, TValue> = {
@@ -64,7 +71,12 @@
 		get data() {
 			return data;
 		},
-		columns,
+		/* A getter like `data`: a shorthand here reads the prop once, so a column
+		   set that changes — a page swapping which columns it shows — never
+		   reached the table. */
+		get columns() {
+			return columns;
+		},
 		state: {
 			get pagination() {
 				return pagination;
@@ -257,7 +269,7 @@
 						<Table.Header>
 							{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
 								<Table.Row>
-									{#each headerGroup.headers as header, index}
+									{#each headerGroup.headers as header, index (header.id)}
 										<Table.Head
 											colspan={header.colSpan}
 											class="{index === 1
@@ -278,7 +290,7 @@
 						<Table.Body>
 							{#each table.getRowModel().rows as row (row.id)}
 								<Table.Row data-state={row.getIsSelected() && 'selected'}>
-									{#each row.getVisibleCells() as cell, index}
+									{#each row.getVisibleCells() as cell, index (cell.id)}
 										<Table.Cell
 											class="word-break capitalize {index === 1
 												? 'sticky left-0 z-10 bg-background'

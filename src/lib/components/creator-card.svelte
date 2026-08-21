@@ -4,6 +4,7 @@
 	import { formatReach } from '$lib/domain/money';
 	import VerificationBadge from './verification-badge.svelte';
 	import type { CreatorCard } from '$lib/server/queries';
+	import { resolve } from '$app/paths';
 
 	let {
 		creator,
@@ -21,7 +22,7 @@
 		onBook?: (creator: CreatorCard) => void;
 	} = $props();
 
-	const profileHref = $derived(`/creators/${creator.username}`);
+	const profileHref = $derived(resolve(`/creators/${creator.username}`));
 </script>
 
 <div
@@ -37,6 +38,7 @@
 					alt=""
 					loading="lazy"
 					class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+					decoding="async"
 				/>
 			{/if}
 			<div
@@ -91,6 +93,9 @@
 						alt={creator.fullName}
 						loading="lazy"
 						class="h-14 w-14 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+						decoding="async"
+						width="56"
+						height="56"
 					/>
 					<span
 						class="absolute right-0 bottom-0 h-4 w-4 rounded-full border-2 border-slate-900 {creator.availability ===

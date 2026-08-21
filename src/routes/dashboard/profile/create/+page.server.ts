@@ -4,7 +4,7 @@ import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
-import { db } from '$lib/server/db';
+import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { creatorCreateProfile } from '$lib/schemas';
 import { requireRole, getCreatorFor, recordAudit } from '$lib/server/guards';
@@ -55,7 +55,7 @@ export const actions: Actions = {
 
 		let creatorId: number;
 		try {
-			const result: any = await db.insert(t.creators).values({
+			const result = await db.insert(t.creators).values({
 				userId: user.id,
 				username: form.data.username,
 				fullName: form.data.fullName,
@@ -70,7 +70,7 @@ export const actions: Actions = {
 				isPublished: false,
 				createdBy: user.id
 			});
-			creatorId = Number(result.insertId ?? result[0]?.insertId);
+			creatorId = insertedId(result);
 		} catch (err) {
 			console.error('Creator profile creation failed:', err);
 			return message(form, { type: 'error', text: m.srv_profile_create_failed() }, { status: 500 });

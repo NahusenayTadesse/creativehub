@@ -1,9 +1,11 @@
 <script lang="ts">
+	import type { LucideIcon } from '@lucide/svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { scale } from 'svelte/transition';
 	import { cn } from '$lib/utils';
+	import type { ResolvedPathname } from '$app/types';
 
 	let {
 		sections,
@@ -13,11 +15,12 @@
 			section: string | null;
 			items: {
 				title: string;
-				url: string;
-				icon?: any;
+				/* Resolved by `app-sidebar`, which is where the routes are named. */
+				url: ResolvedPathname;
+				icon?: LucideIcon;
 				counter?: number;
 				isActive?: boolean;
-				items?: { title: string; url: string }[];
+				items?: { title: string; url: ResolvedPathname }[];
 			}[];
 		}[];
 		closeSidebar: () => void;

@@ -5,6 +5,11 @@
  * natural key (country code, creator username, campaign slug) so re-running
  * after a correction updates in place rather than duplicating.
  */
+
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   A seed script that upserts into a dozen different tables through one helper.
+   It runs by hand against a development database and writes nothing a user
+   reaches; typing it fully would cost more than it protects. */
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
 import { drizzle } from 'drizzle-orm/mysql2';
@@ -13,7 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
 import * as t from './schema';
 import { calculateScore } from '../../domain/score';
-import { bookingReference, splitFee } from '../../domain/booking';
+import { splitFee } from '../../domain/booking';
 import { recalcCreatorAggregates } from './rollups';
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');

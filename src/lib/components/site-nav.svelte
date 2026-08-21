@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import {
 		Globe,
@@ -43,7 +44,7 @@
 >
 	<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 		<div class="flex h-20 items-center justify-between">
-			<a href="/" class="flex items-center gap-3">
+			<a href={resolve('/')} class="flex items-center gap-3">
 				<div
 					class="flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-slate-900 bg-slate-900 text-xl font-black text-white shadow-[3px_3px_0px_0px_rgba(16,185,129,1)]"
 				>
@@ -66,7 +67,7 @@
 
 			<nav class="hidden items-center gap-2 md:flex">
 				<a
-					href="/discover"
+					href={resolve('/discover')}
 					class="rounded-xl px-4 py-2 text-xs font-black tracking-wider uppercase transition-all {isActive(
 						'/discover'
 					)
@@ -76,7 +77,7 @@
 					{m.nav_discover()}
 				</a>
 				<a
-					href="/campaigns"
+					href={resolve('/campaigns')}
 					class="rounded-xl px-4 py-2 text-xs font-black tracking-wider uppercase transition-all {isActive(
 						'/campaigns'
 					)
@@ -107,7 +108,7 @@
 					</span>
 
 					<a
-						href="/dashboard"
+						href={resolve('/dashboard')}
 						class="flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold text-white transition-colors {user.role ===
 						'admin'
 							? 'bg-purple-700 hover:bg-purple-800'
@@ -136,13 +137,13 @@
 					</form>
 				{:else}
 					<a
-						href="/login"
+						href={resolve('/login')}
 						class="rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
 					>
 						{m.nav_sign_in()}
 					</a>
 					<a
-						href="/register"
+						href={resolve('/register')}
 						class="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
 					>
 						<UserCheck class="h-3.5 w-3.5" />
@@ -174,14 +175,14 @@
 	{#if mobileOpen}
 		<div class="space-y-3 border-t border-slate-100 bg-white px-4 py-4 md:hidden">
 			<a
-				href="/discover"
+				href={resolve('/discover')}
 				onclick={() => (mobileOpen = false)}
 				class="block rounded-lg px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
 			>
 				{m.nav_discover()}
 			</a>
 			<a
-				href="/campaigns"
+				href={resolve('/campaigns')}
 				onclick={() => (mobileOpen = false)}
 				class="block rounded-lg px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
 			>
@@ -189,7 +190,7 @@
 			</a>
 			{#if user}
 				<a
-					href="/dashboard"
+					href={resolve('/dashboard')}
 					onclick={() => (mobileOpen = false)}
 					class="block rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"
 				>
@@ -205,14 +206,14 @@
 				</form>
 			{:else}
 				<a
-					href="/login"
+					href={resolve('/login')}
 					onclick={() => (mobileOpen = false)}
 					class="block rounded-lg px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
 				>
 					{m.nav_sign_in()}
 				</a>
 				<a
-					href="/register"
+					href={resolve('/register')}
 					onclick={() => (mobileOpen = false)}
 					class="block rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white"
 				>

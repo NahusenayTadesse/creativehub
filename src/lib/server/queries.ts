@@ -1,8 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   Same seam as `query.ts`: the `joins` callbacks take Drizzle's `$dynamic()`
+   builder, whose type widens with each join and so cannot be named. The row
+   types these definitions produce are `RowOf<typeof …>` and fully checked. */
+
 import { and, asc, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
-import { defineQuery, type PageResult } from '$lib/server/query';
+import { defineQuery, type PageResult, type RowOf } from '$lib/server/query';
+import { getRequestEvent } from '$app/server';
 
 /**
  * A URL carrying no list state, for a strip that shows a fixed set rather than
@@ -27,7 +33,9 @@ const live = <T extends { isActive: any; deletedAt: any }>(table: T) =>
  */
 
 /* ------------------------------------------------------------------ *
- * Reference data — small, cached per request by the layout load.
+ * Reference data — small, and loaded once per request by the root layout
+ * load. Nothing memoises it, so a route that needs it takes it from
+ * `await parent()` rather than calling `getReferenceData` a second time.
  * ------------------------------------------------------------------ */
 
 export const listCountries = () =>
@@ -55,8 +63,7 @@ export const listGallerySlides = () =>
 		.where(live(t.gallerySlides))
 		.orderBy(asc(t.gallerySlides.sortOrder));
 
-/** Everything the filter panels need, in one round trip. */
-export async function getReferenceData() {
+async function loadReferenceData() {
 	const [countries, regions, categories, platforms, languages] = await Promise.all([
 		listCountries(),
 		listRegions(),
@@ -65,6 +72,28 @@ export async function getReferenceData() {
 		listLanguages()
 	]);
 	return { countries, regions, categories, platforms, languages };
+}
+
+export type ReferenceData = Awaited<ReturnType<typeof loadReferenceData>>;
+
+/**
+ * Everything the filter panels need, in one round trip — and at most one round
+ * trip per request.
+ *
+ * The root layout loads this for every page, and eight routes ask for it again
+ * for their own forms. That used to be five extra queries each time. The
+ * *promise* is memoised rather than its result, so two loads running in
+ * parallel share one flight instead of racing to start a second.
+ */
+export function getReferenceData(): Promise<ReferenceData> {
+	let event: ReturnType<typeof getRequestEvent> | undefined;
+	try {
+		event = getRequestEvent();
+	} catch {
+		/* Outside a request — the seed script, a test. Nothing to memoise on. */
+		return loadReferenceData();
+	}
+	return (event.locals.referenceData ??= loadReferenceData());
 }
 
 /* ------------------------------------------------------------------ *
@@ -465,6 +494,11 @@ const campaignColumns = {
 	language: t.campaigns.language,
 	tags: t.campaigns.tags,
 	status: t.campaigns.status,
+	/* Both are on the edit form, so both have to survive a round trip: reading
+	   them back as `undefined` made every save reset them to the column
+	   default. */
+	isActive: t.campaigns.isActive,
+	sortOrder: t.campaigns.sortOrder,
 	applicationsCount: t.campaigns.applicationsCount,
 	platformIds: t.campaigns.platformIds,
 	targetRegions: t.campaigns.targetRegions,
@@ -522,7 +556,6 @@ export const campaignsQuery = defineQuery({
 		category: { type: 'number', column: t.campaigns.categoryId },
 		market: {
 			type: 'custom',
-			column: t.campaigns.countryId,
 			build: (values) => {
 				const id = Number(values[0]);
 				return Number.isInteger(id) ? campaignInMarket(id) : undefined;
@@ -540,7 +573,7 @@ export const campaignsQuery = defineQuery({
 	tiebreaker: t.campaigns.id
 });
 
-export type CampaignCard = { [K in keyof typeof campaignColumns]: any };
+export type CampaignCard = RowOf<typeof campaignColumns>;
 
 /** Conditions a campaign listing always carries, whoever is reading. */
 export const campaignScope = (options: { organizationId?: number; publicOnly?: boolean } = {}) => [
@@ -559,6 +592,18 @@ export const campaignFacet = (
 	key: string,
 	options: { organizationId?: number; publicOnly?: boolean } = {}
 ) => campaignsQuery.facet(url, key, { where: campaignScope(options) });
+
+/**
+ * How many briefs there are once the market filter is set aside.
+ *
+ * The "all markets" chip cannot take this from `campaignFacet(url, 'type')`:
+ * that sum keeps the market condition, so the chip meaning *no market* would
+ * count only the market already chosen.
+ */
+export const countCampaignsAcrossMarkets = (
+	url: URL,
+	options: { organizationId?: number; publicOnly?: boolean } = {}
+) => campaignsQuery.countWithout(url, ['market'], { where: campaignScope(options) });
 
 /** One campaign by its slug — matched in SQL, not by scanning every campaign. */
 export async function getCampaignBySlug(slug: string) {
@@ -645,7 +690,7 @@ export const bookingsQuery = defineQuery({
 	tiebreaker: t.bookings.id
 });
 
-export type BookingRow = { [K in keyof typeof bookingColumns]: any };
+export type BookingRow = RowOf<typeof bookingColumns>;
 
 /**
  * Whose deals these are.
@@ -775,7 +820,7 @@ export const applicationsQuery = defineQuery({
 	tiebreaker: t.applications.id
 });
 
-export type ApplicationRow = { [K in keyof typeof applicationColumns]: any };
+export type ApplicationRow = RowOf<typeof applicationColumns>;
 
 export const applicationScope = (filter: {
 	role?: string;
@@ -944,19 +989,33 @@ export const usersQuery = defineQuery({
 		role: t.user.role,
 		emailVerified: t.user.emailVerified,
 		createdAt: t.user.createdAt,
-		creatorUsername: t.creators.username,
-		organizationName: t.organizations.name
+		/* Aggregated because the joins below can match more than once. Without
+		   this, an account owning two organisations is one row in the total and
+		   two rows in the table — "Showing 1 – 4 of 3", with a duplicate. */
+		creatorUsername: sql<string | null>`min(${t.creators.username})`,
+		organizationName: sql<string | null>`min(${t.organizations.name})`
 	},
 	joins: (qb: any) =>
 		qb
 			.leftJoin(t.creators, eq(t.creators.userId, t.user.id))
 			.leftJoin(t.organizations, eq(t.organizations.ownerId, t.user.id)),
 	/* An account can own more than one organisation, so the join can match a
-	   user twice; the total must still count accounts. */
+	   user twice; the total must still count accounts, and the page must still
+	   show one row per account. */
 	countColumn: t.user.id,
+	groupBy: t.user.id,
 	search: [t.user.name, t.user.email, t.creators.username, t.organizations.name],
 	filters: {
-		role: { type: 'enum', column: t.user.role, values: ['creator', 'business', 'admin'] }
+		role: {
+			type: 'enum',
+			column: t.user.role,
+			values: ['creator', 'business', 'admin'],
+			/* `role` is nullable with a default of 'creator'. A row written
+			   outside sign-up has NULL, which means 'creator' everywhere else in
+			   the app — so it has to mean that here too, or the account is
+			   reachable only from "All". */
+			nullAs: 'creator'
+		}
 	},
 	sort: {
 		newest: { column: t.user.createdAt, direction: 'desc' },
@@ -1054,6 +1113,19 @@ export async function getPlatformStats() {
 const CLOSED_BOOKINGS = ['completed', 'cancelled'] as const;
 const AWAITING_PAYOUT = ['approved', 'awaiting_settlement'] as const;
 
+/**
+ * A parameterised `IN` list.
+ *
+ * The two lists above used to be declared here and spelled out again inside
+ * each `sql` template, which is two statements of one rule that nothing checks
+ * against each other. Interpolating them means there is only ever one.
+ */
+const statusList = (states: readonly string[]) =>
+	sql.join(
+		states.map((state) => sql`${state}`),
+		sql`, `
+	);
+
 /** The headline figures on a brand's overview, summed in the database. */
 export async function getOrganizationTotals(organizationId: number) {
 	const mine = and(isNull(t.bookings.deletedAt), eq(t.bookings.organizationId, organizationId));
@@ -1070,7 +1142,7 @@ export async function getOrganizationTotals(organizationId: number) {
 		db
 			.select({ n: sql<number>`count(*)` })
 			.from(t.bookings)
-			.where(and(mine, sql`${t.bookings.status} not in ('completed', 'cancelled')`)),
+			.where(and(mine, sql`${t.bookings.status} not in (${statusList(CLOSED_BOOKINGS)})`)),
 		db
 			.select({ n: sql<number>`count(*)` })
 			.from(t.campaigns)
@@ -1112,14 +1184,14 @@ export async function getCreatorTotals(creatorId: number) {
 		db
 			.select({
 				earned: sql<number>`coalesce(sum(case when ${t.bookings.status} = 'completed' then ${t.bookings.creatorPayout} else 0 end), 0)`,
-				pending: sql<number>`coalesce(sum(case when ${t.bookings.status} in ('approved', 'awaiting_settlement') then ${t.bookings.creatorPayout} else 0 end), 0)`
+				pending: sql<number>`coalesce(sum(case when ${t.bookings.status} in (${statusList(AWAITING_PAYOUT)}) then ${t.bookings.creatorPayout} else 0 end), 0)`
 			})
 			.from(t.bookings)
 			.where(mine),
 		db
 			.select({ n: sql<number>`count(*)` })
 			.from(t.bookings)
-			.where(and(mine, sql`${t.bookings.status} not in ('completed', 'cancelled')`)),
+			.where(and(mine, sql`${t.bookings.status} not in (${statusList(CLOSED_BOOKINGS)})`)),
 		db
 			.select({ n: sql<number>`count(*)` })
 			.from(t.applications)

@@ -387,7 +387,7 @@ type CampaignRuleInput = {
  * here rather than in the route means they hold on create, edit and publish
  * alike (PRD FR-042).
  */
-const withCompensationRules = <T extends z.ZodObject<any>>(schema: T) =>
+const withCompensationRules = <T extends z.ZodObject>(schema: T) =>
 	schema
 		.refine(
 			(raw) => {

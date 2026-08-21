@@ -20,7 +20,23 @@ export default defineConfig(
 		rules: {
 			// typescript-eslint strongly recommend that you do not use the no-undef lint rule on TypeScript projects.
 			// see: https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
-			'no-undef': 'off'
+			'no-undef': 'off',
+
+			// A leading underscore is how this codebase says "bound deliberately,
+			// and deliberately unused" — the discarded half of a destructuring,
+			// the index argument a callback must accept but does not read.
+			// `ignoreRestSiblings` covers `const { id, ...values } = form.data`,
+			// which is the idiom for "everything except the id".
+			'@typescript-eslint/no-unused-vars': [
+				'error',
+				{
+					argsIgnorePattern: '^_',
+					varsIgnorePattern: '^_',
+					caughtErrorsIgnorePattern: '^_',
+					destructuredArrayIgnorePattern: '^_',
+					ignoreRestSiblings: true
+				}
+			]
 		}
 	},
 	{

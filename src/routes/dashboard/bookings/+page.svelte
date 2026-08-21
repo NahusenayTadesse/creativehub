@@ -1,11 +1,12 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import PaginationBar from '$lib/components/pagination-bar.svelte';
 	import NoResults from '$lib/components/no-results.svelte';
 	import SearchInput from '$lib/components/search-input.svelte';
-	import { Handshake, ArrowRight, Inbox } from '@lucide/svelte';
+	import { ArrowRight, Inbox } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { withParams } from '$lib/query';
 	import * as m from '$lib/paraglide/messages';
@@ -75,7 +76,7 @@
 				{data.role === 'creator' ? m.bl_empty_creator() : m.bl_empty_brand()}
 			</p>
 			<a
-				href={data.role === 'creator' ? '/campaigns' : '/discover'}
+				href={data.role === 'creator' ? resolve('/campaigns') : resolve('/discover')}
 				class="inline-block rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 			>
 				{data.role === 'creator' ? m.bl_browse_briefs() : m.bl_find_creators()}
@@ -85,7 +86,7 @@
 		<div class="space-y-3">
 			{#each data.bookings.rows as booking (booking.id)}
 				<a
-					href="/dashboard/bookings/{booking.id}"
+					href={resolve(`/dashboard/bookings/${booking.id}`)}
 					class="bento-card bento-card-static block transition-all hover:border-emerald-600"
 				>
 					<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -94,6 +95,10 @@
 								src={booking.creatorAvatar ?? ''}
 								alt=""
 								class="h-11 w-11 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+								loading="lazy"
+								decoding="async"
+								width="44"
+								height="44"
 							/>
 							<div class="min-w-0">
 								<div class="mb-0.5 flex flex-wrap items-center gap-2">

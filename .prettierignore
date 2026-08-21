@@ -8,3 +8,14 @@ bun.lockb
 # Miscellaneous
 /static/
 /drizzle/
+
+# Agent and skill documentation. These hold fenced code samples carrying diff
+# markers, which Prettier's embedded-code formatter cannot parse — and a crash
+# here took eslint down with it, because `lint` is `prettier && eslint`.
+/.github/
+/.opencode/
+/.claude/
+
+# Bug reports and tool-generated metadata
+BUG-REPORT*.md
+/project.inlang/

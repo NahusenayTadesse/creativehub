@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { resolve } from '$app/paths';
 	import { superForm } from 'sveltekit-superforms';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -15,17 +17,46 @@
 	} from '@lucide/svelte';
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
+	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 
 	let { data } = $props();
 
+	/** The currencies an application may be denominated in. */
+	const CURRENCY_ITEMS = ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'].map(
+		(code) => ({ value: code, name: code })
+	);
+
 	const campaign = $derived(data.campaign);
 
-	const { form, errors, enhance, delayed, allErrors, message } = superForm(data.form, {
-		resetForm: false
-	});
+	/*
+	 * `untrack`, because a superform is seeded once and then owns its own state:
+	 * re-reading `data.form` on every change would fight the store, and a fresh
+	 * `SuperValidated` arriving mid-edit would discard a half-written pitch.
+	 * Navigating to a different brief is handled explicitly below.
+	 */
+	const superform = superForm(
+		untrack(() => data.form),
+		{ resetForm: false }
+	);
+	const { form, errors, enhance, delayed, allErrors, message } = superform;
 
-	let submitted = $state(Boolean(data.existingApplication));
+	let submitted = $state(untrack(() => Boolean(data.existingApplication)));
+
+	/**
+	 * A different brief starts over.
+	 *
+	 * This component is reused across `/campaigns/a` → `/campaigns/b`, so
+	 * without this the second brief opens showing "already applied" from the
+	 * first, over a pitch written for the first.
+	 */
+	let pitchedFor = $state(untrack(() => data.campaign.id));
+	$effect(() => {
+		if (campaign.id === pitchedFor) return;
+		pitchedFor = campaign.id;
+		submitted = Boolean(data.existingApplication);
+		superform.reset({ data: data.form.data, newState: data.form.data });
+	});
 
 	$effect(() => {
 		if (!$message) return;
@@ -63,7 +94,7 @@
 
 <div class="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
 	<a
-		href="/campaigns"
+		href={resolve('/campaigns')}
 		class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-2xs hover:text-gray-900"
 	>
 		<ArrowLeft class="h-3.5 w-3.5" />
@@ -78,6 +109,10 @@
 					src={campaign.organizationLogo ?? ''}
 					alt={campaign.organizationName}
 					class="h-14 w-14 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+					loading="lazy"
+					decoding="async"
+					width="56"
+					height="56"
 				/>
 				<div>
 					<div class="flex items-center gap-2">
@@ -274,7 +309,7 @@
 							{m.campaign_application_sent_body({ org: campaign.organizationName })}
 						</p>
 						<a
-							href="/dashboard/applications"
+							href={resolve('/dashboard/applications')}
 							class="mt-2 inline-block rounded-xl border-2 border-slate-900 bg-white px-4 py-2 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50"
 						>
 							{m.campaign_track_applications()}
@@ -287,7 +322,7 @@
 							{m.campaign_sign_in_body()}
 						</p>
 						<a
-							href="/login?next=/campaigns/{campaign.slug}"
+							href={resolve(`/login?next=/campaigns/${campaign.slug}`)}
 							class="mt-1 inline-block rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 						>
 							{m.nav_sign_in()}
@@ -309,56 +344,40 @@
 
 						{#if campaign.compensationType === 'paid'}
 							<div class="grid grid-cols-3 gap-2">
-								<div class="col-span-2 space-y-1.5">
-									<label for="proposedPrice" class="font-black text-slate-900"
-										>{m.campaign_your_rate()}</label
-									>
-									<input
-										id="proposedPrice"
+								<div class="col-span-2">
+									<InputComp
+										{form}
+										{errors}
 										name="proposedPrice"
 										type="number"
 										min="0"
-										bind:value={$form.proposedPrice}
-										class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
+										label={m.campaign_your_rate()}
 									/>
 								</div>
-								<div class="space-y-1.5">
-									<label for="currencyCode" class="font-black text-slate-900"
-										>{m.campaign_currency()}</label
-									>
-									<select
-										id="currencyCode"
-										name="currencyCode"
-										bind:value={$form.currencyCode}
-										class="w-full rounded-xl border-2 border-slate-900 bg-white px-2 py-2 font-bold"
-									>
-										{#each ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'] as code (code)}
-											<option value={code}>{code}</option>
-										{/each}
-									</select>
-								</div>
+								<InputComp
+									{form}
+									{errors}
+									name="currencyCode"
+									type="select"
+									label={m.campaign_currency()}
+									items={CURRENCY_ITEMS}
+								/>
 							</div>
-							{#if $errors.proposedPrice}
-								<p class="font-bold text-red-600">{$errors.proposedPrice}</p>
-							{/if}
 						{:else}
 							<input type="hidden" name="proposedPrice" value="0" />
 							<input type="hidden" name="currencyCode" value={campaign.currencyCode} />
 						{/if}
 
-						<div class="space-y-1.5">
-							<label for="pitch" class="font-black text-slate-900">{m.campaign_your_pitch()}</label>
-							<textarea
-								id="pitch"
-								name="pitch"
-								rows="6"
-								bind:value={$form.pitch}
-								required
-								placeholder={m.campaign_pitch_placeholder()}
-								class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
-							></textarea>
-							{#if $errors.pitch}<p class="font-bold text-red-600">{$errors.pitch}</p>{/if}
-						</div>
+						<InputComp
+							{form}
+							{errors}
+							name="pitch"
+							type="textarea"
+							rows={6}
+							label={m.campaign_your_pitch()}
+							placeholder={m.campaign_pitch_placeholder()}
+							required
+						/>
 
 						<button
 							type="submit"

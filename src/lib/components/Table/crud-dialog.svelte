@@ -1,4 +1,5 @@
 <script lang="ts" module>
+	import type { SuperValidated } from 'sveltekit-superforms';
 	import type { Item } from '$lib/global.svelte';
 
 	/** Declarative description of one form control, rendered through InputComp. */
@@ -15,6 +16,7 @@
 </script>
 
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import { Button, type ButtonVariant } from '$lib/components/ui/button/index.js';
@@ -40,31 +42,52 @@
 		iconOnly = false
 	}: {
 		title: string;
-		data: any;
+		data: SuperValidated<Record<string, unknown>>;
 		action: string;
 		fields: CrudField[];
-		values?: Record<string, any>;
+		values?: Record<string, unknown>;
 		existing?: Record<string, string>;
 		trigger?: string;
 		variant?: ButtonVariant;
 		iconOnly?: boolean;
 	} = $props();
 
-	const editing = 'id' in values;
+	const editing = untrack(() => 'id' in values);
 	const formId = `crud-${Math.random().toString(36).slice(2, 9)}`;
 
-	const { form, errors, enhance, delayed, message, allErrors } = superForm(data, {
-		resetForm: !editing,
-		// Each row renders its own dialog, so they must not share form state.
-		id: formId
-	});
+	const { form, errors, enhance, delayed, message, allErrors } = superForm(
+		untrack(() => data),
+		{
+			resetForm: !editing,
+			// Each row renders its own dialog, so they must not share form state.
+			id: formId
+		}
+	);
 
-	// Prefill once at construction, the same way the testimonials dialog does.
-	for (const [key, value] of Object.entries(values)) {
-		$form[key] = value;
-	}
+	const prefill = () => {
+		for (const [key, value] of Object.entries(values)) $form[key] = value;
+	};
+
+	prefill();
 
 	let open = $state(false);
+
+	/**
+	 * Re-prefills when the row behind this dialog changes, but only while it is
+	 * shut.
+	 *
+	 * `crud-section` keys these by row id, so an instance keeps its identity
+	 * across an invalidation — and used to keep the values it was constructed
+	 * with, so a row edited elsewhere opened showing the old ones. Guarding on
+	 * `open` is what stops the same reload from wiping out an edit in progress.
+	 */
+	let prefilled = $state(untrack(() => JSON.stringify(values)));
+	$effect(() => {
+		const next = JSON.stringify(values);
+		if (next === prefilled || open) return;
+		prefilled = next;
+		prefill();
+	});
 
 	$effect(() => {
 		if (!$message) return;

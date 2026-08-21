@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { CampaignCard } from '$lib/server/queries';
+	import { resolve } from '$app/paths';
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
@@ -125,7 +127,7 @@
 			: m.dc_no_deadline();
 
 	/** The edit dialog needs dates as yyyy-mm-dd and JSON arrays as lines. */
-	const editValues = (row: any) => ({
+	const editValues = (row: CampaignCard) => ({
 		id: row.id,
 		organizationId: row.organizationId ?? undefined,
 		title: row.title,
@@ -151,6 +153,7 @@
 		language: row.language,
 		tags: (row.tags ?? []).join('\n'),
 		status: row.status,
+		isActive: row.isActive,
 		sortOrder: row.sortOrder
 	});
 </script>
@@ -182,7 +185,7 @@
 						<CompensationBadge type={campaign.compensationType} />
 						{#if campaign.status === 'published'}
 							<a
-								href="/campaigns/{campaign.slug}"
+								href={resolve(`/campaigns/${campaign.slug}`)}
 								target="_blank"
 								class="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 hover:underline"
 							>
@@ -222,7 +225,7 @@
 					{m.dc_needed({ count: campaign.creatorsNeeded })}
 				</span>
 				<a
-					href="/dashboard/applications"
+					href={resolve('/dashboard/applications')}
 					class="flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 font-bold text-slate-700 hover:border-slate-900"
 				>
 					<Send class="h-3 w-3 text-emerald-600" />

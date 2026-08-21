@@ -1,16 +1,15 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { resolve } from '$app/paths';
 	import { superForm } from 'sveltekit-superforms';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { toast } from 'svelte-sonner';
 	import {
-		ShieldCheck,
 		MapPin,
 		Star,
 		Award,
 		Check,
-		X,
-		Heart,
 		Share2,
 		ArrowLeft,
 		CircleCheckBig,
@@ -20,27 +19,46 @@
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
+	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import { formatReach } from '$lib/domain/money';
 	import { scoreWeights } from '$lib/domain/score';
 
 	let { data } = $props();
 
+	/** The currencies a direct booking may be denominated in. */
+	const CURRENCY_ITEMS = ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'].map(
+		(code) => ({ value: code, name: code })
+	);
+
 	const creator = $derived(data.creator);
 
 	let scoreOpen = $state(false);
 	let bookingOpen = $state(false);
-	let selectedPackageId = $state<number | null>(data.creator.packages[0]?.id ?? null);
+	let selectedPackageId = $state<number | null>(
+		untrack(() => data.creator.packages[0]?.id ?? null)
+	);
 
 	const selectedPackage = $derived(
 		creator.packages.find((p) => p.id === selectedPackageId) ?? creator.packages[0] ?? null
 	);
 
-	const { form, errors, enhance, delayed, allErrors, message } = superForm(data.bookingForm, {
-		id: 'direct-booking',
-		onUpdated: ({ form: result }) => {
-			if (result.valid) bookingOpen = false;
+	/*
+	 * `untrack`, because a superform is seeded once and then owns its own state:
+	 * re-reading `data.bookingForm` on every change would fight the store, and a
+	 * fresh `SuperValidated` arriving mid-edit would discard what is being typed.
+	 * A *navigation* to a different profile is the one case where re-seeding is
+	 * right, and the effect below does it explicitly.
+	 */
+	const superform = superForm(
+		untrack(() => data.bookingForm),
+		{
+			id: 'direct-booking',
+			onUpdated: ({ form: result }) => {
+				if (result.valid) bookingOpen = false;
+			}
 		}
-	});
+	);
+	const { form, errors, enhance, delayed, allErrors, message } = superform;
 
 	$effect(() => {
 		if ($message?.type === 'error') toast.error($message.text);
@@ -95,12 +113,23 @@
 	let extraReviews = $state<ProfileReview[]>([]);
 	let loadingReviews = $state(false);
 
-	/* A different profile starts its own list again. */
-	let listedProfile = $state(data.creator.id);
+	/**
+	 * Everything that has to forget when the reader moves to another profile.
+	 *
+	 * SvelteKit reuses this component across `/creators/a` → `/creators/b`: the
+	 * props change, but a store created in `<script>` and a `$state` seeded from
+	 * the first render do not. Without this, the second profile shows the first
+	 * one's loaded reviews, the first one's chosen package, and a booking form
+	 * still addressed to the first creator.
+	 */
+	let listedProfile = $state(untrack(() => data.creator.id));
 	$effect(() => {
 		if (creator.id === listedProfile) return;
 		listedProfile = creator.id;
 		extraReviews = [];
+		selectedPackageId = creator.packages[0]?.id ?? null;
+		bookingOpen = false;
+		superform.reset({ data: data.bookingForm.data, newState: data.bookingForm.data });
 	});
 
 	const reviews: ProfileReview[] = $derived([...creator.reviews, ...extraReviews]);
@@ -131,7 +160,7 @@
 
 <div class="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
 	<a
-		href="/discover"
+		href={resolve('/discover')}
 		class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-2xs hover:text-gray-900"
 	>
 		<ArrowLeft class="h-3.5 w-3.5" />
@@ -142,7 +171,13 @@
 	<div class="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
 		<div class="relative h-48 bg-gray-100 md:h-64">
 			{#if creator.cover}
-				<img src={creator.cover} alt="" class="h-full w-full object-cover" />
+				<img
+					src={creator.cover}
+					alt=""
+					class="h-full w-full object-cover"
+					loading="lazy"
+					decoding="async"
+				/>
 			{/if}
 			<div class="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent"></div>
 
@@ -177,6 +212,10 @@
 							src={creator.avatar ?? ''}
 							alt={creator.fullName}
 							class="h-24 w-24 rounded-3xl border-4 border-white bg-white object-cover shadow-md md:h-32 md:w-32"
+							loading="lazy"
+							decoding="async"
+							width="96"
+							height="96"
 						/>
 						<span
 							class="absolute right-2 bottom-2 h-4 w-4 rounded-full border-2 border-white {creator.availability ===
@@ -234,7 +273,7 @@
 						</span>
 					{:else}
 						<a
-							href="/login?next=/creators/{creator.username}"
+							href={resolve(`/login?next=/creators/${creator.username}`)}
 							class="rounded-2xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-colors hover:bg-emerald-700"
 						>
 							{m.profile_sign_in_to_book()}
@@ -448,6 +487,7 @@
 										alt={item.caption ?? ''}
 										loading="lazy"
 										class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+										decoding="async"
 									/>
 									{#if item.platformName}
 										<span
@@ -667,99 +707,59 @@
 			<input type="hidden" name="packageId" value={$form.packageId ?? ''} />
 			<input type="hidden" name="compensationType" value={$form.compensationType} />
 
-			<div class="space-y-1.5">
-				<label for="title" class="font-black text-slate-900">{m.profile_booking_title()}</label>
-				<input
-					id="title"
-					name="title"
-					bind:value={$form.title}
-					required
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
+			<InputComp {form} {errors} name="title" label={m.profile_booking_title()} required />
+
+			<div class="grid grid-cols-2 gap-3">
+				<InputComp {form} {errors} name="price" type="number" min="0" label={m.profile_offer()} />
+				<InputComp
+					{form}
+					{errors}
+					name="currencyCode"
+					type="select"
+					label={m.campaign_currency()}
+					items={CURRENCY_ITEMS}
 				/>
-				{#if $errors.title}<p class="font-bold text-red-600">{$errors.title}</p>{/if}
 			</div>
+
+			<InputComp
+				{form}
+				{errors}
+				name="deliverables"
+				type="textarea"
+				rows={4}
+				label={m.profile_deliverables_label()}
+				hint={m.profile_one_per_line()}
+			/>
 
 			<div class="grid grid-cols-2 gap-3">
-				<div class="space-y-1.5">
-					<label for="price" class="font-black text-slate-900">{m.profile_offer()}</label>
-					<input
-						id="price"
-						name="price"
-						type="number"
-						min="0"
-						bind:value={$form.price}
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
-					/>
-					{#if $errors.price}<p class="font-bold text-red-600">{$errors.price}</p>{/if}
-				</div>
-				<div class="space-y-1.5">
-					<label for="currencyCode" class="font-black text-slate-900">{m.campaign_currency()}</label
-					>
-					<select
-						id="currencyCode"
-						name="currencyCode"
-						bind:value={$form.currencyCode}
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
-					>
-						{#each ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'] as code (code)}
-							<option value={code}>{code}</option>
-						{/each}
-					</select>
-				</div>
+				<InputComp
+					{form}
+					{errors}
+					name="deadline"
+					type="date"
+					label={m.profile_deadline()}
+					futureDays
+				/>
+				<InputComp
+					{form}
+					{errors}
+					name="revisionsAllowed"
+					type="number"
+					min="0"
+					max="10"
+					label={m.profile_revisions_allowed()}
+				/>
 			</div>
 
-			<div class="space-y-1.5">
-				<label for="deliverables" class="font-black text-slate-900">
-					{m.profile_deliverables_label()}
-					<span class="font-medium text-slate-500">{m.profile_one_per_line()}</span>
-				</label>
-				<textarea
-					id="deliverables"
-					name="deliverables"
-					rows="4"
-					bind:value={$form.deliverables}
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
-				></textarea>
-			</div>
-
-			<div class="grid grid-cols-2 gap-3">
-				<div class="space-y-1.5">
-					<label for="deadline" class="font-black text-slate-900">{m.profile_deadline()}</label>
-					<input
-						id="deadline"
-						name="deadline"
-						type="date"
-						bind:value={$form.deadline}
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<label for="revisionsAllowed" class="font-black text-slate-900"
-						>{m.profile_revisions_allowed()}</label
-					>
-					<input
-						id="revisionsAllowed"
-						name="revisionsAllowed"
-						type="number"
-						min="0"
-						max="10"
-						bind:value={$form.revisionsAllowed}
-						class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-bold"
-					/>
-				</div>
-			</div>
-
-			<div class="space-y-1.5">
-				<label for="note" class="font-black text-slate-900">{m.profile_note_to_creator()}</label>
-				<textarea
-					id="note"
-					name="note"
-					rows="3"
-					bind:value={$form.note}
-					placeholder={m.profile_note_placeholder()}
-					class="w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 font-medium"
-				></textarea>
-			</div>
+			<InputComp
+				{form}
+				{errors}
+				name="note"
+				type="textarea"
+				rows={3}
+				label={m.profile_note_to_creator()}
+				placeholder={m.profile_note_placeholder()}
+			/>
 
 			<button
 				type="submit"

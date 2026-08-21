@@ -4,7 +4,7 @@ import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
-import { db } from '$lib/server/db';
+import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { organizationCreate } from '$lib/schemas';
 import { requireRole, getOrganizationFor, recordAudit } from '$lib/server/guards';
@@ -59,7 +59,7 @@ export const actions: Actions = {
 
 		let organizationId: number;
 		try {
-			const result: any = await db.insert(t.organizations).values({
+			const result = await db.insert(t.organizations).values({
 				ownerId: user.id,
 				name: form.data.name,
 				slug,
@@ -70,7 +70,7 @@ export const actions: Actions = {
 				city: form.data.city,
 				createdBy: user.id
 			});
-			organizationId = Number(result.insertId ?? result[0]?.insertId);
+			organizationId = insertedId(result);
 
 			await db.insert(t.organizationMembers).values({
 				organizationId,

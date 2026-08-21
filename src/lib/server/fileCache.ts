@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
 
 const STAT_CACHE_MAX = 500;
 const STAT_CACHE_TTL = 10_000; // 10 seconds

@@ -1,4 +1,9 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import InputComp from '$lib/formComponents/InputComp.svelte';
+	import type { TrendingPreview } from './+page.server';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { superForm } from 'sveltekit-superforms';
@@ -37,23 +42,38 @@
 	let { data } = $props();
 
 	/** The dry run returned by `?/preview`. Cleared whenever the form is saved. */
-	let preview = $state<any>(null);
+	let preview = $state<TrendingPreview | null>(null);
 	let openBreakdown = $state<number | null>(null);
 
 	const {
 		form,
+		errors,
 		enhance: configEnhance,
 		delayed,
 		allErrors,
 		message
-	} = superForm(data.form, {
-		onUpdate({ result }) {
-			preview = (result as any)?.data?.preview ?? null;
+	} = superForm(
+		untrack(() => data.form),
+		{
+			onUpdate({ result }) {
+				preview =
+					result.type === 'success' ? ((result.data?.preview as TrendingPreview) ?? null) : null;
+			}
 		}
-	});
+	);
 
-	const overrideSuper = superForm(data.overrideForm, { id: 'override' });
+	const overrideSuper = superForm(
+		untrack(() => data.overrideForm),
+		{ id: 'override' }
+	);
 	const overrideForm = overrideSuper.form;
+	const overrideErrors = overrideSuper.errors;
+
+	const overrideKindItems = $derived([
+		{ value: 'pin', name: m.at_kind_pin() },
+		{ value: 'boost', name: m.at_kind_boost() },
+		{ value: 'block', name: m.at_kind_block() }
+	]);
 
 	$effect(() => {
 		if (!$message) return;
@@ -107,11 +127,17 @@
 		{ key: 'manual' as const, label: m.at_mode_manual(), help: m.at_mode_manual_help(), icon: Pin }
 	]);
 
-	const verificationOptions = $derived([
-		{ value: 'unverified', label: m.discover_verif_unverified() },
-		{ value: 'social_verified', label: m.discover_verif_social() },
-		{ value: 'identity_verified', label: m.discover_verif_identity() },
-		{ value: 'cn_verified', label: m.discover_verif_cn() }
+	/* `{ value, name }` because that is the shape every form control here takes. */
+	const verificationItems = $derived([
+		{ value: 'unverified', name: m.discover_verif_unverified() },
+		{ value: 'social_verified', name: m.discover_verif_social() },
+		{ value: 'identity_verified', name: m.discover_verif_identity() },
+		{ value: 'cn_verified', name: m.discover_verif_cn() }
+	]);
+
+	const normalizationItems = $derived([
+		{ value: 'percentile', name: m.at_norm_percentile() },
+		{ value: 'minmax', name: m.at_norm_minmax() }
 	]);
 
 	const reasonLabel = (key: string) =>
@@ -142,7 +168,7 @@
 	const signalLabel = (key: string) => signals.find((signal) => signal.key === key)?.label ?? key;
 
 	/** The two or three signals that actually put a creator where they are. */
-	const topContributors = (components: any[]) =>
+	const topContributors = (components: { key: string; contribution: number }[]) =>
 		[...(components ?? [])].sort((a, b) => b.contribution - a.contribution).slice(0, 3);
 
 	const nextRunAt = $derived.by(() => {
@@ -159,13 +185,15 @@
 		}))
 	);
 
-	const handle = (text: string) => () => {
-		return async ({ result, update }: any) => {
-			if (result.type === 'failure') toast.error(result.data?.message ?? m.common_refused());
-			else if (result.type === 'success') toast.success(text);
-			await update();
+	const handle =
+		(text: string): SubmitFunction =>
+		() => {
+			return async ({ result, update }) => {
+				if (result.type === 'failure') toast.error(result.data?.message ?? m.common_refused());
+				else if (result.type === 'success') toast.success(text);
+				await update();
+			};
 		};
-	};
 
 	/* The knobs the two field snippets below can bind to, split by input kind so
 	   the binding stays typed rather than falling back to `any`. */
@@ -189,34 +217,17 @@
 		| 'autoRefresh'
 		| 'isFrozen';
 
-	const inputClass =
-		'w-full rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-bold text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] focus:outline-none';
 	const sectionTitle = 'flex items-center gap-2 text-sm font-black text-slate-900';
 </script>
 
 {#snippet numberField(name: NumberField, label: string, help: string, min: number, max: number)}
-	<div class="space-y-1">
-		<label class="block text-[11px] font-black text-slate-800" for={name}>{label}</label>
-		<input id={name} {name} type="number" {min} {max} bind:value={$form[name]} class={inputClass} />
-		<p class="text-[10px] font-medium text-slate-500">{help}</p>
-	</div>
+	<InputComp {form} {errors} {name} {label} {min} {max} type="number" hint={help} step={1} />
 {/snippet}
 
 {#snippet toggleField(name: ToggleFieldName, label: string, help: string)}
-	<label
-		class="bento-card-static flex cursor-pointer items-start gap-3 rounded-2xl border-2 border-slate-900 bg-white p-3"
-	>
-		<input
-			type="checkbox"
-			{name}
-			bind:checked={$form[name]}
-			class="mt-0.5 h-4 w-4 accent-emerald-600"
-		/>
-		<span>
-			<span class="block text-[11px] font-black text-slate-900">{label}</span>
-			<span class="block text-[10px] font-medium text-slate-500">{help}</span>
-		</span>
-	</label>
+	<div class="bento-card-static rounded-2xl border-2 border-slate-900 bg-white p-2">
+		<InputComp {form} {errors} {name} {label} type="checkboxSingle" hint={help} />
+	</div>
 {/snippet}
 
 <svelte:head><title>{m.at_meta_title()}</title></svelte:head>
@@ -313,7 +324,7 @@
 				<Flame class="h-4 w-4 text-emerald-600" />
 				{m.at_board_title()}
 			</h2>
-			<a href="/" class="text-[11px] font-black text-emerald-700 hover:text-emerald-800">
+			<a href={resolve('/')} class="text-[11px] font-black text-emerald-700 hover:text-emerald-800">
 				{m.at_board_view_site()}
 			</a>
 		</div>
@@ -345,7 +356,7 @@
 								<td class="py-2 font-black text-slate-900">#{entry.rank}</td>
 								<td class="py-2">
 									<a
-										href="/creators/{entry.username}"
+										href={resolve(`/creators/${entry.username}`)}
 										class="font-black text-slate-900 hover:text-emerald-700"
 									>
 										{entry.fullName}
@@ -465,27 +476,20 @@
 
 			<div class="grid gap-4 md:grid-cols-2">
 				{#each signals as signal (signal.key)}
-					<div class="space-y-1">
-						<div class="flex items-baseline justify-between gap-2">
-							<label class="text-[11px] font-black text-slate-900" for={WEIGHT_COLUMN[signal.key]}>
-								{signal.label}
-							</label>
-							<span class="text-[10px] font-black text-slate-500">
-								{weightOf(signal.key)} · {m.at_weight_share({ percent: shareOf(signal.key) })}
-							</span>
-						</div>
-						<input
-							id={WEIGHT_COLUMN[signal.key]}
-							name={WEIGHT_COLUMN[signal.key]}
-							type="range"
-							min="0"
-							max="100"
-							step="1"
-							bind:value={$form[WEIGHT_COLUMN[signal.key]]}
-							class="h-2 w-full cursor-pointer appearance-none rounded-full border-2 border-slate-900 bg-slate-200 accent-emerald-600"
-						/>
-						<p class="text-[10px] font-medium text-slate-500">{signal.help}</p>
-					</div>
+					<InputComp
+						{form}
+						{errors}
+						name={WEIGHT_COLUMN[signal.key]}
+						type="range"
+						label={signal.label}
+						min={0}
+						max={100}
+						step={1}
+						hint={signal.help}
+						formatValue={(weight) =>
+							`${weight} · ${m.at_weight_share({ percent: shareOf(signal.key) })}`}
+						className="h-2 appearance-none rounded-full border-2 border-slate-900 bg-slate-200"
+					/>
 				{/each}
 			</div>
 		</div>
@@ -501,25 +505,17 @@
 					{@render numberField('slots', m.at_slots(), m.at_slots_help(), 1, 48)}
 					{@render numberField('windowDays', m.at_window_days(), m.at_window_help(), 1, 365)}
 					{@render numberField('halfLifeDays', m.at_half_life(), m.at_half_life_help(), 0, 180)}
-					<div class="space-y-1">
-						<label class="block text-[11px] font-black text-slate-800" for="normalization">
-							{m.at_normalization()}
-						</label>
-						<select
-							id="normalization"
-							name="normalization"
-							bind:value={$form.normalization}
-							class={inputClass}
-						>
-							<option value="percentile">{m.at_norm_percentile()}</option>
-							<option value="minmax">{m.at_norm_minmax()}</option>
-						</select>
-						<p class="text-[10px] font-medium text-slate-500">
-							{$form.normalization === 'percentile'
-								? m.at_norm_percentile_help()
-								: m.at_norm_minmax_help()}
-						</p>
-					</div>
+					<InputComp
+						{form}
+						{errors}
+						name="normalization"
+						type="select"
+						label={m.at_normalization()}
+						items={normalizationItems}
+						hint={$form.normalization === 'percentile'
+							? m.at_norm_percentile_help()
+							: m.at_norm_minmax_help()}
+					/>
 				</div>
 			</div>
 
@@ -538,22 +534,15 @@
 						100000000
 					)}
 					{@render numberField('minRating', m.at_min_rating(), m.at_min_rating_help(), 0, 5)}
-					<div class="space-y-1">
-						<label class="block text-[11px] font-black text-slate-800" for="minVerification">
-							{m.at_min_verification()}
-						</label>
-						<select
-							id="minVerification"
-							name="minVerification"
-							bind:value={$form.minVerification}
-							class={inputClass}
-						>
-							{#each verificationOptions as option (option.value)}
-								<option value={option.value}>{option.label}</option>
-							{/each}
-						</select>
-						<p class="text-[10px] font-medium text-slate-500">{m.at_min_verification_help()}</p>
-					</div>
+					<InputComp
+						{form}
+						{errors}
+						name="minVerification"
+						type="select"
+						label={m.at_min_verification()}
+						items={verificationItems}
+						hint={m.at_min_verification_help()}
+					/>
 				</div>
 				<div class="grid gap-2 sm:grid-cols-3">
 					{@render toggleField(
@@ -758,65 +747,48 @@
 			use:overrideSuper.enhance
 			class="grid gap-3 rounded-2xl border-2 border-slate-900 bg-slate-50 p-3 md:grid-cols-6"
 		>
-			<div class="space-y-1 md:col-span-2">
-				<label class="block text-[11px] font-black text-slate-800" for="creatorId">
-					{m.at_override_creator()}
-				</label>
-				<select
-					id="creatorId"
+			<div class="md:col-span-2">
+				<InputComp
+					form={overrideForm}
+					errors={overrideErrors}
 					name="creatorId"
-					bind:value={$overrideForm.creatorId}
-					class={inputClass}
-				>
-					<option value={undefined}>{m.at_override_pick()}</option>
-					{#each creatorItems as item (item.value)}
-						<option value={item.value}>{item.name}</option>
-					{/each}
-				</select>
+					type="combo"
+					label={m.at_override_creator()}
+					items={creatorItems}
+				/>
 			</div>
 
-			<div class="space-y-1">
-				<label class="block text-[11px] font-black text-slate-800" for="kind">
-					{m.at_override_kind()}
-				</label>
-				<select id="kind" name="kind" bind:value={$overrideForm.kind} class={inputClass}>
-					<option value="pin">{m.at_kind_pin()}</option>
-					<option value="boost">{m.at_kind_boost()}</option>
-					<option value="block">{m.at_kind_block()}</option>
-				</select>
-			</div>
+			<InputComp
+				form={overrideForm}
+				errors={overrideErrors}
+				name="kind"
+				type="select"
+				label={m.at_override_kind()}
+				items={overrideKindItems}
+			/>
 
 			{#if $overrideForm.kind === 'pin'}
-				<div class="space-y-1">
-					<label class="block text-[11px] font-black text-slate-800" for="position">
-						{m.at_override_position()}
-					</label>
-					<input
-						id="position"
-						name="position"
-						type="number"
-						min="0"
-						max="48"
-						bind:value={$overrideForm.position}
-						class={inputClass}
-					/>
-				</div>
+				<InputComp
+					form={overrideForm}
+					errors={overrideErrors}
+					name="position"
+					type="number"
+					min={0}
+					max={48}
+					step={1}
+					label={m.at_override_position()}
+				/>
 			{:else if $overrideForm.kind === 'boost'}
-				<div class="space-y-1">
-					<label class="block text-[11px] font-black text-slate-800" for="multiplier">
-						{m.at_override_multiplier()}
-					</label>
-					<input
-						id="multiplier"
-						name="multiplier"
-						type="number"
-						step="0.1"
-						min="0.1"
-						max="5"
-						bind:value={$overrideForm.multiplier}
-						class={inputClass}
-					/>
-				</div>
+				<InputComp
+					form={overrideForm}
+					errors={overrideErrors}
+					name="multiplier"
+					type="number"
+					min={0.1}
+					max={5}
+					step={0.1}
+					label={m.at_override_multiplier()}
+				/>
 			{:else}
 				<div class="space-y-1">
 					<span class="block text-[11px] font-black text-slate-800">{m.at_override_effect()}</span>
@@ -824,31 +796,23 @@
 				</div>
 			{/if}
 
-			<div class="space-y-1">
-				<label class="block text-[11px] font-black text-slate-800" for="expiresAt">
-					{m.at_override_expires()}
-				</label>
-				<input
-					id="expiresAt"
-					name="expiresAt"
-					type="date"
-					bind:value={$overrideForm.expiresAt}
-					class={inputClass}
-				/>
-			</div>
+			<InputComp
+				form={overrideForm}
+				errors={overrideErrors}
+				name="expiresAt"
+				type="date"
+				label={m.at_override_expires()}
+				futureDays
+			/>
 
-			<div class="space-y-1 md:col-span-5">
-				<label class="block text-[11px] font-black text-slate-800" for="note">
-					{m.at_override_note()}
-				</label>
-				<input
-					id="note"
+			<div class="md:col-span-5">
+				<InputComp
+					form={overrideForm}
+					errors={overrideErrors}
 					name="note"
-					type="text"
-					maxlength="300"
+					label={m.at_override_note()}
 					placeholder={m.at_override_note_placeholder()}
-					bind:value={$overrideForm.note}
-					class={inputClass}
+					max={300}
 				/>
 			</div>
 

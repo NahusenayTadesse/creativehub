@@ -1,10 +1,14 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import { superForm } from 'sveltekit-superforms';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import InputComp from '$lib/formComponents/InputComp.svelte';
+	import ChipSelect from '$lib/formComponents/ChipSelect.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
@@ -13,7 +17,14 @@
 
 	let { data } = $props();
 
-	const { form, errors, enhance: formEnhance, delayed, allErrors, message } = superForm(data.form);
+	const {
+		form,
+		errors,
+		enhance: formEnhance,
+		delayed,
+		allErrors,
+		message
+	} = superForm(untrack(() => data.form));
 
 	$effect(() => {
 		if (!$message) return;
@@ -23,18 +34,26 @@
 
 	const creator = $derived(data.creator);
 
-	const countryItems = data.reference.countries.map((c) => ({
-		value: c.id,
-		name: `${c.flag} ${c.name}`
-	}));
+	const countryItems = $derived(
+		data.reference.countries.map((c) => ({
+			value: c.id,
+			name: `${c.flag} ${c.name}`
+		}))
+	);
 	const regionItems = $derived(
 		data.reference.regions
 			.filter((r) => !$form.countryId || r.countryId === $form.countryId)
 			.map((r) => ({ value: r.id, name: r.name }))
 	);
-	const platformItems = data.reference.platforms.map((p) => ({ value: p.id, name: p.name }));
-	const categoryItems = data.reference.categories.map((c) => ({ value: c.id, name: c.name }));
-	const languageItems = data.reference.languages.map((l) => ({ value: l.id, name: l.name }));
+	const platformItems = $derived(
+		data.reference.platforms.map((p) => ({ value: p.id, name: p.name }))
+	);
+	const categoryItems = $derived(
+		data.reference.categories.map((c) => ({ value: c.id, name: c.name }))
+	);
+	const languageItems = $derived(
+		data.reference.languages.map((l) => ({ value: l.id, name: l.name }))
+	);
 	const currencyItems = ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'].map(
 		(c) => ({ value: c, name: c })
 	);
@@ -45,8 +64,6 @@
 	]);
 
 	/* CheckboxComp works in strings; the schema coerces back to numbers. */
-	const categoryStrings = $derived(($form.categoryIds ?? []).map(String));
-	const languageStrings = $derived(($form.languageIds ?? []).map(String));
 
 	const blockers = $derived.by(() => {
 		const list: string[] = [];
@@ -56,8 +73,8 @@
 		return list;
 	});
 
-	const publishHandler = () => {
-		return async ({ result, update }: any) => {
+	const publishHandler: SubmitFunction = () => {
+		return async ({ result, update }) => {
 			if (result.type === 'failure') toast.error(result.data?.message ?? m.pf_could_not_publish());
 			else if (result.type === 'success') {
 				toast.success(creator.isPublished ? m.pf_hidden_toast() : m.pf_live_toast());
@@ -74,7 +91,7 @@
 		{#snippet actions()}
 			{#if creator.isPublished}
 				<a
-					href="/creators/{creator.username}"
+					href={resolve(`/creators/${creator.username}`)}
 					target="_blank"
 					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-white px-4 py-2.5 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50"
 				>
@@ -244,66 +261,23 @@
 				/>
 			</div>
 
-			<div class="space-y-1 pt-2">
-				<span class="text-xs font-black text-slate-900">{m.pf_categories()}</span>
-				<p class="text-[11px] font-medium text-slate-500">
-					{m.pf_categories_note()}
-				</p>
-				<div class="flex flex-wrap gap-2 pt-1">
-					{#each categoryItems as item (item.value)}
-						{@const selected = categoryStrings.includes(String(item.value))}
-						<label
-							class="cursor-pointer rounded-xl border-2 px-3 py-1.5 text-xs font-black transition-all {selected
-								? 'border-slate-900 bg-[#dcfce7] text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]'
-								: 'border-slate-300 bg-white text-slate-600 hover:border-slate-900'}"
-						>
-							<input
-								type="checkbox"
-								name="categoryIds"
-								value={item.value}
-								checked={selected}
-								onchange={(e) => {
-									const id = Number(item.value);
-									$form.categoryIds = e.currentTarget.checked
-										? [...($form.categoryIds ?? []), id]
-										: ($form.categoryIds ?? []).filter((v) => v !== id);
-								}}
-								class="sr-only"
-							/>
-							{item.name}
-						</label>
-					{/each}
-				</div>
-			</div>
+			<ChipSelect
+				{form}
+				{errors}
+				name="categoryIds"
+				label={m.pf_categories()}
+				hint={m.pf_categories_note()}
+				items={categoryItems}
+			/>
 
-			<div class="space-y-1 pt-2">
-				<span class="text-xs font-black text-slate-900">{m.pf_working_languages()}</span>
-				<div class="flex flex-wrap gap-2 pt-1">
-					{#each languageItems as item (item.value)}
-						{@const selected = languageStrings.includes(String(item.value))}
-						<label
-							class="cursor-pointer rounded-xl border-2 px-3 py-1.5 text-xs font-black transition-all {selected
-								? 'border-slate-900 bg-[#e0e7ff] text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]'
-								: 'border-slate-300 bg-white text-slate-600 hover:border-slate-900'}"
-						>
-							<input
-								type="checkbox"
-								name="languageIds"
-								value={item.value}
-								checked={selected}
-								onchange={(e) => {
-									const id = Number(item.value);
-									$form.languageIds = e.currentTarget.checked
-										? [...($form.languageIds ?? []), id]
-										: ($form.languageIds ?? []).filter((v) => v !== id);
-								}}
-								class="sr-only"
-							/>
-							{item.name}
-						</label>
-					{/each}
-				</div>
-			</div>
+			<ChipSelect
+				{form}
+				{errors}
+				name="languageIds"
+				label={m.pf_working_languages()}
+				items={languageItems}
+				selectedClass="bg-[#e0e7ff]"
+			/>
 
 			<button
 				type="submit"

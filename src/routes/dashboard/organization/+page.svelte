@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
@@ -11,7 +12,9 @@
 
 	let { data } = $props();
 
-	const { form, errors, enhance, delayed, allErrors, message } = superForm(data.form);
+	const { form, errors, enhance, delayed, allErrors, message } = superForm(
+		untrack(() => data.form)
+	);
 
 	$effect(() => {
 		if (!$message) return;
@@ -19,10 +22,12 @@
 		else toast.success($message.text);
 	});
 
-	const countryItems = data.reference.countries.map((c) => ({
-		value: c.id,
-		name: `${c.flag} ${c.name}`
-	}));
+	const countryItems = $derived(
+		data.reference.countries.map((c) => ({
+			value: c.id,
+			name: `${c.flag} ${c.name}`
+		}))
+	);
 
 	const orgTypes = $derived([
 		{ value: 'company', name: m.og_type_company() },

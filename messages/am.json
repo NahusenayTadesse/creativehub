@@ -1346,5 +1346,18 @@
 	"vf_title": "ማረጋገጫ",
 	"vf_what_verify": "ምን እንዲረጋገጥ ይፈልጋሉ?",
 	"vf_your_cases": "የእርስዎ ጉዳዮች",
-	"view_profile": "መገለጫ ይመልከቱ"
+	"view_profile": "መገለጫ ይመልከቱ",
+	"err_unexpected": "በእኛ በኩል የሆነ ችግር ተከስቷል።",
+	"err_title_404": "ገጹ አልተገኘም",
+	"err_body_404": "ይህ አገናኝ ወደ የትም አይመራም። ተዛውሮ ወይም ተወግዶ ሊሆን ይችላል።",
+	"err_title_403": "ፈቃድ የለዎትም",
+	"err_body_403": "መለያዎ ወደዚህ ገጽ የመድረስ ፈቃድ የለውም።",
+	"err_title_generic": "የሆነ ችግር ተከስቷል",
+	"err_body_generic": "ይህን ማጠናቀቅ አልቻልንም። እንደገና መሞከር ብዙ ጊዜ ይሠራል፤ ካልሆነ ከታች ያለው ማመሳከሪያ እንድናገኘው ይረዳናል።",
+	"err_reference": "ማመሳከሪያ",
+	"err_go_home": "ወደ መነሻ ገጽ ተመለስ",
+	"err_go_dashboard": "ወደ ዳሽቦርድ ተመለስ",
+	"err_status": "ስህተት {status}",
+	"srv_upload_content_mismatch": "ይህ ፋይል የሚለው ዓይነት ምስል አይደለም። እንደገና አስቀምጠው ይሞክሩ።",
+	"au_role_label": "ሚና"
 }

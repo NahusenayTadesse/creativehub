@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import type { SuperValidated } from 'sveltekit-superforms';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
@@ -15,16 +17,27 @@
 		id,
 		/** Shown in the confirmation so an admin can see what they are removing. */
 		name = ''
-	}: { data: any; action?: string; id: number; name?: string } = $props();
+	}: {
+		data: SuperValidated<Record<string, unknown>>;
+		action?: string;
+		id: number;
+		name?: string;
+	} = $props();
 
-	const formId = `del-${id}`;
+	/*
+	 * All three reads happen once, and correctly so: `crud-section` renders these
+	 * inside `{#each rows as record (record.id)}`, so a given instance is bound
+	 * to one row for its whole life. `untrack` says that out loud rather than
+	 * leaving the compiler to warn about it.
+	 */
+	const formId = untrack(() => `del-${id}`);
 
-	const { form, enhance, delayed, message, allErrors } = superForm(data, {
-		resetForm: false,
-		id: formId
-	});
+	const { form, enhance, delayed, message, allErrors } = superForm(
+		untrack(() => data),
+		{ resetForm: false, id: formId }
+	);
 
-	$form.id = id;
+	$form.id = untrack(() => id);
 
 	let open = $state(false);
 

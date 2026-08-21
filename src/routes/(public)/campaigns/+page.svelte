@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import { page } from '$app/state';
 	import { Search, Plus, Briefcase, Ticket, Gift, Globe } from '@lucide/svelte';
@@ -20,6 +21,10 @@
 		withParams(page.url, { market: id === 'all' ? null : id });
 
 	const countFor = (type: string) => data.typeCounts[type] ?? 0;
+
+	/* The type facet excludes only the type filter, so this is "briefs in the
+	   market currently chosen" — which is what the tile above the type chips
+	   means. The market chips need a different number; see below. */
 	const totalBriefs = $derived(Object.values(data.typeCounts).reduce((sum, n) => sum + n, 0));
 
 	const canApply = $derived(Boolean(data.creatorId));
@@ -52,7 +57,7 @@
 
 		{#if data.user?.role === 'business' || data.user?.role === 'admin'}
 			<a
-				href="/dashboard/campaigns"
+				href={resolve('/dashboard/campaigns')}
 				class="flex shrink-0 items-center gap-2 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-slate-800"
 			>
 				<Plus class="h-4 w-4 text-emerald-400" />
@@ -154,7 +159,7 @@
 					? 'bg-emerald-600 text-white'
 					: 'bg-white text-slate-800 hover:bg-slate-100'}"
 			>
-				{m.campaigns_all_markets({ count: totalBriefs })}
+				{m.campaigns_all_markets({ count: data.allMarketsTotal })}
 			</a>
 			{#each data.reference.countries.slice(0, 6) as country (country.id)}
 				<a

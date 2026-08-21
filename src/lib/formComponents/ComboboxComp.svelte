@@ -27,22 +27,11 @@
 		name: string;
 	};
 
-	const selectedValue = $derived(items.find((f) => f.value === value)?.name);
-
-	// const triggerContent = $derived(
-	// 	items.find((f: Item) => f.value === value)?.name ??
-	// 		'Select ' + name.replace(/([a-z])([A-Z])/g, '$1 $2')
-	// );
-	//
+	/* Compared as strings: a select posts "1" and the form may hold 1. */
 	const triggerContent = $derived(
-		// Use String coercion to ensure "1" matches 1
 		items.find((f: Item) => String(f.value) === String(value))?.name ??
 			m.form_select_placeholder({ field: name.replace(/([a-z])([A-Z])/g, '$1 $2') })
 	);
-
-	function getNameByValue(items: Item[], value: string | number): string | undefined {
-		return items.find((item) => item.value === value)?.name.replace(/([a-z])([A-Z])/g, '$1 $2');
-	}
 	// We want to refocus the trigger button when the user selects
 	// an item from the list so users can continue navigating the
 	// rest of the form with the keyboard.
@@ -52,7 +41,6 @@
 			triggerRef.focus();
 		});
 	}
-	$inspect(value, items);
 </script>
 
 <Popover.Root bind:open>
@@ -86,7 +74,7 @@
 					{m.form_none_found({ field: name.replace(/([a-z])([A-Z])/g, '$1 $2') })}
 				</Command.Empty>
 				<Command.Group>
-					{#each items as item}
+					{#each items as item (item.value)}
 						<Command.Item
 							value={item.name}
 							keywords={[item.name]}

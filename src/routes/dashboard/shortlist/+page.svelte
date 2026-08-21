@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
@@ -7,13 +9,13 @@
 	import NoResults from '$lib/components/no-results.svelte';
 	import SearchInput from '$lib/components/search-input.svelte';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
-	import { Bookmark, Star, MapPin, Award, X } from '@lucide/svelte';
+	import { Bookmark, Star, Award, X } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
 
 	let { data } = $props();
 
-	const removeHandler = () => {
-		return async ({ result, update }: any) => {
+	const removeHandler: SubmitFunction = () => {
+		return async ({ result, update }) => {
 			if (result.type === 'success') toast.success(m.discover_removed_toast());
 			await update();
 		};
@@ -26,7 +28,7 @@
 	<PageHeader eyebrow={m.dashb_eyebrow()} title={m.sl_title()} description={m.sl_description()}>
 		{#snippet actions()}
 			<a
-				href="/discover"
+				href={resolve('/discover')}
 				class="rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 			>
 				{m.sl_find_more()}
@@ -59,10 +61,14 @@
 									src={entry.avatar ?? ''}
 									alt=""
 									class="h-11 w-11 rounded-2xl border-2 border-slate-900 object-cover"
+									loading="lazy"
+									decoding="async"
+									width="44"
+									height="44"
 								/>
 								<div class="min-w-0">
 									<a
-										href="/creators/{entry.username}"
+										href={resolve(`/creators/${entry.username}`)}
 										class="block truncate text-sm font-black text-slate-900 hover:text-emerald-600"
 									>
 										{entry.fullName}
@@ -141,7 +147,7 @@
 							</span>
 						</div>
 						<a
-							href="/creators/{entry.username}"
+							href={resolve(`/creators/${entry.username}`)}
 							class="rounded-xl border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
 						>
 							{m.sl_book()}
