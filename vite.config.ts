@@ -56,6 +56,23 @@ export default defineConfig({
 	],
 
 	/**
+	 * Everything the server bundle needs, inside the server bundle.
+	 *
+	 * The deploy ships `build/` and nothing else — there are no `node_modules`
+	 * on the server — so a dependency Vite decides to leave as a bare import is
+	 * a 500 the moment a route touches it, and only that route. That is exactly
+	 * how it went unnoticed: `@internationalized/date` reaches the server bundle
+	 * through the date pickers inside `InputComp`, so every signed-in form page
+	 * was failing while the public pages, which had no `InputComp`, were fine.
+	 *
+	 * `scripts/verify-build.ts` fails the build if any bare specifier survives,
+	 * so the next one cannot reach production the same quiet way.
+	 */
+	ssr: {
+		noExternal: ['@internationalized/date', 'browser-image-compression']
+	},
+
+	/**
 	 * Unit tests.
 	 *
 	 * Two projects, because they need opposite environments. `domain` is pure

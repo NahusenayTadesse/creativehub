@@ -65,6 +65,13 @@ jobs:
           ORIGIN: http://localhost:3000
           BETTER_AUTH_SECRET: ci-secret-not-used-for-anything-real-0000
 
+      # The deploy ships `build/` with no `node_modules` beside it, so a bare
+      # import that survives bundling is a 500 on every route that reaches it —
+      # and on no others, which is how one sat in production unnoticed. A green
+      # build does not catch that; this does.
+      - name: Verify the build is self-contained
+        run: npm run verify:build
+
   e2e:
     name: end to end
     runs-on: ubuntu-latest

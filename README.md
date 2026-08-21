@@ -288,6 +288,19 @@ build in another, and the end-to-end suite against MariaDB in a third — which 
 also the only place the migrations are proved to apply to an empty database
 before a deploy does it.
 
+## Deploying
+
+`build/` is shipped on its own — there are no `node_modules` on the server — so
+every dependency has to be _inside_ the bundle. Vite does not do that by
+default: `ssr.noExternal` in `vite.config.ts` names the ones it would otherwise
+leave as bare imports, and `npm run verify:build` fails if any survive.
+
+That check exists because the failure is so quiet. `@internationalized/date`
+reached the server bundle through the date pickers inside `InputComp`, so every
+signed-in form page returned 500 while the public pages, which had no
+`InputComp`, served fine — a green build, a healthy homepage, and half the app
+down. Run `verify:build` before shipping; CI runs it too.
+
 ## Operations
 
 | Route          | For                                                                                                         |
@@ -331,6 +344,7 @@ operator and the interface says so rather than implying money has moved. The
 | ----------------------- | ------------------------------------------------------------ |
 | `npm run dev`           | Dev server                                                   |
 | `npm run build`         | Production build (node adapter)                              |
+| `npm run verify:build`  | Fail if `build/` imports anything absent on the server       |
 | `npm run check`         | svelte-check                                                 |
 | `npm run lint`          | prettier + eslint                                            |
 | `npm run format`        | prettier --write                                             |
