@@ -317,27 +317,32 @@ type SeedCreator = {
 const img = (id: string, w = 800) =>
 	`https://images.unsplash.com/photo-${id}?auto=format&fit=crop&q=80&w=${w}`;
 
-/** Opening slides for the homepage gallery. Admins edit these in the dashboard. */
+/**
+ * Opening slides for the homepage gallery. Admins edit these in the dashboard.
+ * The artwork ships with the app under `static/gallery/`, so these are
+ * root-relative paths rather than uploads: `assetUrl` passes them straight
+ * through.
+ */
 const GALLERY_SLIDES = [
 	{
 		title: 'Africa’s creators, one marketplace',
 		subtitle:
 			'Verified reach, published rate cards and agreements that hold — from Addis to Lagos.',
-		image: img('1522202176988-66273c2fd55f', 1600),
+		image: '/gallery/marketplace.webp',
 		linkUrl: '/discover',
 		linkLabel: 'Browse creators'
 	},
 	{
 		title: 'Brief once, hear from the right creators',
 		subtitle: 'Post a campaign and let matching handle the shortlist instead of your inbox.',
-		image: img('1552664730-d307ca884978', 1600),
+		image: '/gallery/briefs.webp',
 		linkUrl: '/campaigns',
 		linkLabel: 'See live briefs'
 	},
 	{
 		title: 'Get paid for the work you already do',
 		subtitle: 'Set your prices, show your numbers and take bookings without the back and forth.',
-		image: img('1516251193007-45ef944ab0c6', 1600),
+		image: '/gallery/earnings.webp',
 		linkUrl: '/register',
 		linkLabel: 'Join as a creator'
 	}
