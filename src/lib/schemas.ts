@@ -68,7 +68,27 @@ export const linesOf = (value: string | null | undefined): string[] =>
 		.filter(Boolean);
 const rate = z.coerce.number().min(0).max(100).default(0);
 
-const CURRENCIES = ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'] as const;
+/* Every currency the `countries` table can carry, including the ones the
+   imported African supply prices in (see scripts/import-creators.ts). A code
+   missing here is rejected by the admin forms even though the column accepts
+   it, which is how a creator ends up unsavable. */
+const CURRENCIES = [
+	'ETB',
+	'KES',
+	'NGN',
+	'ZAR',
+	'GHS',
+	'RWF',
+	'EGP',
+	'UGX',
+	'TZS',
+	'MAD',
+	'XOF',
+	'XAF',
+	'AED',
+	'GBP',
+	'USD'
+] as const;
 const currency = z.enum(CURRENCIES).default('ETB');
 
 const VERIFICATION_LEVELS = [

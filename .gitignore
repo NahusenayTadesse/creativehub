@@ -29,3 +29,6 @@ project.inlang/cache/
 
 # Seeded sign-in details — not for the repository
 ACCOUNTS.md
+
+# Regenerated from the CSV by `npm run import:creators`
+scripts/data/creators-import.json

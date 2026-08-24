@@ -11,7 +11,7 @@ export type Rate = { code: string; symbol: string; flag: string; usdRate: number
 const FALLBACK: Rate = { code: 'USD', symbol: '$', flag: '🇺🇸', usdRate: 1, name: 'US Dollar' };
 
 /** Currencies that conventionally show no minor units in this product. */
-const ZERO_DECIMAL = new Set(['ETB', 'KES', 'NGN', 'RWF', 'UGX', 'TZS']);
+const ZERO_DECIMAL = new Set(['ETB', 'KES', 'NGN', 'RWF', 'UGX', 'TZS', 'XOF', 'XAF']);
 
 export function buildRates(
 	countries: {
