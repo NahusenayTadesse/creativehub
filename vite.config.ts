@@ -38,7 +38,15 @@ export default defineConfig({
 					'img-src': ['self', 'data:', 'blob:', 'https:'],
 					'font-src': ['self', 'data:'],
 					'connect-src': ['self'],
-					'form-action': ['self'],
+					/*
+					 * `accounts.google.com` because the Google sign-in button is a
+					 * real form post: it submits to this origin, and the action
+					 * answers with a 303 to Google's consent screen. Browsers apply
+					 * `form-action` to the *redirect target* of a submission as well
+					 * as the action URL, so `self` alone silently kills the button —
+					 * the POST succeeds and the navigation is blocked.
+					 */
+					'form-action': ['self', 'https://accounts.google.com'],
 					'frame-ancestors': ['none'],
 					'base-uri': ['self'],
 					'object-src': ['none']

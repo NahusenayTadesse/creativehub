@@ -12,11 +12,54 @@ import { db } from '$lib/server/db';
 export const ROLES = ['creator', 'business', 'admin'] as const;
 export type Role = (typeof ROLES)[number];
 
+/**
+ * Whether "Continue with Google" is on.
+ *
+ * The credentials are read once, at start-up, and a provider is only registered
+ * when both halves are present: a provider configured with `undefined` still
+ * produces a button, and that button fails at Google with an error the reader
+ * cannot act on. The login page asks this flag before drawing anything, so an
+ * environment without the pair simply has no Google button.
+ */
+const googleClientId = env.GOOGLE_CLIENT_ID;
+const googleClientSecret = env.GOOGLE_SECRET;
+export const googleEnabled = Boolean(googleClientId && googleClientSecret);
+
 export const auth = betterAuth({
 	baseURL: env.ORIGIN,
 	secret: env.BETTER_AUTH_SECRET,
 	database: drizzleAdapter(db, { provider: 'mysql' }),
 	emailAndPassword: { enabled: true },
+	/**
+	 * Google's redirect lands on `${ORIGIN}/api/auth/callback/google` — that is
+	 * the URI to register as an authorised redirect in the Google console, and
+	 * `ORIGIN` has to match it exactly, scheme and port included.
+	 *
+	 * Account linking is left at better-auth's default, which refuses to attach
+	 * a Google identity to an existing local account whose email is unverified.
+	 * This app has no email-verification step, so in practice *every* local
+	 * account is unverified and the refusal always applies: someone who signed
+	 * up with a password keeps signing in with that password. That is the safe
+	 * direction. Linking on an unverified local email is the account
+	 * pre-hijacking attack — register a password account under someone else's
+	 * address, wait for them to arrive through Google, and the two of you are
+	 * now in the same account with only one of you aware of it. The login page
+	 * turns the resulting `?error=account_not_linked` into an explanation.
+	 */
+	socialProviders:
+		googleClientId && googleClientSecret
+			? { google: { clientId: googleClientId, clientSecret: googleClientSecret } }
+			: {},
+	/**
+	 * Where an OAuth callback goes when it fails.
+	 *
+	 * `signInSocial` already asks for `/login` per handshake, but that choice is
+	 * carried *inside* the state, so a callback that fails before the state is
+	 * read — tampered, replayed, or simply arriving ten minutes late — cannot
+	 * reach it. Those land here instead of on better-auth's bare error page, and
+	 * the login page turns the `?error=` into a sentence like any other.
+	 */
+	onAPIError: { errorURL: '/login' },
 	/**
 	 * A ceiling on how fast anyone can talk to the auth endpoints.
 	 *
@@ -42,6 +85,9 @@ export const auth = betterAuth({
 			   who has forgotten which password they used, and far less than a
 			   dictionary. */
 			'/sign-in/email': { window: 60, max: 10 },
+			/* Starting an OAuth handshake is cheap here and expensive at Google;
+			   ten a minute is well past a person retrying a cancelled consent. */
+			'/sign-in/social': { window: 60, max: 10 },
 			/* Account farming, and the cost of hashing a password on every call. */
 			'/sign-up/email': { window: 600, max: 5 },
 			'/forget-password': { window: 600, max: 5 },
