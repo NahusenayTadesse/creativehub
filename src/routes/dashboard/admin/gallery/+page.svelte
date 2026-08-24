@@ -22,20 +22,6 @@
 			placeholder: m.gal_visible_hint()
 		}
 	]);
-
-	/*
-	 * The picker is left empty on edit: an empty file field means "keep the
-	 * stored image", and the current one is shown next to it as a preview.
-	 */
-	const editValues = (slide: Record<string, unknown>) => ({
-		id: slide.id,
-		title: slide.title,
-		subtitle: slide.subtitle ?? '',
-		linkUrl: slide.linkUrl ?? '',
-		linkLabel: slide.linkLabel ?? '',
-		sortOrder: slide.sortOrder,
-		isActive: slide.isActive
-	});
 </script>
 
 <svelte:head><title>{m.gal_meta_title()}</title></svelte:head>
@@ -48,7 +34,6 @@
 	rows={data.rows}
 	list={data.list}
 	{fields}
-	{editValues}
 	fileFields={['image']}
 	nameKey="title"
 	emptyMessage={m.gal_empty()}

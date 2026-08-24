@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+	avatarUrlOf,
 	categoriesFor,
 	mapCreatorRow,
 	mapCreatorRows,
@@ -107,7 +108,52 @@ describe('categoriesFor', () => {
 	});
 });
 
+describe('avatarUrlOf', () => {
+	it('reads the column the newer export uses', () => {
+		expect(avatarUrlOf({ 'Avatar / Profile Image URL': 'https://unavatar.io/tiktok/x' })).toBe(
+			'https://unavatar.io/tiktok/x'
+		);
+	});
+
+	it('still reads the name the first export used', () => {
+		expect(avatarUrlOf({ 'Avatar URL': 'https://example.test/a.jpg' })).toBe(
+			'https://example.test/a.jpg'
+		);
+	});
+
+	it('prefers the newer column when a row somehow carries both', () => {
+		expect(
+			avatarUrlOf({
+				'Avatar / Profile Image URL': 'https://unavatar.io/tiktok/x',
+				'Avatar URL': 'https://example.test/old.jpg'
+			})
+		).toBe('https://unavatar.io/tiktok/x');
+	});
+
+	it('falls through an empty newer column to the older one', () => {
+		expect(
+			avatarUrlOf({
+				'Avatar / Profile Image URL': '  ',
+				'Avatar URL': 'https://example.test/a.jpg'
+			})
+		).toBe('https://example.test/a.jpg');
+	});
+
+	it('is null when there is no avatar at all', () => {
+		expect(avatarUrlOf({})).toBeNull();
+		expect(avatarUrlOf({ 'Avatar / Profile Image URL': '' })).toBeNull();
+	});
+});
+
 describe('mapCreatorRow', () => {
+	it('takes the avatar from the renamed column', () => {
+		const mapped = mapCreatorRow(
+			row({ 'Avatar URL': '', 'Avatar / Profile Image URL': 'https://unavatar.io/tiktok/kmoney' }),
+			0
+		);
+		expect(mapped.creator.avatar).toBe('https://unavatar.io/tiktok/kmoney');
+	});
+
 	it('fills the creators row from the CSV', () => {
 		const { creator } = mapCreatorRow(row(), 0);
 		expect(creator).toMatchObject({

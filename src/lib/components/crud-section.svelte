@@ -76,6 +76,11 @@
 		/* Default: every field on the form, with JSON arrays flattened to lines. */
 		const values: Record<string, any> = { id: record.id };
 		for (const field of fields) {
+			/* A picker is always left empty, which is what "keep the stored file"
+			   looks like on the wire. Prefilling it with the stored name would
+			   post that name back as if it were an upload. The current file is
+			   shown beside the picker instead — see `existingFor`. */
+			if (fileFields.includes(field.name)) continue;
 			const value = record[field.name];
 			values[field.name] = Array.isArray(value) ? value.join('\n') : (value ?? '');
 		}

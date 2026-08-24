@@ -32,3 +32,7 @@ ACCOUNTS.md
 
 # Regenerated from the CSV by `npm run import:creators`
 scripts/data/creators-import.json
+
+# Uploaded and downloaded files — user content, not source. `FILES_DIR` points
+# here by default; the server keeps its own copy.
+/.tempFiles

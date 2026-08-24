@@ -39,6 +39,7 @@ const FILE_COLUMNS: [table: string, column: string][] = [
 	['gallery_slides', 'image'],
 	['verification_requests', 'document_url'],
 	['creators', 'avatar'],
+	['creators', 'cover'],
 	['organizations', 'logo'],
 	['portfolio_items', 'url'],
 	['social_accounts', 'profile_url']

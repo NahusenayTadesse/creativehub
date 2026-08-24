@@ -48,6 +48,32 @@ const optionalUrl = z
 	.default('')
 	/* A site-relative path is also allowed here: these columns hold uploads too. */
 	.refine((v) => !v || v.startsWith('/') || isHttpUrl(v), { error: () => m.val_full_url() });
+
+/**
+ * A column that holds a picture, however it got there.
+ *
+ * The value is either a freshly picked `File` or a string: an absolute URL, a
+ * site-relative path, or the bare file name an earlier upload was stored under.
+ * `contentCrud` saves a `File` and drops the string, which is what keeps an
+ * edit that never touched the picker from wiping the stored picture.
+ *
+ * The bare-name case is why this exists rather than `optionalUrl`: that one
+ * insists on a `/` or a scheme, and would reject the very name `saveUploadedFile`
+ * just handed back.
+ */
+const uploadOrUrl = z
+	.union([
+		z.instanceof(File),
+		z
+			.string()
+			.trim()
+			.max(500)
+			.refine((v) => !v || v.startsWith('/') || isHttpUrl(v) || !v.includes(':'), {
+				error: () => m.val_full_url()
+			})
+	])
+	.optional()
+	.default('');
 const money = z.coerce
 	.number()
 	.int()
@@ -202,8 +228,8 @@ export const creatorAdd = z.object({
 		.regex(/^[a-z0-9_.]+$/, { error: () => m.val_handle_format() }),
 	fullName: name(),
 	bio: optionalText,
-	avatar: optionalUrl,
-	cover: optionalUrl,
+	avatar: uploadOrUrl,
+	cover: uploadOrUrl,
 	countryId: optionalRefId,
 	regionId: optionalRefId,
 	city: z.string().trim().max(120).optional().default(''),
@@ -228,8 +254,8 @@ export const creatorSelfEdit = z.object({
 	id: z.coerce.number(),
 	fullName: name(),
 	bio: optionalText,
-	avatar: optionalUrl,
-	cover: optionalUrl,
+	avatar: uploadOrUrl,
+	cover: uploadOrUrl,
 	countryId: optionalRefId,
 	regionId: optionalRefId,
 	city: z.string().trim().max(120).optional().default(''),
@@ -595,30 +621,10 @@ export const settingsSchema = z.object({
  * Homepage gallery
  * ------------------------------------------------------------------ */
 
-/**
- * The image is either a freshly uploaded `File` or a string: an absolute URL
- * an admin pasted, or the file name already stored on the row. `contentCrud`
- * saves a `File` and drops the string, which is what keeps an edit that does
- * not touch the picker from wiping the existing picture.
- */
-const slideImage = z
-	.union([
-		z.instanceof(File),
-		z
-			.string()
-			.trim()
-			.max(500)
-			.refine((v) => !v || v.startsWith('/') || isHttpUrl(v) || !v.includes(':'), {
-				error: () => m.val_full_url()
-			})
-	])
-	.optional()
-	.default('');
-
 const gallerySlideFields = {
 	title: name(180),
 	subtitle: optionalText,
-	image: slideImage,
+	image: uploadOrUrl,
 	linkUrl: optionalUrl,
 	linkLabel: z.string().trim().max(80).optional().default(''),
 	isActive: active,

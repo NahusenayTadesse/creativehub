@@ -210,9 +210,30 @@
 
 			<InputComp {form} {errors} label={m.pf_bio()} name="bio" type="textarea" rows={4} />
 
+			<!--
+				Pickers, not URL boxes. The picker posts empty unless something new
+				was chosen, and an empty one means "keep what is stored" — so the
+				stored file is handed over as `image` to be previewed beside it.
+			-->
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-				<InputComp {form} {errors} label={m.pf_avatar_url()} name="avatar" type="text" />
-				<InputComp {form} {errors} label={m.pf_cover_url()} name="cover" type="text" />
+				<InputComp
+					{form}
+					{errors}
+					label={m.pf_avatar()}
+					name="avatar"
+					type="file"
+					placeholder={m.pf_avatar_hint()}
+					image={creator.avatar ?? ''}
+				/>
+				<InputComp
+					{form}
+					{errors}
+					label={m.pf_cover()}
+					name="cover"
+					type="file"
+					placeholder={m.pf_cover_hint()}
+					image={creator.cover ?? ''}
+				/>
 			</div>
 
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">

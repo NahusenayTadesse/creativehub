@@ -14,8 +14,8 @@
 		{ name: 'fullName', label: m.ac_full_name(), required: true },
 		{ name: 'username', label: m.pc_handle(), required: true },
 		{ name: 'bio', label: m.pf_bio(), type: 'textarea', rows: 4 },
-		{ name: 'avatar', label: m.ac_avatar_url() },
-		{ name: 'cover', label: m.ac_cover_url() },
+		{ name: 'avatar', label: m.ac_avatar(), type: 'file', placeholder: m.ac_avatar_hint() },
+		{ name: 'cover', label: m.ac_cover(), type: 'file', placeholder: m.ac_cover_hint() },
 		{
 			name: 'countryId',
 			label: m.pf_country(),
@@ -112,6 +112,7 @@
 	addForm={data.addForm}
 	editForm={data.editForm}
 	deleteForm={data.deleteForm}
+	fileFields={['avatar', 'cover']}
 	nameKey="fullName"
 	emptyMessage={m.ac_empty()}
 >

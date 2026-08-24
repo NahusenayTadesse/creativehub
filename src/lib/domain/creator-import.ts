@@ -21,7 +21,18 @@ import { calculateScore } from './score';
 
 export type CsvRow = Record<string, string>;
 
-/** The header this mapping was written against. A changed export fails loudly. */
+/**
+ * The columns this mapping reads. A changed export fails loudly rather than
+ * silently mapping every creator to an empty string.
+ *
+ * Columns the export has gained are not listed and are not an error: the
+ * `with_avatars` revision added `ID`, `Africa Region` and `Niche`, and none of
+ * them reaches the schema. `ID` is the spreadsheet's own key, `Africa Region`
+ * is a macro-region above the country while `regions` here hang *below* one,
+ * and `Niche` is the same text `Bio / Focus` already carries — the categories
+ * come out identical from either, so reading it would be a second path to the
+ * same answer.
+ */
 export const EXPECTED_COLUMNS = [
 	'Name',
 	'Country',
@@ -43,13 +54,30 @@ export const EXPECTED_COLUMNS = [
 	'Starting Price',
 	'Currency',
 	'Pricing Status',
-	'Avatar URL',
 	'Cover URL',
 	'Primary Profile URL',
 	'Source URL',
 	'Source Updated',
 	'Notes'
 ] as const;
+
+/**
+ * What the avatar column has been called, newest first.
+ *
+ * The `with_avatars` revision renamed `Avatar URL` to `Avatar / Profile Image
+ * URL`. Both are accepted because both files are real: the rename is not worth
+ * invalidating an export someone still has on disk.
+ */
+export const AVATAR_COLUMNS = ['Avatar / Profile Image URL', 'Avatar URL'] as const;
+
+/** The avatar link, under whichever header this export used for it. */
+export function avatarUrlOf(row: CsvRow): string | null {
+	for (const column of AVATAR_COLUMNS) {
+		const value = (row[column] ?? '').trim();
+		if (value) return value;
+	}
+	return null;
+}
 
 /* ------------------------------------------------------------------ *
  * Reference data the CSV implies
@@ -561,7 +589,7 @@ export function mapCreatorRow(row: CsvRow, index: number): ImportedCreator {
 		});
 	}
 
-	const avatar = (row['Avatar URL'] ?? '').trim() || null;
+	const avatar = avatarUrlOf(row);
 	const cover = (row['Cover URL'] ?? '').trim() || null;
 	/* The focus sentence only. `Notes` reads as an operator's margin note —
 	   "exact YT handle not exposed", "included for culinary content, not

@@ -7,6 +7,8 @@ import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { requireCreator, recordAudit } from '$lib/server/guards';
+import { saveUploadedFile } from '$lib/server/upload';
+import { uploadErrorText } from '$lib/server/crud';
 import { creatorSelfEdit } from '$lib/schemas';
 import { getReferenceData } from '$lib/server/queries';
 import { refreshCreatorScore } from '$lib/server/score-service';
@@ -42,8 +44,8 @@ export const load: PageServerLoad = async (event) => {
 		id: creator.id,
 		fullName: creator.fullName,
 		bio: creator.bio ?? '',
-		avatar: creator.avatar ?? '',
-		cover: creator.cover ?? '',
+		/* The two pickers stay empty: the stored files are previewed beside them
+		   rather than prefilled into them, and an empty picker posts as "keep". */
 		countryId: creator.countryId ?? undefined,
 		regionId: creator.regionId ?? undefined,
 		city: creator.city ?? '',
@@ -72,6 +74,30 @@ export const actions: Actions = {
 		const form = await superValidate(event.request, zod4(creatorSelfEdit));
 		if (!form.valid) {
 			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
+		}
+
+		/*
+		 * A picture only moves when a new file was actually picked. An empty
+		 * picker leaves the column alone, which is what lets a creator edit their
+		 * city without losing the avatar they uploaded last week.
+		 */
+		let pictures: { avatar?: string; cover?: string };
+		try {
+			pictures = Object.fromEntries(
+				await Promise.all(
+					(['avatar', 'cover'] as const)
+						.map((field) => [field, form.data[field]] as const)
+						.filter(([, value]) => value instanceof File && value.size > 0)
+						.map(async ([field, value]) => [field, await saveUploadedFile(value as File)])
+				)
+			);
+		} catch (error) {
+			/* A rejected type or an oversized file is the creator's mistake to fix,
+			   not a 500. `uploadErrorText` is what the managed tables answer with,
+			   so the wording is the same wherever an upload is refused. */
+			const text = uploadErrorText(error);
+			if (!text) throw error;
+			return message(form, { type: 'error', text }, { status: 400 });
 		}
 
 		/*
@@ -106,8 +132,7 @@ export const actions: Actions = {
 				.set({
 					fullName: form.data.fullName,
 					bio: form.data.bio,
-					avatar: form.data.avatar || null,
-					cover: form.data.cover || null,
+					...pictures,
 					countryId: form.data.countryId ?? null,
 					regionId: form.data.regionId ?? null,
 					city: form.data.city,

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { assetUrl } from '$lib/assets';
 	import { placeholderImage, type PlaceholderKind } from '$lib/domain/placeholder';
 
 	/**
@@ -44,12 +45,21 @@
 	const fallback = $derived(placeholderImage(kind, seed || label || alt, label || alt));
 
 	/**
+	 * An image column holds either a link or the bare name an upload was stored
+	 * under, and `assetUrl` turns the second into the `/files/<name>` path that
+	 * serves it. Doing it here rather than at each call site is the point of
+	 * this component: a page that writes `src={creator.avatar}` cannot get it
+	 * wrong, and one that forgets is not left rendering a filename as a URL.
+	 */
+	const url = $derived(assetUrl(src));
+
+	/**
 	 * The `src` that failed, rather than a boolean: a card recycled onto a new
 	 * creator gets a new `src`, and that one deserves its own attempt.
 	 */
 	let failed = $state<string | null>(null);
 
-	const resolved = $derived(src && src !== failed ? src : fallback);
+	const resolved = $derived(url && url !== failed ? url : fallback);
 
 	let element = $state<HTMLImageElement | null>(null);
 
@@ -63,7 +73,7 @@
 	 * from one still in flight, so check for it once the element exists.
 	 */
 	$effect(() => {
-		if (element && element.complete && element.naturalWidth === 0 && src) failed = src;
+		if (element && element.complete && element.naturalWidth === 0 && url) failed = url;
 	});
 </script>
 
@@ -72,6 +82,6 @@
 	src={resolved}
 	{alt}
 	class={className}
-	onerror={() => (failed = src ?? null)}
+	onerror={() => (failed = url || null)}
 	{...rest}
 />

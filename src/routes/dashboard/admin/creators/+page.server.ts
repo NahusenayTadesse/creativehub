@@ -16,6 +16,9 @@ const crud = contentCrud({
 	addSchema: creatorAdd,
 	editSchema: creatorEdit,
 	listFields: ['topCountries'],
+	/* Scraped avatars mostly resolve to nothing, so an operator needs to be able
+	   to put a real picture on a profile without leaving the dashboard. */
+	fileFields: ['avatar', 'cover'],
 	excludeDeleted: true,
 	/* Actions run before any `load`, so the admin layout guard cannot cover them. */
 	guard: (event) => requireRole(event, 'admin')

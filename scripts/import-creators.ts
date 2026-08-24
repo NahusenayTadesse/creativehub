@@ -42,6 +42,7 @@ import { drizzle } from 'drizzle-orm/mysql2';
 import { and, eq } from 'drizzle-orm';
 import * as t from '../src/lib/server/db/schema';
 import {
+	AVATAR_COLUMNS,
 	EXPECTED_COLUMNS,
 	IMPORT_COUNTRIES,
 	mapCreatorRows,
@@ -61,7 +62,9 @@ const flag = (name: string): string | undefined =>
 		.slice(1)
 		.join('=');
 
-const csvPath = resolve(flag('file') ?? 'african_creator_influencers_132 - Creators.csv');
+const csvPath = resolve(
+	flag('file') ?? 'african_creator_influencers_132_with_avatars - Creators.csv'
+);
 const jsonPath = resolve(flag('json') ?? 'scripts/data/creators-import.json');
 const limit = Number(flag('limit') ?? 0);
 const write = args.includes('--write');
@@ -109,7 +112,12 @@ function readCsv(path: string): CsvRow[] {
 		skipEmptyLines: true
 	});
 
-	const missing = EXPECTED_COLUMNS.filter((column) => !parsed.meta.fields?.includes(column));
+	const fields = parsed.meta.fields ?? [];
+	const missing = EXPECTED_COLUMNS.filter((column) => !fields.includes(column));
+	/* The avatar column has had two names; either satisfies the guard. */
+	if (!AVATAR_COLUMNS.some((column) => fields.includes(column))) {
+		missing.push(AVATAR_COLUMNS.join(' or '));
+	}
 	if (missing.length) {
 		throw new Error(`${path} is missing expected columns: ${missing.join(', ')}`);
 	}
