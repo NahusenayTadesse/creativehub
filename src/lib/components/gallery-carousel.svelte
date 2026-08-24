@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import type { CarouselAPI } from '$lib/components/ui/carousel/context.js';
 	import { assetUrl } from '$lib/assets';
@@ -74,9 +75,11 @@
 							class="relative h-[260px] overflow-hidden rounded-3xl border-2 border-slate-900 bg-slate-900 shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] sm:h-[340px] lg:h-[420px]"
 						>
 							<!-- The first slide sits at the top of the page, so it is not deferred. -->
-							<img
+							<AppImage
 								src={assetUrl(slide.image)}
 								alt={slide.title}
+								kind="cover"
+								seed={slide.title}
 								loading={index === 0 ? 'eager' : 'lazy'}
 								class="h-full w-full object-cover"
 								decoding="async"

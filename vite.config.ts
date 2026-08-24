@@ -26,7 +26,16 @@ export default defineConfig({
 					'default-src': ['self'],
 					'script-src': ['self'],
 					'style-src': ['self', 'unsafe-inline'],
-					'img-src': ['self', 'data:', 'blob:'],
+					/*
+					 * `https:` rather than a host list: creator avatars, covers and
+					 * portfolio items are URLs from rows — scraped profiles, imports,
+					 * whatever an operator pastes — so no fixed set of hosts covers
+					 * them. The cost is that a row can point a viewer's browser at any
+					 * https host, which leaks that viewer's IP to it. Nothing is
+					 * executed: `img-src` only governs images, and `AppImage` draws a
+					 * placeholder for whatever fails to arrive.
+					 */
+					'img-src': ['self', 'data:', 'blob:', 'https:'],
 					'font-src': ['self', 'data:'],
 					'connect-src': ['self'],
 					'form-action': ['self'],

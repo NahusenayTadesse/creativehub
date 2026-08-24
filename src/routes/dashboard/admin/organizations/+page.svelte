@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
@@ -73,9 +74,12 @@
 	{#snippet row(org)}
 		<div class="space-y-3">
 			<div class="flex items-start gap-3">
-				<img
-					src={org.logo ?? ''}
+				<AppImage
+					src={org.logo}
 					alt=""
+					kind="logo"
+					seed={org.slug ?? org.name}
+					label={org.name}
 					class="h-10 w-10 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
 					loading="lazy"
 					decoding="async"

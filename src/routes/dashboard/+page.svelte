@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import type { BookingRow, ApplicationRow } from '$lib/server/queries';
 	import type { ResolvedPathname } from '$app/types';
 	import { resolve } from '$app/paths';
@@ -346,9 +347,12 @@
 							href={resolve(`/dashboard/bookings/${booking.id}`)}
 							class="flex items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-3 transition-colors hover:border-slate-900"
 						>
-							<img
-								src={booking.creatorAvatar ?? booking.organizationLogo ?? ''}
+							<AppImage
+								src={booking.creatorAvatar ?? booking.organizationLogo}
 								alt=""
+								kind="avatar"
+								seed={booking.reference ?? booking.title}
+								label={booking.creatorName ?? booking.organizationName}
 								class="h-9 w-9 shrink-0 rounded-xl border border-slate-900 object-cover"
 								loading="lazy"
 								decoding="async"
@@ -395,9 +399,12 @@
 			<ul class="space-y-2">
 				{#each applications as application (application.id)}
 					<li class="flex items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-3">
-						<img
-							src={application.creatorAvatar ?? ''}
+						<AppImage
+							src={application.creatorAvatar}
 							alt=""
+							kind="avatar"
+							seed={application.creatorName ?? application.campaignTitle}
+							label={application.creatorName}
 							class="h-9 w-9 shrink-0 rounded-xl border border-slate-900 object-cover"
 							loading="lazy"
 							decoding="async"

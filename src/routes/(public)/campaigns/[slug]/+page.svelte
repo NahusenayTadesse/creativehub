@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { superForm } from 'sveltekit-superforms';
@@ -105,9 +106,11 @@
 	<div class="bento-card bento-card-static space-y-4">
 		<div class="flex flex-wrap items-start justify-between gap-4">
 			<div class="flex items-center gap-3">
-				<img
-					src={campaign.organizationLogo ?? ''}
+				<AppImage
+					src={campaign.organizationLogo}
 					alt={campaign.organizationName}
+					kind="logo"
+					seed={campaign.organizationName}
 					class="h-14 w-14 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 					loading="lazy"
 					decoding="async"

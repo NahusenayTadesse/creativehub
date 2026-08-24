@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
@@ -57,9 +58,12 @@
 					<div class="space-y-3">
 						<div class="flex items-start justify-between gap-2">
 							<div class="flex items-center gap-3">
-								<img
-									src={entry.avatar ?? ''}
+								<AppImage
+									src={entry.avatar}
 									alt=""
+									kind="avatar"
+									seed={entry.username}
+									label={entry.fullName}
 									class="h-11 w-11 rounded-2xl border-2 border-slate-900 object-cover"
 									loading="lazy"
 									decoding="async"

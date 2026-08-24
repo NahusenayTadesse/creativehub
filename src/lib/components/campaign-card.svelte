@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import type { CampaignCard } from '$lib/server/queries';
 	import { resolve } from '$app/paths';
 	import { Calendar, Users, Send, CircleCheckBig } from '@lucide/svelte';
@@ -38,9 +39,11 @@
 		<!-- Brand row -->
 		<div class="mb-4 flex items-start justify-between gap-3">
 			<div class="flex items-center gap-3">
-				<img
-					src={campaign.organizationLogo ?? ''}
+				<AppImage
+					src={campaign.organizationLogo}
 					alt={campaign.organizationName}
+					kind="logo"
+					seed={campaign.organizationName}
 					loading="lazy"
 					class="h-12 w-12 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 					decoding="async"

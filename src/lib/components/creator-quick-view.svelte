@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import type { CreatorCard } from '$lib/server/queries';
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
@@ -21,15 +22,15 @@
 	<Dialog.Content class="w-lg! max-w-[95vw]! p-0!">
 		{#if creator}
 			<div class="relative h-28 border-b-2 border-slate-900 bg-slate-100">
-				{#if creator.cover}
-					<img
-						src={creator.cover}
-						alt=""
-						class="h-full w-full object-cover"
-						loading="lazy"
-						decoding="async"
-					/>
-				{/if}
+				<AppImage
+					src={creator.cover}
+					alt=""
+					kind="cover"
+					seed={creator.username}
+					class="h-full w-full object-cover"
+					loading="lazy"
+					decoding="async"
+				/>
 				<div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent"></div>
 				<div
 					class="absolute top-2.5 left-2.5 flex items-center gap-1 rounded-xl border border-slate-900 bg-slate-900 px-2.5 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_0px_rgba(16,185,129,1)]"
@@ -41,9 +42,12 @@
 
 			<div class="space-y-4 p-6 pt-4">
 				<div class="flex items-start gap-3">
-					<img
-						src={creator.avatar ?? ''}
+					<AppImage
+						src={creator.avatar}
 						alt={creator.fullName}
+						kind="avatar"
+						seed={creator.username}
+						label={creator.fullName}
 						class="-mt-10 h-16 w-16 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 						loading="lazy"
 						decoding="async"

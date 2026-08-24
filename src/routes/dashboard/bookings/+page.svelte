@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import { resolve } from '$app/paths';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
@@ -91,9 +92,12 @@
 				>
 					<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div class="flex min-w-0 items-center gap-3">
-							<img
-								src={booking.creatorAvatar ?? ''}
+							<AppImage
+								src={booking.creatorAvatar}
 								alt=""
+								kind="avatar"
+								seed={booking.reference}
+								label={booking.creatorName}
 								class="h-11 w-11 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
 								loading="lazy"
 								decoding="async"

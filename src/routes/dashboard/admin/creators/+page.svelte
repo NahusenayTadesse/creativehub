@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import { resolve } from '$app/paths';
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
@@ -126,9 +127,12 @@
 		<div class="space-y-3">
 			<div class="flex items-start justify-between gap-2">
 				<div class="flex min-w-0 items-center gap-3">
-					<img
-						src={creator.avatar ?? ''}
+					<AppImage
+						src={creator.avatar}
 						alt=""
+						kind="avatar"
+						seed={creator.username}
+						label={creator.fullName}
 						class="h-10 w-10 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
 						loading="lazy"
 						decoding="async"

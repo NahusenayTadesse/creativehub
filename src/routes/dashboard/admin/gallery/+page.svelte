@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
 	import { assetUrl } from '$lib/assets';
@@ -61,9 +62,11 @@
 				class="relative h-32 overflow-hidden rounded-2xl border-2 border-slate-900 bg-slate-100 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 			>
 				{#if slide.image}
-					<img
+					<AppImage
 						src={assetUrl(slide.image)}
 						alt={slide.title}
+						kind="cover"
+						seed={slide.title}
 						class="h-full w-full object-cover"
 						loading="lazy"
 						decoding="async"

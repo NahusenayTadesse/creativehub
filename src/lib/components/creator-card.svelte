@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { MapPin, Star, Heart, Award, Eye } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
@@ -32,15 +33,15 @@
 	<div>
 		<!-- Cover with score, save and quick-view controls -->
 		<div class="relative h-28 border-b-2 border-slate-900 bg-slate-100">
-			{#if creator.cover}
-				<img
-					src={creator.cover}
-					alt=""
-					loading="lazy"
-					class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-					decoding="async"
-				/>
-			{/if}
+			<AppImage
+				src={creator.cover}
+				alt=""
+				kind="cover"
+				seed={creator.username}
+				loading="lazy"
+				class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+				decoding="async"
+			/>
 			<div
 				class="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-black/20"
 			></div>
@@ -88,9 +89,12 @@
 
 			<div class="absolute -bottom-5 left-4">
 				<div class="relative">
-					<img
-						src={creator.avatar ?? ''}
+					<AppImage
+						src={creator.avatar}
 						alt={creator.fullName}
+						kind="avatar"
+						seed={creator.username}
+						label={creator.fullName}
 						loading="lazy"
 						class="h-14 w-14 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 						decoding="async"

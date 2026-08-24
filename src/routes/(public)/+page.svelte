@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import type { ResolvedPathname } from '$app/types';
 	import { resolve } from '$app/paths';
@@ -168,9 +169,12 @@
 
 					{#if hero}
 						<div class="flex items-center gap-3">
-							<img
-								src={hero.avatar ?? ''}
+							<AppImage
+								src={hero.avatar}
 								alt={hero.fullName}
+								kind="avatar"
+								seed={hero.username}
+								label={hero.fullName}
 								class="h-14 w-14 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
 								loading="lazy"
 								decoding="async"

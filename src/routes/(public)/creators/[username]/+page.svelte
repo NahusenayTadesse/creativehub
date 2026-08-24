@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { superForm } from 'sveltekit-superforms';
@@ -170,15 +171,15 @@
 	<!-- ===== Header card ===== -->
 	<div class="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
 		<div class="relative h-48 bg-gray-100 md:h-64">
-			{#if creator.cover}
-				<img
-					src={creator.cover}
-					alt=""
-					class="h-full w-full object-cover"
-					loading="lazy"
-					decoding="async"
-				/>
-			{/if}
+			<AppImage
+				src={creator.cover}
+				alt=""
+				kind="cover"
+				seed={creator.username}
+				class="h-full w-full object-cover"
+				loading="lazy"
+				decoding="async"
+			/>
 			<div class="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent"></div>
 
 			<div class="absolute top-4 right-4 flex items-center gap-2">
@@ -208,9 +209,12 @@
 			>
 				<div class="flex items-end gap-4">
 					<div class="relative">
-						<img
-							src={creator.avatar ?? ''}
+						<AppImage
+							src={creator.avatar}
 							alt={creator.fullName}
+							kind="avatar"
+							seed={creator.username}
+							label={creator.fullName}
 							class="h-24 w-24 rounded-3xl border-4 border-white bg-white object-cover shadow-md md:h-32 md:w-32"
 							loading="lazy"
 							decoding="async"
@@ -482,9 +486,11 @@
 								class="group overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xs"
 							>
 								<div class="relative h-44 bg-gray-100">
-									<img
+									<AppImage
 										src={item.url}
 										alt={item.caption ?? ''}
+										kind="media"
+										seed={`${creator.username}-${item.id}`}
 										loading="lazy"
 										class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
 										decoding="async"

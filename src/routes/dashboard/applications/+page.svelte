@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
@@ -107,9 +108,12 @@
 					<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 						<div class="flex min-w-0 items-start gap-3">
 							{#if !isCreatorView}
-								<img
-									src={application.creatorAvatar ?? ''}
+								<AppImage
+									src={application.creatorAvatar}
 									alt=""
+									kind="avatar"
+									seed={application.creatorUsername ?? application.creatorName}
+									label={application.creatorName}
 									class="h-11 w-11 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
 									loading="lazy"
 									decoding="async"
