@@ -636,6 +636,62 @@ export const claimDecision = z.object({
 /** A claimant taking back their own request. */
 export const claimWithdraw = z.object({ id: refId });
 
+/* ------------------------------------------------------------------ *
+ * Account settings
+ * ------------------------------------------------------------------ */
+
+export const accountDetails = z.object({
+	name: name(180),
+	phone: z.string().trim().max(40).optional().default('')
+});
+
+/**
+ * Changing a password.
+ *
+ * The current one is required even though the session already proves who this
+ * is: a session is something an unattended laptop also has, and this is the
+ * change that would lock the owner out of their own account.
+ */
+export const passwordChange = z
+	.object({
+		currentPassword: z.string().min(1, { error: () => m.val_required() }),
+		newPassword: z.string().min(8, { error: () => m.val_min_8() }),
+		confirm: z.string(),
+		/** Offered, and on by default: a password change is usually a response
+		    to something. */
+		signOutOthers: z.coerce.boolean().default(true)
+	})
+	.refine((data) => data.newPassword === data.confirm, {
+		error: () => m.val_passwords_mismatch(),
+		path: ['confirm']
+	})
+	.refine((data) => data.newPassword !== data.currentPassword, {
+		error: () => m.val_password_unchanged(),
+		path: ['newPassword']
+	});
+
+const pref = z.coerce.boolean().default(false);
+
+/**
+ * Every switch is sent on every save, so an unchecked box has to arrive as
+ * `false` rather than as nothing — which is why these default to `false` and
+ * the form posts a hidden companion for each one.
+ */
+export const notificationPreferences = z.object({
+	dealsEmail: pref,
+	dealsApp: pref,
+	messagesEmail: pref,
+	messagesApp: pref,
+	accountEmail: pref,
+	productEmail: pref
+});
+
+/** Asking us to close the account. The address is typed back as the confirmation. */
+export const closureRequest = z.object({
+	confirmEmail: z.string().trim().max(255),
+	reason: optionalText
+});
+
 export const savedCreatorSchema = z.object({ creatorId: refId });
 
 export const userRoleUpdate = z.object({

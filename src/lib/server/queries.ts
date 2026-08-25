@@ -3,7 +3,7 @@
    builder, whose type widens with each join and so cannot be named. The row
    types these definitions produce are `RowOf<typeof …>` and fully checked. */
 
-import { and, asc, desc, eq, inArray, isNull, like, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, like, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
@@ -1219,6 +1219,75 @@ export async function getLastClaimDecisionFor(userId: string) {
 		.orderBy(desc(t.creatorClaims.id))
 		.limit(1);
 	return rows.at(0);
+}
+
+/* ------------------------------------------------------------------ *
+ * Account settings
+ * ------------------------------------------------------------------ */
+
+/**
+ * This account's preferences, or nothing.
+ *
+ * Nothing is a real answer, not a missing row to repair: `DEFAULT_PREFERENCES`
+ * is what absence means, so sign-up writes no settings row and an account that
+ * never opened the page behaves exactly like one that opened it and changed
+ * nothing.
+ */
+export async function getUserSettings(userId: string) {
+	const rows = await db
+		.select()
+		.from(t.userSettings)
+		.where(eq(t.userSettings.userId, userId))
+		.limit(1);
+	return rows.at(0);
+}
+
+/**
+ * Where this account is currently signed in.
+ *
+ * Expired rows are excluded rather than shown greyed out — a session that can
+ * no longer be used is not something anyone needs to act on, and listing it
+ * only makes the real ones harder to find.
+ */
+export async function listSessionsFor(userId: string) {
+	return (
+		db
+			.select({
+				id: t.session.id,
+				createdAt: t.session.createdAt,
+				updatedAt: t.session.updatedAt,
+				expiresAt: t.session.expiresAt,
+				ipAddress: t.session.ipAddress,
+				userAgent: t.session.userAgent
+			})
+			.from(t.session)
+			.where(and(eq(t.session.userId, userId), gt(t.session.expiresAt, new Date())))
+			/* Most recently used first: the one they are looking for is the one they
+		   do not recognise, and that is usually the freshest. */
+			.orderBy(desc(t.session.updatedAt))
+	);
+}
+
+/**
+ * Whether this account has a password at all.
+ *
+ * An account created through Google has no credential row, so offering it a
+ * "change your password" form would be offering to change nothing. The settings
+ * page says so instead.
+ */
+export async function hasPasswordLogin(userId: string) {
+	const rows = await db
+		.select({ id: t.account.id })
+		.from(t.account)
+		.where(and(eq(t.account.userId, userId), eq(t.account.providerId, 'credential')))
+		.limit(1);
+	return rows.length > 0;
+}
+
+/** Operator accounts, so a closure request reaches somebody. */
+export async function listAdminIds() {
+	const rows = await db.select({ id: t.user.id }).from(t.user).where(eq(t.user.role, 'admin'));
+	return rows.map((row) => row.id);
 }
 
 export const countPendingClaims = async () => {

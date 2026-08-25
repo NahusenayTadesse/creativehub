@@ -126,9 +126,13 @@
 				<span class="text-gray-500">{m.footer_location()}</span>
 			</div>
 
-			<div class="flex items-center gap-1 text-gray-500">
-				<span>{m.footer_built_for()}</span>
-				<Heart class="inline h-3.5 w-3.5 fill-red-500 text-red-500" />
+			<div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-gray-500">
+				<a href={resolve('/terms')} class="hover:text-emerald-400">{m.footer_terms()}</a>
+				<a href={resolve('/privacy')} class="hover:text-emerald-400">{m.footer_privacy()}</a>
+				<span class="flex items-center gap-1">
+					<span>{m.footer_built_for()}</span>
+					<Heart class="inline h-3.5 w-3.5 fill-red-500 text-red-500" />
+				</span>
 			</div>
 		</div>
 	</div>

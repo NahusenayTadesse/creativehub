@@ -281,6 +281,45 @@ re-read at the moment of approval — `creators.userId` is uniquely indexed, and
 claimant who created a profile while waiting would otherwise surface as a driver
 error instead of a refusal.
 
+### The account, as opposed to the profile
+
+`/dashboard/settings` is the account itself — details, password, what reaches
+you, where you are signed in, and how to leave. The public page a creator acts
+through is edited elsewhere, under Profile, and keeping the two apart is what
+stops "settings" becoming a second profile editor.
+
+Preferences live in `user_settings` rather than in better-auth's `user` table,
+which is the library's to shape. A missing row is not a row to repair: it means
+`DEFAULT_PREFERENCES`, so nothing is written at sign-up and an account that
+never opened the page behaves exactly like one that opened it and changed
+nothing.
+
+`domain/notify.ts` holds the policy, and the interesting part of it is what
+cannot be switched off. Security mail is sent whatever anyone has chosen —
+consenting in advance to not being warned is not something a person can
+meaningfully do — and an account decision always appears in the interface,
+because that is how the interface explains itself. Neither is rendered as a
+toggle, which is what keeps the page truthful about what it controls. Email is
+not connected yet; the preferences are stored and the page says so.
+
+Closing an account is a request, not a switch. `user` cascades to
+`organizations`, which cascades to `bookings`, so deleting the row would take
+every deal that organisation ever made with it. An operator unpicks it by hand,
+and until there is mail the request reaches them as a notification.
+
+### Terms and privacy
+
+`/terms` and `/privacy` are ordinary public pages. Two things in them are read
+from site settings rather than written into the prose — the platform fee and
+the support address — so the terms cannot quietly disagree with what the app
+charges.
+
+The privacy page leads with the section that matters most here: most creator
+profiles on this site were compiled from public sources before the person ever
+arrived, and the policy says what is held, why, and that removal is available
+for the asking. The pages are published in English and say so, because a
+mistranslated obligation is worse than an untranslated one.
+
 ### Trending is a policy, not a checkbox
 
 `/dashboard/admin/trending` is where an operator decides what "trending" means.

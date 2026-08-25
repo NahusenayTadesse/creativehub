@@ -759,6 +759,56 @@ export const notifications = mysqlTable(
 );
 
 /**
+ * Per-account preferences, kept out of better-auth's `user` table.
+ *
+ * That table is owned by the auth library and its shape is its business; a
+ * column added there is a column the adapter has to tolerate on every read.
+ * These are ours, so they live here, and a missing row means "the defaults" —
+ * nothing has to be written at sign-up for the account to behave correctly.
+ */
+export const userSettings = mysqlTable('user_settings', {
+	userId: userRef('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+
+	/** Proposals, countered terms, submissions, settlement — the deal itself. */
+	dealsEmail: boolean('deals_email').default(true).notNull(),
+	dealsApp: boolean('deals_app').default(true).notNull(),
+
+	messagesEmail: boolean('messages_email').default(true).notNull(),
+	messagesApp: boolean('messages_app').default(true).notNull(),
+
+	/**
+	 * Verification, claims, and the state of the account itself. Security mail a
+	 * person did not ask for — a password reset, a sign-in from a new device —
+	 * is sent whatever this says: switching off a warning is not a preference
+	 * anyone can meaningfully consent to in advance.
+	 */
+	accountEmail: boolean('account_email').default(true).notNull(),
+
+	/** Anything we send because we want to, rather than because something
+	    happened to them. Off unless asked for. */
+	productEmail: boolean('product_email').default(false).notNull(),
+
+	/**
+	 * When they asked us to close the account, if they have.
+	 *
+	 * A request rather than a switch. `user` cascades to `organizations`, which
+	 * cascades to `bookings`, so deleting the row would take every deal that
+	 * organisation ever made with it — an operator unpicks this by hand, and the
+	 * timestamp is what stops a second request while the first is open.
+	 */
+	closureRequestedAt: timestamp('closure_requested_at', { fsp: 3 }),
+	closureReason: text('closure_reason'),
+
+	createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { fsp: 3 })
+		.defaultNow()
+		.$onUpdate(() => new Date())
+		.notNull()
+});
+
+/**
  * Append-only record of every state change. Nothing here is ever updated or
  * deleted — that is the point (PRD FR-112).
  */

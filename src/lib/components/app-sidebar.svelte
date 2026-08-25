@@ -22,7 +22,8 @@
 		GalleryHorizontal,
 		UserRoundCog,
 		ScrollText,
-		UserRoundCheck
+		UserRoundCheck,
+		SlidersHorizontal
 	} from '@lucide/svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
@@ -45,8 +46,31 @@
 			items: [{ title: m.sb_overview(), url: resolve('/dashboard'), icon: LayoutDashboard }]
 		};
 
+		/*
+		 * Appended to every role rather than repeated in each branch: an account
+		 * is an account whoever holds it, and three copies would drift.
+		 *
+		 * It carries a heading rather than `section: null` because NavMain keys
+		 * its sections by that value, and the overview group is already null —
+		 * two null keys is a duplicate key, which stops the whole dashboard
+		 * hydrating rather than merely looking wrong.
+		 */
+		const withAccount = <T,>(sections: T[]) => [
+			...sections,
+			{
+				section: m.sb_account(),
+				items: [
+					{
+						title: m.sb_settings(),
+						url: resolve('/dashboard/settings'),
+						icon: SlidersHorizontal
+					}
+				]
+			}
+		];
+
 		if (role === 'creator') {
-			return [
+			return withAccount([
 				overview,
 				{
 					section: m.sb_my_work(),
@@ -80,11 +104,11 @@
 						}
 					]
 				}
-			];
+			]);
 		}
 
 		if (role === 'business') {
-			return [
+			return withAccount([
 				overview,
 				{
 					section: m.sb_campaigns(),
@@ -120,11 +144,11 @@
 						}
 					]
 				}
-			];
+			]);
 		}
 
 		/* Admin operator */
-		return [
+		return withAccount([
 			overview,
 			{
 				section: m.sb_operations(),
@@ -193,7 +217,7 @@
 					{ title: m.sb_site_settings(), url: resolve('/dashboard/admin/settings'), icon: Settings }
 				]
 			}
-		];
+		]);
 	});
 
 	const sidebar = useSidebar();

@@ -24,7 +24,45 @@ export default defineConfig({
 				mode: 'auto',
 				directives: {
 					'default-src': ['self'],
-					'script-src': ['self'],
+					/*
+					 * Two hashes, for the two inline scripts this app genuinely needs.
+					 *
+					 * The first is `mode-watcher`'s theme-init script. It runs before
+					 * paint to set the colour scheme, so it has to be inline, and the
+					 * component emits it without a nonce — SvelteKit mints the nonce
+					 * per response and has no way to hand one to a component. Blocked,
+					 * it costs the very thing the script exists for: the theme lands
+					 * after first paint instead of before it. The script embeds
+					 * `ModeWatcher`'s props, so changing `defaultMode` or `track` in the
+					 * root layout changes this hash.
+					 *
+					 * The second is Svelte's event replay hook. Svelte puts
+					 * `onload="this.__e=event"` and `onerror="this.__e=event"` on every
+					 * server-rendered `<img>` — unconditionally, whether or not the
+					 * component declares a handler — so that an event firing before
+					 * hydration can be replayed afterwards. That is what `AppImage`
+					 * relies on to draw a placeholder for an image that failed while
+					 * the page was still parsing. Blocked, it was 96 refusals on a
+					 * single discovery page, which is also enough console noise to bury
+					 * a real one.
+					 *
+					 * `unsafe-hashes` is what lets a hash match an event-handler
+					 * attribute rather than a `<script>` block. It is narrower than it
+					 * sounds: it permits exactly these two strings and nothing else,
+					 * and the second of them stores an event object on an element. It
+					 * does not admit inline script generally.
+					 *
+					 * `e2e/csp.e2e.ts` fails if either hash drifts, rather than leaving
+					 * it to be noticed in a console months later.
+					 */
+					'script-src': [
+						'self',
+						'unsafe-hashes',
+						/* mode-watcher theme init */
+						'sha256-sxV3WjhjHTBOQef3iCo1EqzS6eCRHLGUg+dQjbWXpV0=',
+						/* Svelte event replay: this.__e=event */
+						'sha256-7dQwUgLau1NFCCGjfn9FsYptB6ZtWxJin6VohGIu20I='
+					],
 					'style-src': ['self', 'unsafe-inline'],
 					/*
 					 * `https:` rather than a host list: creator avatars, covers and
