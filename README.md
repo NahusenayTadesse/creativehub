@@ -229,6 +229,28 @@ requests an action and never asserts a state. Three rules are load-bearing:
 Every state change appends to `audit_log`: actor, object, from-state, to-state,
 reason. Nothing in the app updates or deletes that table.
 
+### A deal against a profile nobody has claimed
+
+Imported creators are published before anyone claims them, so a brand can open a
+booking against a person who has no account here. The deal is still written —
+the intent is real — but it opens with `introductionStatus = 'pending'` and
+every surface says what it is: an **Introduction only** badge on the card, quick
+view, shortlist and profile, a notice inside the booking dialog before the offer
+is written, and a banner on the deal itself. Without that, `proposed` reads as
+"waiting on the creator" when no one can answer it.
+
+`/dashboard/admin/introductions` is the queue those land in. An operator moves a
+case `pending → contacted → connected`, or declines it; the transitions live in
+`domain/booking.ts` beside the booking ones and are enforced server-side, a
+decline has to say why, and both steps append to `audit_log`. A declined
+introduction also cancels the deal, through `canTransition` like any other
+lifecycle move — a deal left at `proposed` for someone who will never see it is
+the thing this queue exists to prevent.
+
+`introductionStatus = 'none'` is every ordinary booking, decided once at insert
+from the creator. It is excluded from the queue at every turn, so a crafted
+`?introduction=none` returns nothing rather than the whole bookings table.
+
 ### Trending is a policy, not a checkbox
 
 `/dashboard/admin/trending` is where an operator decides what "trending" means.

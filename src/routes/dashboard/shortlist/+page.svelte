@@ -10,6 +10,7 @@
 	import NoResults from '$lib/components/no-results.svelte';
 	import SearchInput from '$lib/components/search-input.svelte';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
+	import RepresentationBadge from '$lib/components/representation-badge.svelte';
 	import { Bookmark, Star, Award, X } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
 
@@ -94,6 +95,7 @@
 
 						<div class="flex flex-wrap items-center gap-1.5 text-[11px]">
 							<VerificationBadge level={entry.verificationLevel} />
+							<RepresentationBadge claimed={entry.isClaimed} />
 							<span
 								class="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-100 px-2 py-0.5 font-bold text-slate-800"
 							>

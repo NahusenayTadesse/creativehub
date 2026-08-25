@@ -6,6 +6,7 @@
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Star, MapPin, Award, ArrowRight } from '@lucide/svelte';
 	import VerificationBadge from './verification-badge.svelte';
+	import RepresentationBadge from './representation-badge.svelte';
 	import { formatReach } from '$lib/domain/money';
 
 	let { creator = null, onClose }: { creator: CreatorCard | null; onClose: () => void } = $props();
@@ -60,7 +61,10 @@
 						</Dialog.Title>
 						<p class="text-xs font-bold text-slate-500">@{creator.username}</p>
 					</div>
-					<VerificationBadge level={creator.verificationLevel} />
+					<div class="flex shrink-0 flex-col items-end gap-1">
+						<VerificationBadge level={creator.verificationLevel} />
+						<RepresentationBadge claimed={creator.isClaimed} />
+					</div>
 				</div>
 
 				<div class="flex flex-wrap items-center gap-2 text-xs">

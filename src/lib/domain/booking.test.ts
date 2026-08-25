@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
 	bookingReference,
+	canIntroduce,
 	canTransition,
+	introductionIsOpen,
 	splitFee,
 	stepIndex,
-	type BookingStatus
+	type BookingStatus,
+	type IntroductionStatus
 } from './booking';
 
 const ALL: BookingStatus[] = [
@@ -145,5 +148,59 @@ describe('bookingReference', () => {
 	it('does not collide across ten thousand references', () => {
 		const seen = new Set(Array.from({ length: 10_000 }, bookingReference));
 		expect(seen.size).toBe(10_000);
+	});
+});
+
+describe('canIntroduce', () => {
+	const ALL_INTRO: IntroductionStatus[] = ['none', 'pending', 'contacted', 'connected', 'declined'];
+
+	it('walks a case from opened to connected', () => {
+		expect(canIntroduce('pending', 'contacted')).toBe(true);
+		expect(canIntroduce('contacted', 'connected')).toBe(true);
+	});
+
+	it('lets a case be declined at either open step', () => {
+		expect(canIntroduce('pending', 'declined')).toBe(true);
+		expect(canIntroduce('contacted', 'declined')).toBe(true);
+	});
+
+	it('will not skip the contact step', () => {
+		expect(canIntroduce('pending', 'connected')).toBe(false);
+	});
+
+	it('will not reopen a closed case', () => {
+		for (const to of ALL_INTRO) {
+			expect(canIntroduce('connected', to), `connected → ${to}`).toBe(false);
+			expect(canIntroduce('declined', to), `declined → ${to}`).toBe(false);
+		}
+	});
+
+	/* Whether an introduction is needed is decided from the creator at insert.
+	   Nothing may move a case back to "not needed", and an ordinary booking may
+	   not be dragged into the queue by a posted status. */
+	it('will not move an ordinary booking into or out of the queue', () => {
+		for (const to of ALL_INTRO) {
+			expect(canIntroduce('none', to), `none → ${to}`).toBe(false);
+		}
+		for (const from of ALL_INTRO) {
+			expect(canIntroduce(from, 'none'), `${from} → none`).toBe(false);
+		}
+	});
+
+	/* The same Object.prototype hole the query layer and canTransition had. */
+	it('answers false for inherited keys', () => {
+		expect(canIntroduce('__proto__' as IntroductionStatus, 'contacted')).toBe(false);
+		expect(canIntroduce('constructor' as IntroductionStatus, 'contacted')).toBe(false);
+		expect(canIntroduce('toString' as IntroductionStatus, 'contacted')).toBe(false);
+	});
+});
+
+describe('introductionIsOpen', () => {
+	it('is true only while somebody still has to act', () => {
+		expect(introductionIsOpen('pending')).toBe(true);
+		expect(introductionIsOpen('contacted')).toBe(true);
+		expect(introductionIsOpen('connected')).toBe(false);
+		expect(introductionIsOpen('declined')).toBe(false);
+		expect(introductionIsOpen('none')).toBe(false);
 	});
 });

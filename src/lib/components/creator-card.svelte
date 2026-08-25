@@ -4,6 +4,7 @@
 	import { MapPin, Star, Heart, Award, Eye } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
 	import VerificationBadge from './verification-badge.svelte';
+	import RepresentationBadge from './representation-badge.svelte';
 	import type { CreatorCard } from '$lib/server/queries';
 	import { resolve } from '$app/paths';
 
@@ -123,7 +124,10 @@
 					</a>
 					<p class="text-xs font-bold text-slate-500">@{creator.username}</p>
 				</div>
-				<VerificationBadge level={creator.verificationLevel} />
+				<div class="flex shrink-0 flex-col items-end gap-1">
+					<VerificationBadge level={creator.verificationLevel} />
+					<RepresentationBadge claimed={creator.isClaimed} />
+				</div>
 			</div>
 
 			<div class="mt-2 mb-3 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">

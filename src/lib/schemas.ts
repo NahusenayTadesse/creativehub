@@ -599,6 +599,16 @@ export const verificationDecision = z.object({
 	adminNotes: optionalText
 });
 
+/**
+ * An operator recording where an introduction got to. `none` is absent: it is
+ * decided at insert from the creator, never chosen by hand.
+ */
+export const introductionDecision = z.object({
+	id: refId,
+	status: z.enum(['contacted', 'connected', 'declined']),
+	introductionNote: optionalText
+});
+
 export const savedCreatorSchema = z.object({ creatorId: refId });
 
 export const userRoleUpdate = z.object({

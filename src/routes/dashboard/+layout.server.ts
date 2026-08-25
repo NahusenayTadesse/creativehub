@@ -22,17 +22,28 @@ export const load: LayoutServerLoad = async (event) => {
 	const counts: Record<string, number> = {};
 
 	if (role === 'admin') {
-		const [bookings, verifications] = await Promise.all([
+		const [bookings, verifications, introductions] = await Promise.all([
 			db
 				.select({ n: sql<number>`count(*)` })
 				.from(t.bookings)
 				.where(
 					and(isNull(t.bookings.deletedAt), inArray(t.bookings.status, ['submitted', 'revision']))
 				),
-			countPendingVerifications()
+			countPendingVerifications(),
+			/* Deals nobody can answer yet — see /dashboard/admin/introductions. */
+			db
+				.select({ n: sql<number>`count(*)` })
+				.from(t.bookings)
+				.where(
+					and(
+						isNull(t.bookings.deletedAt),
+						inArray(t.bookings.introductionStatus, ['pending', 'contacted'])
+					)
+				)
 		]);
 		counts.bookings = Number(bookings[0]?.n ?? 0);
 		counts.verifications = verifications;
+		counts.introductions = Number(introductions[0]?.n ?? 0);
 	} else if (creator) {
 		const [bookings, applications] = await Promise.all([
 			db

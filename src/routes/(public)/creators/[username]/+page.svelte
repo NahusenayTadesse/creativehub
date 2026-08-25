@@ -18,6 +18,7 @@
 	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
+	import RepresentationBadge from '$lib/components/representation-badge.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
 	import InputComp from '$lib/formComponents/InputComp.svelte';
@@ -235,6 +236,7 @@
 								{creator.fullName}
 							</h1>
 							<VerificationBadge level={creator.verificationLevel} />
+							<RepresentationBadge claimed={creator.isClaimed} />
 						</div>
 						<p class="text-xs font-medium text-gray-500">@{creator.username}</p>
 						<div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600">
@@ -705,6 +707,16 @@
 				{m.profile_book_dialog_body({ firstName: creator.fullName.split(' ')[0] })}
 			</Dialog.Description>
 		</Dialog.Header>
+
+		<!-- Said before the offer is written, not after: what the brand is about
+		     to open against an unclaimed profile is a lead, not a negotiation. -->
+		{#if !creator.isClaimed}
+			<p
+				class="rounded-xl border-2 border-amber-500 bg-amber-50 p-3 text-[11px] font-medium text-slate-800"
+			>
+				{m.profile_book_intro_notice({ firstName: creator.fullName.split(' ')[0] })}
+			</p>
+		{/if}
 
 		<form method="POST" action="?/book" use:enhance class="space-y-3 text-xs">
 			<Errors allErrors={$allErrors} />

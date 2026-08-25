@@ -455,6 +455,17 @@ export const bookingStatusEnum = [
 ] as const;
 
 export const escrowStatusEnum = ['unfunded', 'pending', 'held', 'released', 'refunded'] as const;
+/**
+ * Whether anyone has reached the creator behind an unclaimed profile. `none`
+ * is every ordinary booking; see `domain/booking.ts` for the transitions.
+ */
+export const introductionStatusEnum = [
+	'none',
+	'pending',
+	'contacted',
+	'connected',
+	'declined'
+] as const;
 export const paymentMethodEnum = ['telebirr', 'chapa', 'cbe_birr', 'bank_transfer'] as const;
 
 /** The frozen copy of agreed terms. Written once, never edited (PRD FR-061). */
@@ -504,6 +515,17 @@ export const bookings = mysqlTable(
 		creatorPayout: int('creator_payout').default(0).notNull(),
 		status: mysqlEnum('status', bookingStatusEnum).default('proposed').notNull(),
 		escrowStatus: mysqlEnum('escrow_status', escrowStatusEnum).default('unfunded').notNull(),
+		/*
+		 * Set once, at insert, from whether the creator had claimed their
+		 * profile. A booking against an unclaimed profile is a lead an operator
+		 * has to chase, not a negotiation the creator can answer.
+		 */
+		introductionStatus: mysqlEnum('introduction_status', introductionStatusEnum)
+			.default('none')
+			.notNull(),
+		introductionNote: text('introduction_note'),
+		introducedBy: userRef('introduced_by').references(() => user.id, { onDelete: 'set null' }),
+		introducedAt: timestamp('introduced_at', { fsp: 3 }),
 		paymentMethod: mysqlEnum('payment_method', paymentMethodEnum),
 		paymentRef: varchar('payment_ref', { length: 120 }),
 		deadline: date('deadline', { mode: 'string' }),
@@ -521,7 +543,9 @@ export const bookings = mysqlTable(
 		uniqueIndex('bookings_reference_idx').on(t.reference),
 		index('bookings_creator_idx').on(t.creatorId),
 		index('bookings_org_idx').on(t.organizationId),
-		index('bookings_status_idx').on(t.status)
+		index('bookings_status_idx').on(t.status),
+		/* The operator queue opens on the open cases, so it reads this alone. */
+		index('bookings_introduction_idx').on(t.introductionStatus)
 	]
 );
 

@@ -9,6 +9,7 @@
 	import {
 		ArrowLeft,
 		CircleCheckBig,
+		MailQuestion,
 		Lock,
 		ShieldAlert,
 		Upload,
@@ -227,6 +228,53 @@
 		<ArrowLeft class="h-3.5 w-3.5" />
 		{m.bk_all_bookings()}
 	</a>
+
+	<!--
+		A deal opened against a profile nobody had claimed. Saying so is the
+		point: without it the brand reads `proposed` as "waiting on the creator",
+		when in fact no account exists to answer it yet.
+	-->
+	{#if booking.introductionStatus !== 'none'}
+		{@const settled = booking.introductionStatus === 'connected'}
+		{@const closed = settled || booking.introductionStatus === 'declined'}
+		<div
+			class="flex items-start gap-3 rounded-2xl border-2 p-4 {settled
+				? 'border-emerald-600 bg-emerald-50'
+				: booking.introductionStatus === 'declined'
+					? 'border-slate-400 bg-slate-100'
+					: 'border-amber-500 bg-amber-50'}"
+		>
+			<MailQuestion
+				class="mt-0.5 h-5 w-5 shrink-0 {settled
+					? 'text-emerald-700'
+					: closed
+						? 'text-slate-600'
+						: 'text-amber-700'}"
+			/>
+			<div class="space-y-1">
+				<h2 class="text-xs font-black text-slate-900">
+					{#if settled}
+						{m.bk_intro_connected_title()}
+					{:else if booking.introductionStatus === 'declined'}
+						{m.bk_intro_declined_title()}
+					{:else}
+						{m.bk_intro_title()}
+					{/if}
+				</h2>
+				<p class="text-[11px] font-medium text-slate-700">
+					{#if booking.introductionStatus === 'pending'}
+						{m.bk_intro_pending_body({ creator: booking.creatorName })}
+					{:else if booking.introductionStatus === 'contacted'}
+						{m.bk_intro_contacted_body({ creator: booking.creatorName })}
+					{:else if settled}
+						{m.bk_intro_connected_body({ creator: booking.creatorName })}
+					{:else}
+						{m.bk_intro_declined_body({ creator: booking.creatorName })}
+					{/if}
+				</p>
+			</div>
+		</div>
+	{/if}
 
 	<!-- ===== Header ===== -->
 	<div class="bento-card bento-card-static space-y-4">

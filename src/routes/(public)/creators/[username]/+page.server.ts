@@ -72,6 +72,14 @@ export const actions: Actions = {
 			return message(form, { type: 'error', text: m.srv_unknown_creator() }, { status: 400 });
 		}
 
+		/*
+		 * Nobody is behind an unclaimed profile. The deal is still written — the
+		 * brand's intent is real and losing it helps no one — but it opens as a
+		 * lead an operator has to chase rather than a negotiation the creator
+		 * can answer, and both the queue and the brand's own page say so.
+		 */
+		const needsIntroduction = !creator.isClaimed && creator.userId === null;
+
 		const settings = await getSettings();
 		const { platformFee, creatorPayout } = splitFee(
 			form.data.price,
@@ -99,6 +107,7 @@ export const actions: Actions = {
 				creatorPayout,
 				status: 'proposed',
 				escrowStatus: 'unfunded',
+				introductionStatus: needsIntroduction ? 'pending' : 'none',
 				deadline: form.data.deadline || null,
 				revisionsAllowed: form.data.revisionsAllowed,
 				createdBy: event.locals.user.id
@@ -138,7 +147,9 @@ export const actions: Actions = {
 				entityId: bookingId,
 				action: 'created',
 				toState: 'proposed',
-				reason: 'Direct booking from creator profile'
+				reason: needsIntroduction
+					? 'Direct booking from creator profile — creator unclaimed, introduction queued'
+					: 'Direct booking from creator profile'
 			});
 
 			redirect(303, `/dashboard/bookings/${bookingId}`);

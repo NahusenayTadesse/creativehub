@@ -48,6 +48,39 @@ const TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
 export const canTransition = (from: BookingStatus, to: BookingStatus) =>
 	Object.hasOwn(TRANSITIONS, from) && TRANSITIONS[from].includes(to);
 
+/**
+ * Where an introduction stands.
+ *
+ * A brand may open a deal against an imported profile nobody has claimed. The
+ * booking is real and the brand's intent is real, but there is no account on
+ * the other side to accept, counter or even be notified — so the deal is a
+ * lead until an operator has reached the creator. `none` is every ordinary
+ * booking; the rest are the queue at `/dashboard/admin/introductions`.
+ */
+export type IntroductionStatus = 'none' | 'pending' | 'contacted' | 'connected' | 'declined';
+
+/**
+ * Which outcomes may follow which. `none` is absent on purpose: whether an
+ * introduction is needed is decided once, from the creator, at the moment the
+ * booking is written. An operator moves a case forward; nobody moves it back
+ * to "not needed".
+ */
+const INTRODUCTION_TRANSITIONS: Record<IntroductionStatus, IntroductionStatus[]> = {
+	none: [],
+	pending: ['contacted', 'declined'],
+	contacted: ['connected', 'declined'],
+	connected: [],
+	declined: []
+};
+
+/** Whether `to` may follow `from`. `Object.hasOwn` for the reason above. */
+export const canIntroduce = (from: IntroductionStatus, to: IntroductionStatus) =>
+	Object.hasOwn(INTRODUCTION_TRANSITIONS, from) && INTRODUCTION_TRANSITIONS[from].includes(to);
+
+/** A case an operator has finished with leaves the queue. */
+export const introductionIsOpen = (status: IntroductionStatus) =>
+	status === 'pending' || status === 'contacted';
+
 /** The five steps the pipeline stepper draws, and where a status sits on it. */
 export const pipelineSteps = () =>
 	[

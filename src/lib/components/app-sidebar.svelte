@@ -135,6 +135,12 @@
 						counter: counts.verifications
 					},
 					{
+						title: m.sb_introductions(),
+						url: resolve('/dashboard/admin/introductions'),
+						icon: Handshake,
+						counter: counts.introductions
+					},
+					{
 						title: m.sb_all_bookings(),
 						url: resolve('/dashboard/bookings'),
 						icon: Handshake,

@@ -116,6 +116,9 @@ const creatorCardColumns = {
 	availability: t.creators.availability,
 	isFeatured: t.creators.isFeatured,
 	isTrending: t.creators.isTrending,
+	/* Whether anyone is on the other side of a booking. Read by the
+	   representation badge on every card, quick view and profile. */
+	isClaimed: t.creators.isClaimed,
 	overseasPercentage: t.creators.overseasPercentage,
 	topCountries: t.creators.topCountries,
 	reviewsCount: t.creators.reviewsCount,
@@ -629,6 +632,7 @@ const bookingColumns = {
 	creatorPayout: t.bookings.creatorPayout,
 	status: t.bookings.status,
 	escrowStatus: t.bookings.escrowStatus,
+	introductionStatus: t.bookings.introductionStatus,
 	paymentMethod: t.bookings.paymentMethod,
 	paymentRef: t.bookings.paymentRef,
 	deadline: t.bookings.deadline,
@@ -689,6 +693,54 @@ export const bookingsQuery = defineQuery({
 	defaultSort: 'newest',
 	tiebreaker: t.bookings.id
 });
+
+/**
+ * The introduction queue.
+ *
+ * The same rows as `bookingsQuery`, cut to the deals that opened against a
+ * profile nobody had claimed, and carrying what an operator needs to chase the
+ * creator: the handle and the imported channel, not the deal's money.
+ */
+const introductionColumns = {
+	...bookingColumns,
+	introductionNote: t.bookings.introductionNote,
+	introducedAt: t.bookings.introducedAt,
+	creatorCity: t.creators.city,
+	creatorIsClaimed: t.creators.isClaimed,
+	countryName: t.countries.name,
+	countryFlag: t.countries.flag,
+	platformName: t.platforms.name
+};
+
+export const introductionsQuery = defineQuery({
+	table: t.bookings,
+	columns: introductionColumns,
+	joins: (qb: any) =>
+		qb
+			.innerJoin(t.creators, eq(t.creators.id, t.bookings.creatorId))
+			.innerJoin(t.organizations, eq(t.organizations.id, t.bookings.organizationId))
+			.leftJoin(t.countries, eq(t.countries.id, t.creators.countryId))
+			.leftJoin(t.platforms, eq(t.platforms.id, t.creators.primaryPlatformId)),
+	search: [t.bookings.reference, t.creators.fullName, t.creators.username, t.organizations.name],
+	filters: {
+		introduction: {
+			type: 'enum',
+			column: t.bookings.introductionStatus,
+			values: t.introductionStatusEnum
+		}
+	},
+	sort: {
+		newest: { column: t.bookings.createdAt, direction: 'desc' },
+		oldest: { column: t.bookings.createdAt, direction: 'asc' },
+		value: { column: t.bookings.price, direction: 'desc' }
+	},
+	/* A queue is worked oldest first — the deal that has waited longest is the
+	   one a creator has been unaware of for longest. */
+	defaultSort: 'oldest',
+	tiebreaker: t.bookings.id
+});
+
+export type IntroductionRow = RowOf<typeof introductionColumns>;
 
 export type BookingRow = RowOf<typeof bookingColumns>;
 
@@ -908,6 +960,7 @@ export const savedCreatorsQuery = defineQuery({
 		currencyCode: t.creators.currencyCode,
 		averageRating: t.creators.averageRating,
 		verificationLevel: t.creators.verificationLevel,
+		isClaimed: t.creators.isClaimed,
 		countryFlag: t.countries.flag,
 		countryName: t.countries.name,
 		platformName: t.platforms.name
