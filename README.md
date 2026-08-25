@@ -251,6 +251,36 @@ the thing this queue exists to prevent.
 from the creator. It is excluded from the queue at every turn, so a crafted
 `?introduction=none` returns nothing rather than the whole bookings table.
 
+### Taking over a profile that was imported for you
+
+The introduction queue can reach a creator, but reaching them was only half of
+it: `profile/create` always inserted a new row and rejected a handle that was
+already held, so the one person entitled to an imported profile was the one
+person who could not sign up under its handle. They either got a dead end or a
+second, empty page while the original kept their audience figures.
+
+`creator_claims` is the way across. A claim is a request and grants nothing —
+the only write that attaches an account is an operator approving it, which sets
+`creators.userId` and `isClaimed`. That is deliberate: an imported profile
+carries follower counts, a score and any deals already opened against it, so
+claiming one is an identity claim and goes through the same shape of queue as
+verification, at `/dashboard/admin/claims`. Approving also closes every other
+pending claim on that profile, each with its own note and audit line, because a
+profile can only be handed over once.
+
+Creators reach it two ways. `/dashboard/profile/claim` offers matches for the
+signed-in account, and the public profile carries an **Is this you?** link for
+the person who already knows where their page is. The matcher
+(`domain/claim.ts`) is exact after normalising, never fuzzy, and SQL only casts
+the net: a near-miss would show one stranger another stranger's asking price,
+and someone we fail to guess can still claim from their own page.
+
+One open claim per account, so the queue stays about people rather than one
+person's shortlist and `withdraw` has an unambiguous subject. Both sides are
+re-read at the moment of approval — `creators.userId` is uniquely indexed, and a
+claimant who created a profile while waiting would otherwise surface as a driver
+error instead of a refusal.
+
 ### Trending is a policy, not a checkbox
 
 `/dashboard/admin/trending` is where an operator decides what "trending" means.

@@ -7,7 +7,8 @@
 	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
-	import { ArrowRight } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
+	import { ArrowRight, Hand } from '@lucide/svelte';
 
 	let { data } = $props();
 
@@ -37,6 +38,30 @@
 
 <div class="mx-auto max-w-2xl space-y-6">
 	<PageHeader eyebrow={m.pc_eyebrow()} title={m.pc_title()} description={m.pc_description()} />
+
+	<!-- Offered before the form, not after it: a creator we imported who fills
+	     this in ends up with a second, empty page and no way back to the one
+	     that already carries their audience. -->
+	{#if data.candidates.length}
+		<div class="bento-card bento-card-static space-y-3 border-amber-400!">
+			<h2 class="text-sm font-black text-slate-900">{m.cl_suggestions_title()}</h2>
+			<ul class="space-y-1">
+				{#each data.candidates as candidate (candidate.id)}
+					<li class="text-xs font-bold text-slate-700">
+						{candidate.fullName}
+						<span class="font-medium text-slate-500">@{candidate.username}</span>
+					</li>
+				{/each}
+			</ul>
+			<a
+				href={resolve('/dashboard/profile/claim')}
+				class="inline-flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+			>
+				<Hand class="h-3.5 w-3.5" />
+				{m.cl_choose()}
+			</a>
+		</div>
+	{/if}
 
 	<div class="bento-card bento-card-static">
 		<form method="POST" use:enhance enctype="multipart/form-data" class="space-y-2">
@@ -127,5 +152,16 @@
 				{/if}
 			</button>
 		</form>
+	</div>
+
+	<!-- The way out of "that handle is taken": it is usually the creator's own
+	     imported page holding it. -->
+	<div class="flex justify-center">
+		<a
+			href={resolve('/dashboard/profile/claim')}
+			class="text-xs font-bold text-slate-600 underline hover:text-emerald-700"
+		>
+			{m.cl_title()}
+		</a>
 	</div>
 </div>

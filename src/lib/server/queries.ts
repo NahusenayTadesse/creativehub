@@ -3,11 +3,12 @@
    builder, whose type widens with each join and so cannot be named. The row
    types these definitions produce are `RowOf<typeof …>` and fully checked. */
 
-import { and, asc, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, like, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
-import { defineQuery, type PageResult, type RowOf } from '$lib/server/query';
+import { defineQuery, escapeLike, type PageResult, type RowOf } from '$lib/server/query';
+import { handleFromEmail, looksLikeSamePerson } from '$lib/domain/claim';
 import { getRequestEvent } from '$app/server';
 
 /**
@@ -1032,6 +1033,201 @@ export const verificationQuery = defineQuery({
 });
 
 export const listVerificationRequests = (url: URL) => verificationQuery.run(url);
+
+/**
+ * The queue at /dashboard/admin/claims: people asking for a profile that was
+ * imported before they arrived.
+ *
+ * The joins carry what an operator needs to judge one without leaving the page
+ * — who is asking, which profile, and whether that profile has since been
+ * claimed by somebody else.
+ */
+const claimColumns = {
+	id: t.creatorClaims.id,
+	status: t.creatorClaims.status,
+	evidence: t.creatorClaims.evidence,
+	proofUrl: t.creatorClaims.proofUrl,
+	adminNotes: t.creatorClaims.adminNotes,
+	createdAt: t.creatorClaims.createdAt,
+	reviewedAt: t.creatorClaims.reviewedAt,
+	creatorId: t.creatorClaims.creatorId,
+	creatorName: t.creators.fullName,
+	creatorUsername: t.creators.username,
+	creatorAvatar: t.creators.avatar,
+	creatorIsClaimed: t.creators.isClaimed,
+	creatorReach: t.creators.totalReach,
+	claimantId: t.creatorClaims.claimantId,
+	claimantName: t.user.name,
+	claimantEmail: t.user.email,
+	countryName: t.countries.name,
+	countryFlag: t.countries.flag,
+	platformName: t.platforms.name
+};
+
+export const claimsQuery = defineQuery({
+	table: t.creatorClaims,
+	columns: claimColumns,
+	joins: (qb: any) =>
+		qb
+			.innerJoin(t.creators, eq(t.creators.id, t.creatorClaims.creatorId))
+			.innerJoin(t.user, eq(t.user.id, t.creatorClaims.claimantId))
+			.leftJoin(t.countries, eq(t.countries.id, t.creators.countryId))
+			.leftJoin(t.platforms, eq(t.platforms.id, t.creators.primaryPlatformId)),
+	search: [t.creators.fullName, t.creators.username, t.user.name, t.user.email],
+	filters: {
+		status: { type: 'enum', column: t.creatorClaims.status, values: t.claimStatusEnum }
+	},
+	sort: {
+		oldest: { column: t.creatorClaims.createdAt, direction: 'asc' },
+		newest: { column: t.creatorClaims.createdAt, direction: 'desc' }
+	},
+	/* A queue is worked front to back: the person who has waited longest is the
+	   one the page opens on. */
+	defaultSort: 'oldest',
+	tiebreaker: t.creatorClaims.id
+});
+
+export type ClaimRow = RowOf<typeof claimColumns>;
+
+/** Profiles nobody is behind, and that a claim could therefore be about. */
+const claimable = () =>
+	and(
+		isNull(t.creators.userId),
+		eq(t.creators.isClaimed, false),
+		eq(t.creators.isPublished, true),
+		eq(t.creators.isActive, true),
+		isNull(t.creators.deletedAt)
+	);
+
+/**
+ * Unclaimed profiles that plausibly describe this account.
+ *
+ * Two steps on purpose. SQL casts a wide net — a substring of the first name or
+ * of the email handle — and `looksLikeSamePerson` makes the actual decision, so
+ * the rule that governs what a stranger is shown lives in one place and is unit
+ * tested. Doing the narrowing in SQL as well would mean maintaining the same
+ * rule in two languages, which is how the two versions drift apart.
+ */
+export async function findClaimCandidates(account: { name: string; email: string }) {
+	const handle = handleFromEmail(account.email);
+	const firstName = account.name.trim().split(/\s+/)[0] ?? '';
+
+	const nets: SQL[] = [];
+	/* Single characters would match most of the table and prove nothing. */
+	if (firstName.length >= 2) nets.push(like(t.creators.fullName, `%${escapeLike(firstName)}%`));
+	if (handle.length >= 2) nets.push(like(t.creators.username, `%${escapeLike(handle)}%`));
+	if (!nets.length) return [];
+
+	const rows = await db
+		.select({
+			id: t.creators.id,
+			username: t.creators.username,
+			fullName: t.creators.fullName,
+			avatar: t.creators.avatar,
+			city: t.creators.city,
+			totalReach: t.creators.totalReach,
+			countryName: t.countries.name,
+			countryFlag: t.countries.flag,
+			platformName: t.platforms.name
+		})
+		.from(t.creators)
+		.leftJoin(t.countries, eq(t.countries.id, t.creators.countryId))
+		.leftJoin(t.platforms, eq(t.platforms.id, t.creators.primaryPlatformId))
+		.where(and(claimable(), or(...nets)))
+		/* A bound on the net, not on the answer: the filter below is what decides,
+		   and a name common enough to overflow this will not match it exactly. */
+		.limit(50);
+
+	return rows.filter((row) => looksLikeSamePerson(account, row));
+}
+
+export type ClaimCandidate = Awaited<ReturnType<typeof findClaimCandidates>>[number];
+
+/**
+ * One claimable profile by handle, for the "is this you?" link on a public
+ * page.
+ *
+ * Deliberately not filtered through `looksLikeSamePerson`: the guess is only
+ * there to *offer* profiles to someone who has not found theirs. A creator who
+ * has walked to their own page knows better than the matcher does, and the
+ * decision is an operator's either way.
+ */
+export async function getClaimableByUsername(username: string) {
+	const rows = await db
+		.select({
+			id: t.creators.id,
+			username: t.creators.username,
+			fullName: t.creators.fullName,
+			avatar: t.creators.avatar,
+			city: t.creators.city,
+			totalReach: t.creators.totalReach,
+			countryName: t.countries.name,
+			countryFlag: t.countries.flag,
+			platformName: t.platforms.name
+		})
+		.from(t.creators)
+		.leftJoin(t.countries, eq(t.countries.id, t.creators.countryId))
+		.leftJoin(t.platforms, eq(t.platforms.id, t.creators.primaryPlatformId))
+		.where(and(claimable(), eq(t.creators.username, username)))
+		.limit(1);
+	return rows.at(0);
+}
+
+/**
+ * This account's claim that is still waiting, if it has one.
+ *
+ * One open claim at a time is the rule the claim page enforces. It keeps an
+ * operator's queue about people rather than about one person's shortlist, and
+ * it means "withdraw" always has an unambiguous subject.
+ */
+export async function getOpenClaimFor(userId: string) {
+	const rows = await db
+		.select({
+			id: t.creatorClaims.id,
+			creatorId: t.creatorClaims.creatorId,
+			status: t.creatorClaims.status,
+			createdAt: t.creatorClaims.createdAt,
+			creatorName: t.creators.fullName,
+			creatorUsername: t.creators.username,
+			creatorAvatar: t.creators.avatar
+		})
+		.from(t.creatorClaims)
+		.innerJoin(t.creators, eq(t.creators.id, t.creatorClaims.creatorId))
+		.where(and(eq(t.creatorClaims.claimantId, userId), eq(t.creatorClaims.status, 'pending')))
+		.orderBy(asc(t.creatorClaims.id))
+		.limit(1);
+	return rows.at(0);
+}
+
+/**
+ * The most recent decision on this account's claims, when none is open — so the
+ * page can say what happened rather than silently offering the form again.
+ */
+export async function getLastClaimDecisionFor(userId: string) {
+	const rows = await db
+		.select({
+			id: t.creatorClaims.id,
+			status: t.creatorClaims.status,
+			adminNotes: t.creatorClaims.adminNotes,
+			reviewedAt: t.creatorClaims.reviewedAt,
+			creatorName: t.creators.fullName,
+			creatorUsername: t.creators.username
+		})
+		.from(t.creatorClaims)
+		.innerJoin(t.creators, eq(t.creators.id, t.creatorClaims.creatorId))
+		.where(and(eq(t.creatorClaims.claimantId, userId), eq(t.creatorClaims.status, 'rejected')))
+		.orderBy(desc(t.creatorClaims.id))
+		.limit(1);
+	return rows.at(0);
+}
+
+export const countPendingClaims = async () => {
+	const rows = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(t.creatorClaims)
+		.where(eq(t.creatorClaims.status, 'pending'));
+	return Number(rows[0]?.count ?? 0);
+};
 
 export const usersQuery = defineQuery({
 	table: t.user,

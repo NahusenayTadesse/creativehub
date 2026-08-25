@@ -9,7 +9,7 @@ import * as t from '$lib/server/db/schema';
 import { creatorCreateProfile } from '$lib/schemas';
 import { requireRole, getCreatorFor, recordAudit } from '$lib/server/guards';
 import { refreshCreatorScore } from '$lib/server/score-service';
-import { getReferenceData } from '$lib/server/queries';
+import { findClaimCandidates, getReferenceData } from '$lib/server/queries';
 
 export const load: PageServerLoad = async (event) => {
 	const user = requireRole(event, 'creator', 'admin');
@@ -23,7 +23,18 @@ export const load: PageServerLoad = async (event) => {
 		.toLowerCase()
 		.replace(/[^a-z0-9_.]/g, '');
 
-	return { form, reference: await getReferenceData() };
+	/*
+	 * Supply is imported before creators sign up, so the person filling this in
+	 * may already have a page here — with their audience figures on it, and
+	 * possibly with offers waiting. Offered before the form rather than after,
+	 * because a second profile is not something they can undo themselves.
+	 */
+	const [reference, candidates] = await Promise.all([
+		getReferenceData(),
+		findClaimCandidates({ name: user.name, email: user.email })
+	]);
+
+	return { form, reference, candidates };
 };
 
 export const actions: Actions = {
@@ -44,13 +55,32 @@ export const actions: Actions = {
 		if (already) redirect(303, '/dashboard/profile');
 
 		const taken = await db
-			.select({ id: t.creators.id })
+			.select({
+				id: t.creators.id,
+				userId: t.creators.userId,
+				isClaimed: t.creators.isClaimed,
+				isPublished: t.creators.isPublished,
+				deletedAt: t.creators.deletedAt
+			})
 			.from(t.creators)
 			.where(eq(t.creators.username, form.data.username))
 			.limit(1);
 
-		if (taken.length) {
-			return message(form, { type: 'error', text: m.srv_handle_taken() }, { status: 409 });
+		const owner = taken.at(0);
+		if (owner) {
+			/*
+			 * A handle held by a profile nobody is behind is the common case here,
+			 * not a collision: it is usually this creator's own imported page, and
+			 * "that handle is taken" is a dead end for the one person entitled to
+			 * it. They are pointed at the claim route instead.
+			 */
+			const claimable =
+				owner.userId === null && !owner.isClaimed && owner.isPublished && !owner.deletedAt;
+			return message(
+				form,
+				{ type: 'error', text: claimable ? m.srv_handle_taken_claimable() : m.srv_handle_taken() },
+				{ status: 409 }
+			);
 		}
 
 		let creatorId: number;

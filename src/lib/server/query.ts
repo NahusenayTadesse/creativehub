@@ -231,7 +231,7 @@ export type RunOptions<TRow> = {
 };
 
 /** `%` and `_` are wildcards, and `\` escapes them — none may come from a reader. */
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
+export const escapeLike = (value: string) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
 
 /** `?k=a&k=b` and `?k=a,b` mean the same thing; both arrive here as `['a','b']`. */
 function readValues(params: URLSearchParams, key: string): string[] {

@@ -14,6 +14,7 @@
 		Share2,
 		ArrowLeft,
 		CircleCheckBig,
+		Hand,
 		Loader
 	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
@@ -239,6 +240,17 @@
 							<RepresentationBadge claimed={creator.isClaimed} />
 						</div>
 						<p class="text-xs font-medium text-gray-500">@{creator.username}</p>
+						<!-- The way the person this page describes takes it over. Hidden from
+						     brands, who are the one audience it is certainly not for. -->
+						{#if !creator.isClaimed && !data.canBook}
+							<a
+								href={resolve(`/dashboard/profile/claim?username=${creator.username}`)}
+								class="mt-1 inline-flex items-center gap-1 rounded-lg border border-amber-500 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900 hover:bg-amber-100"
+							>
+								<Hand class="h-3 w-3" />
+								{m.profile_claim_cta()}
+							</a>
+						{/if}
 						<div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600">
 							<span
 								class="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-800"

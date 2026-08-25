@@ -688,6 +688,41 @@ export const verificationRequests = mysqlTable(
 	(t) => [index('verification_status_idx').on(t.status)]
 );
 
+export const claimStatusEnum = ['pending', 'approved', 'rejected', 'withdrawn'] as const;
+
+/**
+ * Somebody asking for an imported profile that describes them.
+ *
+ * The row is a request and nothing more: it grants no access on its own, and
+ * the only write that attaches an account is an operator approving it, which
+ * sets `creators.userId`. That column carries a unique index, so two approved
+ * claims for one account cannot both land however the queue is worked.
+ */
+export const creatorClaims = mysqlTable(
+	'creator_claims',
+	{
+		id: id(),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		/** The account asking. Cascades: a deleted account has no claim to press. */
+		claimantId: userRef('claimant_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		status: mysqlEnum('status', claimStatusEnum).default('pending').notNull(),
+		/** What the claimant offers as proof. Read by an operator, trusted by nothing. */
+		evidence: text('evidence'),
+		/** A link an operator can check: a post, a bio mention, a pinned story. */
+		proofUrl: varchar('proof_url', { length: 500 }),
+		adminNotes: text('admin_notes'),
+		reviewedBy: userRef('reviewed_by').references(() => user.id, { onDelete: 'set null' }),
+		reviewedAt: timestamp('reviewed_at', { fsp: 3 }),
+		...publishable(),
+		...audit()
+	},
+	(t) => [index('claim_status_idx').on(t.status), index('claim_creator_idx').on(t.creatorId)]
+);
+
 export const savedCreators = mysqlTable(
 	'saved_creators',
 	{

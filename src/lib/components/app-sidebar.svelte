@@ -21,7 +21,8 @@
 		Settings,
 		GalleryHorizontal,
 		UserRoundCog,
-		ScrollText
+		ScrollText,
+		UserRoundCheck
 	} from '@lucide/svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
@@ -139,6 +140,12 @@
 						url: resolve('/dashboard/admin/introductions'),
 						icon: Handshake,
 						counter: counts.introductions
+					},
+					{
+						title: m.sb_claims(),
+						url: resolve('/dashboard/admin/claims'),
+						icon: UserRoundCheck,
+						counter: counts.claims
 					},
 					{
 						title: m.sb_all_bookings(),

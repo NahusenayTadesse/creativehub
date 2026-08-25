@@ -609,6 +609,33 @@ export const introductionDecision = z.object({
 	introductionNote: optionalText
 });
 
+/**
+ * Somebody asking for an imported profile that describes them.
+ *
+ * The evidence has a floor because an operator has to be able to check it, and
+ * "this is me" is not something anyone can check. `proofUrl` stays optional:
+ * the strongest proof is often a direct message the operator opens themselves.
+ */
+export const claimRequest = z.object({
+	creatorId: refId,
+	evidence: z
+		.string()
+		.trim()
+		.min(20, { error: () => m.val_claim_evidence() })
+		.max(2000),
+	proofUrl: optionalUrl
+});
+
+/** An operator settling a claim. `pending` and `withdrawn` are not outcomes. */
+export const claimDecision = z.object({
+	id: refId,
+	status: z.enum(['approved', 'rejected']),
+	adminNotes: optionalText
+});
+
+/** A claimant taking back their own request. */
+export const claimWithdraw = z.object({ id: refId });
+
 export const savedCreatorSchema = z.object({ creatorId: refId });
 
 export const userRoleUpdate = z.object({

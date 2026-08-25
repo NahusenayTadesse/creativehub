@@ -3,7 +3,7 @@ import type { LayoutServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { requireUser, getCreatorFor, getOrganizationFor, isAdmin } from '$lib/server/guards';
-import { countPendingVerifications } from '$lib/server/queries';
+import { countPendingClaims, countPendingVerifications } from '$lib/server/queries';
 
 /**
  * Establishes which "side" the signed-in user is acting as, once, for every
@@ -22,7 +22,7 @@ export const load: LayoutServerLoad = async (event) => {
 	const counts: Record<string, number> = {};
 
 	if (role === 'admin') {
-		const [bookings, verifications, introductions] = await Promise.all([
+		const [bookings, verifications, introductions, claims] = await Promise.all([
 			db
 				.select({ n: sql<number>`count(*)` })
 				.from(t.bookings)
@@ -39,11 +39,14 @@ export const load: LayoutServerLoad = async (event) => {
 						isNull(t.bookings.deletedAt),
 						inArray(t.bookings.introductionStatus, ['pending', 'contacted'])
 					)
-				)
+				),
+			/* People asking for a profile we imported — see /dashboard/admin/claims. */
+			countPendingClaims()
 		]);
 		counts.bookings = Number(bookings[0]?.n ?? 0);
 		counts.verifications = verifications;
 		counts.introductions = Number(introductions[0]?.n ?? 0);
+		counts.claims = claims;
 	} else if (creator) {
 		const [bookings, applications] = await Promise.all([
 			db
