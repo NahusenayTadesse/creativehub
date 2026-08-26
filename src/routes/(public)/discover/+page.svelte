@@ -300,7 +300,9 @@
 	<!-- Grid + sidebar -->
 	<div class="grid grid-cols-1 gap-8 lg:grid-cols-4">
 		<!-- Sidebar -->
-		<aside class="bento-card bento-card-static sticky top-24 h-fit space-y-6 p-5 lg:col-span-1">
+		<aside
+			class="bento-card bento-card-static h-fit space-y-6 p-5 lg:sticky lg:top-24 lg:col-span-1"
+		>
 			<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
 				<span
 					class="flex items-center gap-1.5 text-xs font-black tracking-wider text-slate-900 uppercase"

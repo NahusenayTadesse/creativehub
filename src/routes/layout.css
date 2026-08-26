@@ -142,9 +142,13 @@
 	transition: all 0.2s ease-in-out;
 }
 
-.bento-card:hover {
-	box-shadow: 6px 6px 0px 0px rgb(var(--bento-ink));
-	transform: translateY(-2px);
+/* Only where a real pointer can hover: on a touch screen the lift sticks to
+   whatever the finger last brushed, so cards jump around mid-scroll. */
+@media (hover: hover) {
+	.bento-card:hover {
+		box-shadow: 6px 6px 0px 0px rgb(var(--bento-ink));
+		transform: translateY(-2px);
+	}
 }
 
 /* Cards that hold forms or tables should not lift under the cursor. */
@@ -204,9 +208,11 @@
 	transition: all 0.15s ease-in-out;
 }
 
-.bento-btn:hover {
-	transform: translate(-1px, -1px);
-	box-shadow: 4px 4px 0px 0px rgb(var(--bento-ink));
+@media (hover: hover) {
+	.bento-btn:hover {
+		transform: translate(-1px, -1px);
+		box-shadow: 4px 4px 0px 0px rgb(var(--bento-ink));
+	}
 }
 
 .bento-btn:active {

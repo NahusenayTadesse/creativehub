@@ -20,7 +20,9 @@
 		if (!next) onClose();
 	}}
 >
-	<Dialog.Content class="w-lg! max-w-[95vw]! p-0!">
+	<Dialog.Content
+		class="max-h-[88dvh] w-lg! max-w-[95vw]! overflow-x-hidden overflow-y-auto overscroll-contain p-0!"
+	>
 		{#if creator}
 			<div class="relative h-28 border-b-2 border-slate-900 bg-slate-100">
 				<AppImage

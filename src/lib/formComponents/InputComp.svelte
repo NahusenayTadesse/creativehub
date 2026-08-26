@@ -8,7 +8,6 @@
 	import FileUpload from './FileUpload.svelte';
 	import DatePicker2 from './DatePicker2.svelte';
 	import DatePicker from './DatePicker.svelte';
-	import SelectComp from './SelectComp.svelte';
 	import ComboboxComp from './ComboboxComp.svelte';
 	import CheckboxComp from './CheckboxComp.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox';
@@ -220,7 +219,7 @@
 	{:else if type === 'file'}
 		<FileUpload {name} {form} {image} {placeholder} />
 	{:else if type === 'select'}
-		<SelectComp {name} bind:value={asScalar, write} {items} {disabled} />
+		<ComboboxComp {name} bind:value={asScalar, write} {items} {disabled} {required} />
 	{:else if type === 'date'}
 		<DatePicker2 bind:data={asText, write} {oldDays} {year} {futureDays} />
 		<input type="hidden" {name} value={asText()} />
