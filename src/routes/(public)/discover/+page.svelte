@@ -176,11 +176,16 @@
 			</p>
 		</div>
 
-		<div class="flex flex-wrap items-center gap-3 sm:flex-nowrap">
+		<!--
+			Stacked on a phone, side by side from `sm`. Sharing one row at 390px
+			left the search box 131px of actual text area once its two icons took
+			their padding, so its own placeholder did not fit in it.
+		-->
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
 			<SearchInput
 				value={listState.search}
 				placeholder={m.discover_search_placeholder()}
-				class="flex-1 md:w-72"
+				class="w-full sm:flex-1 md:w-72"
 			/>
 
 			<Select.Root
@@ -190,7 +195,7 @@
 					go({ sort: value === 'score' ? null : SORTS[value].sort, dir: SORTS[value].dir ?? null })}
 			>
 				<Select.Trigger
-					class="cursor-pointer rounded-2xl border-2 border-slate-900 bg-white px-3 py-2.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+					class="w-full cursor-pointer rounded-2xl border-2 border-slate-900 bg-white px-3 py-2.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] sm:w-auto"
 				>
 					{sortLabels[sortChoice] ?? sortLabels.score}
 				</Select.Trigger>
@@ -221,7 +226,8 @@
 					</p>
 				</div>
 
-				<div class="flex flex-wrap items-center gap-2">
+				<!-- One column on a phone, so the two controls line up at one width. -->
+				<div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
 					<Select.Root
 						type="single"
 						value={matchCampaignId}
@@ -256,7 +262,7 @@
 							matchOn
 								? go({ sort: null, campaign: null })
 								: go({ sort: 'match', campaign: matchCampaignId })}
-						class="cursor-pointer rounded-xl border-2 px-4 py-2 text-xs font-black transition-colors {matchOn
+						class="w-full cursor-pointer rounded-xl border-2 px-4 py-2 text-xs font-black transition-colors sm:w-auto {matchOn
 							? 'border-slate-900 bg-emerald-500 text-slate-950'
 							: 'border-white bg-transparent text-white hover:bg-white/10'}"
 					>
