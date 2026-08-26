@@ -227,10 +227,19 @@
 						value={matchCampaignId}
 						onValueChange={(value) => go({ campaign: value, sort: 'match' })}
 					>
+						<!--
+							A campaign title is as long as someone made it, and the trigger
+							is `whitespace-nowrap`, so on a narrow phone the text ran past
+							the card and took the whole page sideways with it. It truncates
+							instead, and only asks for its comfortable width once there is
+							room for it.
+						-->
 						<Select.Trigger
-							class="min-w-56 cursor-pointer rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-black text-slate-900"
+							class="w-full max-w-full min-w-0 cursor-pointer rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-black text-slate-900 sm:w-auto sm:min-w-56"
 						>
-							{selectedCampaign?.title ?? m.discover_choose_campaign()}
+							<span class="truncate">
+								{selectedCampaign?.title ?? m.discover_choose_campaign()}
+							</span>
 						</Select.Trigger>
 						<Select.Content>
 							{#each data.campaigns as campaign (campaign.id)}
