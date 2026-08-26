@@ -235,15 +235,19 @@
 					>
 						<!--
 							A campaign title is as long as someone made it, and the trigger
-							is `whitespace-nowrap`, so on a narrow phone the text ran past
-							the card and took the whole page sideways with it. It truncates
-							instead, and only asks for its comfortable width once there is
-							room for it.
+							is `whitespace-nowrap` at a fixed `h-10`, so on a narrow phone
+							the text ran past the card and took the whole page sideways with
+							it. It wraps to two lines instead — you can read which campaign
+							you picked, which is the whole point of the control. Both of
+							those base styles have to be overridden: `h-auto!` because the
+							height is set behind a `data-[size=default]` variant that a plain
+							`h-auto` loses to on specificity, and `min-h-10` to keep the tap
+							target the size it was.
 						-->
 						<Select.Trigger
-							class="w-full max-w-full min-w-0 cursor-pointer rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-black text-slate-900 sm:w-auto sm:min-w-56"
+							class="h-auto! min-h-10 w-full max-w-full min-w-0 cursor-pointer rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-black whitespace-normal text-slate-900 sm:w-auto sm:min-w-56"
 						>
-							<span class="truncate">
+							<span class="line-clamp-2 text-left">
 								{selectedCampaign?.title ?? m.discover_choose_campaign()}
 							</span>
 						</Select.Trigger>
