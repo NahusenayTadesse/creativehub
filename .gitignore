@@ -39,3 +39,9 @@ scripts/data/creators-import.json
 
 # Playwright MCP scratch output
 .playwright-mcp/
+build/
+build.tar.gz
+build.tar
+build.zip
+build*.tar.gz
+build*.zip

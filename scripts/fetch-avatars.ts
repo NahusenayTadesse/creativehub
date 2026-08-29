@@ -5,6 +5,16 @@
  *   npm run fetch:avatars -- --write         # download, store, and link
  *   npm run fetch:avatars -- --write --limit=10
  *   npm run fetch:avatars -- --write --via=digital   # request from that host's IP
+ *   npm run fetch:avatars -- --source=db --write     # ask the database who is missing one
+ *
+ * Two sources, same machinery:
+ *
+ * `--source=csv` (the default) walks the import spreadsheet and fetches the
+ * avatar link it carries. `--source=db` asks the database instead — every
+ * creator whose `avatar` is empty or still points somewhere else, paired with
+ * the best handle they have — and builds the unavatar URL from that. The
+ * database is the honest list once rows have been edited, claimed or imported
+ * from more than one spreadsheet; the CSV only knows about its own 132 rows.
  *
  * Why store them rather than keep the link in the column:
  *
@@ -37,7 +47,7 @@ import { promisify } from 'node:util';
 import Papa from 'papaparse';
 import mysql from 'mysql2/promise';
 import { drizzle } from 'drizzle-orm/mysql2';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import * as t from '../src/lib/server/db/schema';
 import { AVATAR_COLUMNS, mapCreatorRows, type CsvRow } from '../src/lib/domain/creator-import';
 
@@ -62,6 +72,11 @@ const limit = Number(flag('limit') ?? 0);
 const write = args.includes('--write');
 /** An SSH host to make the requests from, when this machine's quota is gone. */
 const via = flag('via');
+/** Where the list of who needs a picture comes from — see the header. */
+const source = flag('source') ?? 'csv';
+if (source !== 'csv' && source !== 'db') {
+	throw new Error(`--source must be csv or db, not "${source}"`);
+}
 
 /**
  * The upload root, by the same rule `serveFile.ts` uses.
@@ -234,11 +249,122 @@ function creatorsWithAvatars() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Read the database: who has no stored picture, and what handle they have
+ * ------------------------------------------------------------------ */
+
+/**
+ * One connection, opened the first time something needs it.
+ *
+ * `--source=db` reads through it and the linking step writes through it, and
+ * against the production database over an ssh tunnel a second pool is a second
+ * set of connections for no reason.
+ */
+let opened: { pool: mysql.Pool; db: ReturnType<typeof drizzle> } | null = null;
+function openDb() {
+	if (opened) return opened;
+	if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
+	const pool = mysql.createPool(process.env.DATABASE_URL);
+	opened = { pool, db: drizzle(pool, { schema: t, mode: 'default' }) };
+	return opened;
+}
+
+/**
+ * `platforms.name` to the unavatar provider that serves it.
+ *
+ * Order is preference, not decoration: a creator with both a TikTok and an
+ * Instagram handle is asked for on TikTok, because `pro` providers cost a
+ * request to be told "paid plan only" and are not asked at all on a free key.
+ * Platforms unavatar has no provider for — LinkedIn — are absent, and their
+ * accounts are skipped rather than guessed at.
+ */
+const UNAVATAR_PROVIDERS: { platform: string; provider: string; pro?: true }[] = [
+	{ platform: 'TikTok', provider: 'tiktok' },
+	{ platform: 'YouTube', provider: 'youtube' },
+	{ platform: 'X', provider: 'twitter' },
+	{ platform: 'Telegram', provider: 'telegram' },
+	{ platform: 'Facebook', provider: 'facebook' },
+	{ platform: 'Instagram', provider: 'instagram', pro: true }
+];
+
+/** Providers the free tier never serves, whatever the handle. */
+const PRO_ONLY = new Set(
+	UNAVATAR_PROVIDERS.filter((entry) => entry.pro).map((entry) => entry.provider)
+);
+
+/**
+ * `fallback=false` is the whole point of asking.
+ *
+ * Without it unavatar always answers 200, with a generated monogram for a handle
+ * it could not resolve. Stored, that would replace `$lib/domain/placeholder.ts` —
+ * which draws the same idea in the site's own colours, offline and for free —
+ * with a worse copy nobody can restyle. With it, an unknown handle is a 404 and
+ * the row is left as it was.
+ */
+function unavatarUrlFor(platform: string, handle: string): string | null {
+	const provider = UNAVATAR_PROVIDERS.find((entry) => entry.platform === platform)?.provider;
+	const bare = handle.trim().replace(/^@/, '');
+	if (!provider || !bare) return null;
+	return `https://unavatar.io/${provider}/${encodeURIComponent(bare)}?fallback=false`;
+}
+
+/**
+ * Creators with no picture of our own, each with their best handle.
+ *
+ * "No picture of our own" is `avatar` empty or still holding a URL: a stored
+ * file is a bare name, so the colon is what separates the two. The rows this
+ * returns are the ones whose visitors see a placeholder, or — worse — a
+ * hotlink to an Instagram CDN URL with an expiry stamp in it.
+ */
+async function creatorsFromDb() {
+	const { db } = openDb();
+	const rows = await db
+		.select({
+			username: t.creators.username,
+			platform: t.platforms.name,
+			handle: t.socialAccounts.handle
+		})
+		.from(t.creators)
+		.innerJoin(t.socialAccounts, eq(t.socialAccounts.creatorId, t.creators.id))
+		.innerJoin(t.platforms, eq(t.platforms.id, t.socialAccounts.platformId))
+		.where(
+			and(
+				isNull(t.creators.deletedAt),
+				isNull(t.socialAccounts.deletedAt),
+				or(isNull(t.creators.avatar), sql`${t.creators.avatar} NOT REGEXP '^[^:]+$'`)
+			)
+		);
+
+	/* Best handle per creator, by the order of UNAVATAR_PROVIDERS. */
+	const rank = (platform: string) => {
+		const at = UNAVATAR_PROVIDERS.findIndex((entry) => entry.platform === platform);
+		return at === -1 ? Number.MAX_SAFE_INTEGER : at;
+	};
+	const best = new Map<string, { username: string; url: string; rank: number }>();
+	for (const row of rows) {
+		const url = unavatarUrlFor(row.platform, row.handle);
+		if (!url) continue;
+		const here = rank(row.platform);
+		const previous = best.get(row.username);
+		if (previous && previous.rank <= here) continue;
+		best.set(row.username, { username: row.username, url, rank: here });
+	}
+
+	/* Sorted so the free providers are tried before the day's quota is spent on
+	   the ones that answer "paid plan only". */
+	return [...best.values()]
+		.sort((a, b) => a.rank - b.rank || a.username.localeCompare(b.username))
+		.map(({ username, url }) => ({ username, url }))
+		.slice(0, limit || undefined);
+}
+
+/* ------------------------------------------------------------------ *
  * Run
  * ------------------------------------------------------------------ */
 
-const wanted = creatorsWithAvatars();
-console.log(`${csvPath}: ${wanted.length} creators with an avatar link`);
+const wanted = source === 'db' ? await creatorsFromDb() : creatorsWithAvatars();
+console.log(
+	`${source === 'db' ? 'database' : csvPath}: ${wanted.length} creators to give a stored avatar`
+);
 console.log(`files → ${FILES_DIR}${write ? '' : '  (dry run — nothing is written)'}\n`);
 
 if (write) mkdirSync(FILES_DIR, { recursive: true });
@@ -248,15 +374,30 @@ const results: { username: string; outcome: Outcome }[] = [];
 let stopped: number | null = null;
 
 /**
- * Providers that have already answered "paid plan only" this run.
+ * What each provider has answered so far this run.
  *
- * The gate is on the provider, not the handle, so the first 403 settles it for
- * every other row on that provider. Asking anyway is not just noise: a refusal
- * still costs a request against the daily cap, and with 102 of the 132 rows on
- * Instagram the cap would be gone long before the fetchable ones came up.
+ * A refusal still costs a request against the daily cap, and Instagram refuses
+ * every handle, so a provider that only ever refuses is dropped for the rest of
+ * the run rather than asked dozens more times.
+ *
+ * It takes REFUSALS_BEFORE_GIVING_UP of them in a row, though, and one success
+ * puts the count back to zero. A 403 is not proof that the provider is paid:
+ * unavatar resolves some handles through a chain, and where the free provider
+ * has nothing it can fall through to a pro one and refuse — for that handle
+ * alone. TikTok does it to a third of the handles here, and they are not spread
+ * out: five in a row refused while the sixth and eleventh answered 200, so a
+ * gate of three or five retired a provider that was mostly working.
+ *
+ * With the genuinely paid providers named `pro` above and never asked, this is
+ * only a backstop against a provider that turns paid without the table being
+ * updated — hence a threshold high enough that no real run reaches it by luck,
+ * and low enough that such a provider cannot eat a whole day's quota.
  */
-const paywalledProviders = new Set<string>();
+const REFUSALS_BEFORE_GIVING_UP = 12;
 const providerOf = (url: string) => url.split('/')[3] ?? '';
+const refusalsInARow = new Map<string, number>();
+const givenUpOn = (provider: string) =>
+	(refusalsInARow.get(provider) ?? 0) >= REFUSALS_BEFORE_GIVING_UP;
 
 for (const { username, url } of wanted) {
 	const existing = alreadyStored(username, onDisk);
@@ -273,7 +414,7 @@ for (const { username, url } of wanted) {
 		results.push({ username, outcome: { state: 'planned' } });
 		continue;
 	}
-	if (paywalledProviders.has(providerOf(url))) {
+	if (PRO_ONLY.has(providerOf(url)) || givenUpOn(providerOf(url))) {
 		results.push({ username, outcome: { state: 'paywalled' } });
 		continue;
 	}
@@ -287,8 +428,13 @@ for (const { username, url } of wanted) {
 		stopped = outcome.retryAfter;
 		break;
 	}
-	if (outcome.state === 'paywalled') paywalledProviders.add(providerOf(url));
-	if (outcome.state === 'stored') onDisk.push(outcome.file);
+	if (outcome.state === 'paywalled') {
+		refusalsInARow.set(providerOf(url), (refusalsInARow.get(providerOf(url)) ?? 0) + 1);
+	}
+	if (outcome.state === 'stored') {
+		refusalsInARow.set(providerOf(url), 0);
+		onDisk.push(outcome.file);
+	}
 	await sleep(DELAY_MS);
 }
 
@@ -307,8 +453,9 @@ if (write) {
 for (const { username, outcome } of by('failed')) {
 	console.log(`    ! ${username}: ${(outcome as { why: string }).why}`);
 }
-if (paywalledProviders.size) {
-	console.log(`    (not asked again for: ${[...paywalledProviders].join(', ')})`);
+const droppedProviders = [...refusalsInARow.keys()].filter(givenUpOn);
+if (droppedProviders.length) {
+	console.log(`    (gave up on: ${droppedProviders.join(', ')})`);
 }
 if (stopped !== null) {
 	/* `--via` reads the body, not the headers, so the wait is often unknown. */
@@ -316,7 +463,8 @@ if (stopped !== null) {
 	const left = wanted.length - results.length;
 	console.log(
 		`\n  rate limited — stopped with ${left} left to try.` +
-			` The quota returns ${when}; re-run then and it continues.`
+			` The quota returns ${when}; re-run then and it continues,` +
+			` or pass --via=<host> to spend another machine's allowance now.`
 	);
 }
 
@@ -325,50 +473,41 @@ if (stopped !== null) {
  * ------------------------------------------------------------------ */
 
 async function link() {
-	if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
-	const target = new URL(process.env.DATABASE_URL);
+	const target = new URL(process.env.DATABASE_URL ?? '');
 	console.log(`\n→ linking in ${target.hostname}:${target.port || 3306}${target.pathname}`);
 
-	const pool = mysql.createPool(process.env.DATABASE_URL);
-	const db = drizzle(pool, { schema: t, mode: 'default' });
+	const { db } = openDb();
 
 	let linked = 0;
 	let missing = 0;
 	let kept = 0;
-	try {
-		for (const { username, outcome } of usable) {
-			const rows = await db
-				.select({ id: t.creators.id, avatar: t.creators.avatar })
-				.from(t.creators)
-				.where(eq(t.creators.username, username))
-				.limit(1);
+	for (const { username, outcome } of usable) {
+		const rows = await db
+			.select({ id: t.creators.id, avatar: t.creators.avatar })
+			.from(t.creators)
+			.where(eq(t.creators.username, username))
+			.limit(1);
 
-			if (!rows.length) {
-				missing++;
-				continue;
-			}
-			const current = rows[0].avatar ?? '';
-			if (current === outcome.file) {
-				kept++;
-				continue;
-			}
-			/*
-			 * Only a scrape gets replaced. A value with no scheme is a stored
-			 * upload — an operator's or the creator's own picture — and this
-			 * script has no business overwriting it with a download.
-			 */
-			if (current && !current.includes(':')) {
-				kept++;
-				continue;
-			}
-			await db
-				.update(t.creators)
-				.set({ avatar: outcome.file })
-				.where(eq(t.creators.id, rows[0].id));
-			linked++;
+		if (!rows.length) {
+			missing++;
+			continue;
 		}
-	} finally {
-		await pool.end();
+		const current = rows[0].avatar ?? '';
+		if (current === outcome.file) {
+			kept++;
+			continue;
+		}
+		/*
+		 * Only a scrape gets replaced. A value with no scheme is a stored
+		 * upload — an operator's or the creator's own picture — and this
+		 * script has no business overwriting it with a download.
+		 */
+		if (current && !current.includes(':')) {
+			kept++;
+			continue;
+		}
+		await db.update(t.creators).set({ avatar: outcome.file }).where(eq(t.creators.id, rows[0].id));
+		linked++;
 	}
 
 	console.log(`  linked     ${linked}`);
@@ -383,3 +522,5 @@ if (!write) {
 } else {
 	console.log(`\n  nothing to link.`);
 }
+
+await opened?.pool.end();
