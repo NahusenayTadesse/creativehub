@@ -31,17 +31,21 @@
 </svelte:head>
 
 <!--
-	The design is a single, deliberately light visual world — the same one the
-	React app ships. Following the operating system here would flip the whole
-	marketing surface to a palette the design was never drawn for, so the theme
-	is pinned rather than inherited.
+	The theme follows the operating system unless the reader has said otherwise,
+	and mode-watcher stamps the choice on <html> from an inline script that runs
+	before first paint — so a dark-mode reader never sees a white flash.
+
+	That script is inline by necessity: it has to run before the browser paints,
+	and a nonce cannot be handed to a component. Its hash is pinned in
+	`kit.csp` in vite.config.ts, so changing the props here changes the script
+	and invalidates that hash. e2e/csp.e2e.ts fails loudly if the two drift.
 -->
-<ModeWatcher defaultMode="light" track={false} />
+<ModeWatcher />
 <Toaster
 	position="bottom-right"
 	toastOptions={{
 		class:
-			'!rounded-2xl !border-2 !border-slate-900 !shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] !font-black !text-xs'
+			'!rounded-2xl !border-2 !border-edge !shadow-[4px_4px_0px_0px_rgb(var(--bento-shadow))] !font-black !text-xs'
 	}}
 />
 

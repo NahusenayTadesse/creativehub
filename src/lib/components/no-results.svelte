@@ -14,9 +14,9 @@
 </script>
 
 <div class="bento-card bento-card-static space-y-3 py-16 text-center">
-	<SearchX class="mx-auto h-10 w-10 text-slate-400" />
-	<h3 class="text-base font-black text-slate-900">{m.pg_no_results()}</h3>
-	<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
+	<SearchX class="mx-auto h-10 w-10 text-ink-faint" />
+	<h3 class="text-base font-black text-ink">{m.pg_no_results()}</h3>
+	<p class="mx-auto max-w-sm text-xs font-medium text-ink-soft">
 		{m.crud_no_search_match({ search })}
 	</p>
 </div>

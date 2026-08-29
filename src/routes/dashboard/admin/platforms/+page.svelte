@@ -36,17 +36,17 @@
 		<div class="flex items-center justify-between gap-3">
 			<div class="flex items-center gap-3">
 				<span
-					class="h-8 w-8 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+					class="h-8 w-8 rounded-xl border-2 border-edge shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 					style="background-color: {platform.color}"
 				></span>
 				<div>
-					<h3 class="text-sm font-black text-slate-900">{platform.name}</h3>
-					<p class="font-mono text-[11px] font-bold text-slate-500">{platform.color}</p>
+					<h3 class="text-sm font-black text-ink">{platform.name}</h3>
+					<p class="font-mono text-[11px] font-bold text-ink-dim">{platform.color}</p>
 				</div>
 			</div>
 			{#if !platform.isActive}
 				<span
-					class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
+					class="rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 				>
 					{m.common_hidden()}
 				</span>

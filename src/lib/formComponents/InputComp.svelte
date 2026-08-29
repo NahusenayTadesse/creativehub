@@ -235,7 +235,7 @@
 		<div class="flex items-center justify-between text-xs">
 			<span class="sr-only">{label}</span>
 			<span
-				class="ml-auto rounded border border-slate-900 bg-[#dcfce7] px-2 py-0.5 text-xs font-black text-emerald-800"
+				class="ml-auto rounded border border-edge bg-tile-mint px-2 py-0.5 text-xs font-black text-brand-soft-fg"
 			>
 				{formatValue ? formatValue(asNumber()) : asNumber().toLocaleString()}
 			</span>
@@ -258,7 +258,7 @@
 			value={asNumber()}
 			oninput={(event) => set(Number(event.currentTarget.value))}
 			onchange={(event) => write(Number(event.currentTarget.value))}
-			class="w-full cursor-pointer accent-emerald-600 {className}"
+			class="w-full cursor-pointer accent-brand {className}"
 			aria-describedby={describedBy}
 		/>
 	{:else if type === 'checkboxSingle'}
@@ -279,7 +279,7 @@
 		{/snippet}
 		{#snippet note()}
 			{#if placeholder}
-				<span id="{name}-note" class="text-xs font-medium text-slate-700">{placeholder}</span>
+				<span id="{name}-note" class="text-xs font-medium text-ink-soft">{placeholder}</span>
 			{/if}
 		{/snippet}
 		<div class="flex items-center gap-2 {align === 'between' ? 'justify-between' : ''}">
@@ -310,7 +310,7 @@
 				onclick={() => (revealed = !revealed)}
 				aria-label={revealed ? m.login_hide_password() : m.login_show_password()}
 				aria-pressed={revealed}
-				class="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-slate-500 hover:text-slate-900"
+				class="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-ink-dim hover:text-ink"
 			>
 				{#if revealed}<EyeOff class="h-4 w-4" />{:else}<Eye class="h-4 w-4" />{/if}
 			</button>
@@ -337,10 +337,10 @@
 	{#if fieldErrors.length}
 		<div id="{name}-error" aria-live="polite">
 			{#each fieldErrors as message (message)}
-				<p class="flex items-center gap-2 text-red-500"><CircleAlert /> {message}</p>
+				<p class="flex items-center gap-2 text-danger"><CircleAlert /> {message}</p>
 			{/each}
 		</div>
 	{:else if hint}
-		<p id="{name}-hint" class="text-xs font-medium text-slate-500">{hint}</p>
+		<p id="{name}-hint" class="text-xs font-medium text-ink-dim">{hint}</p>
 	{/if}
 </div>

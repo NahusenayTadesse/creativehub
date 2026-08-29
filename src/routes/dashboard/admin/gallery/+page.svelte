@@ -44,7 +44,7 @@
 	{#snippet row(slide)}
 		<div class="space-y-3">
 			<div
-				class="relative h-32 overflow-hidden rounded-2xl border-2 border-slate-900 bg-slate-100 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+				class="relative h-32 overflow-hidden rounded-2xl border-2 border-edge bg-well shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 			>
 				{#if slide.image}
 					<AppImage
@@ -57,20 +57,20 @@
 						decoding="async"
 					/>
 				{:else}
-					<div class="flex h-full w-full items-center justify-center text-slate-400">
+					<div class="flex h-full w-full items-center justify-center text-ink-faint">
 						<ImageOff class="h-6 w-6" />
 					</div>
 				{/if}
 
 				<span
-					class="absolute top-2 left-2 rounded-md border border-slate-900 bg-white px-2 py-0.5 text-[10px] font-black text-slate-900"
+					class="absolute top-2 left-2 rounded-md border border-edge bg-surface px-2 py-0.5 text-[10px] font-black text-ink"
 				>
 					#{slide.sortOrder}
 				</span>
 
 				{#if !slide.isActive}
 					<span
-						class="absolute top-2 right-2 rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
+						class="absolute top-2 right-2 rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 					>
 						{m.common_hidden()}
 					</span>
@@ -78,16 +78,16 @@
 			</div>
 
 			<div>
-				<h3 class="text-sm font-black text-slate-900">{slide.title}</h3>
+				<h3 class="text-sm font-black text-ink">{slide.title}</h3>
 				{#if slide.subtitle}
-					<p class="mt-1 line-clamp-2 text-xs font-medium text-slate-600">{slide.subtitle}</p>
+					<p class="mt-1 line-clamp-2 text-xs font-medium text-ink-soft">{slide.subtitle}</p>
 				{/if}
 			</div>
 
 			{#if slide.linkUrl}
 				<a
 					href={slide.linkUrl}
-					class="flex items-center gap-1 truncate text-[11px] font-bold text-emerald-700 hover:text-emerald-800"
+					class="flex items-center gap-1 truncate text-[11px] font-bold text-brand-soft-fg hover:text-brand-soft-fg"
 				>
 					<ExternalLink class="h-3 w-3 shrink-0" />
 					<span class="truncate">{slide.linkLabel || slide.linkUrl}</span>

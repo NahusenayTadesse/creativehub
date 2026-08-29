@@ -56,11 +56,11 @@
 	]);
 
 	const statusTone: Record<string, string> = {
-		pending: 'border-amber-500 bg-amber-100 text-amber-900',
-		under_review: 'border-indigo-500 bg-indigo-100 text-indigo-900',
-		more_info: 'border-orange-500 bg-orange-100 text-orange-900',
-		approved: 'border-emerald-600 bg-emerald-100 text-emerald-900',
-		rejected: 'border-red-500 bg-red-100 text-red-900'
+		pending: 'border-warn-edge bg-warn-soft text-warn-fg',
+		under_review: 'border-info-edge bg-info-soft text-info-fg',
+		more_info: 'border-tint-orange-edge bg-tint-orange text-tint-orange-fg',
+		approved: 'border-brand-edge bg-brand-soft text-brand-soft-fg',
+		rejected: 'border-danger-edge bg-danger-soft text-danger-fg'
 	};
 </script>
 
@@ -79,10 +79,10 @@
 				<a
 					href={statusLink(tab.key)}
 					data-sveltekit-noscroll
-					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {statusFilter ===
+					class="cursor-pointer rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {statusFilter ===
 					tab.key
-						? 'bg-slate-900 text-white'
-						: 'bg-white text-slate-800 hover:bg-slate-100'}"
+						? 'bg-inverse text-inverse-ink'
+						: 'bg-surface text-ink hover:bg-well'}"
 				>
 					{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
 				</a>
@@ -94,9 +94,9 @@
 
 	{#if data.requests.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
-			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">{m.av_empty_title()}</h3>
-			<p class="text-xs font-medium text-slate-600">{m.av_empty_body()}</p>
+			<Inbox class="mx-auto h-10 w-10 text-ink-faint" />
+			<h3 class="text-base font-black text-ink">{m.av_empty_title()}</h3>
+			<p class="text-xs font-medium text-ink-soft">{m.av_empty_body()}</p>
 		</div>
 	{:else}
 		<div class="space-y-4">
@@ -112,7 +112,7 @@
 									kind="avatar"
 									seed={request.creatorUsername ?? request.creatorName}
 									label={request.creatorName}
-									class="h-11 w-11 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+									class="h-11 w-11 shrink-0 rounded-2xl border-2 border-edge object-cover"
 									loading="lazy"
 									decoding="async"
 									width="44"
@@ -129,7 +129,7 @@
 										{request.status.replace('_', ' ')}
 									</span>
 									<span
-										class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-700 uppercase"
+										class="rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 									>
 										{request.subjectType}
 									</span>
@@ -139,33 +139,33 @@
 									<a
 										href={resolve(`/creators/${request.creatorUsername}`)}
 										target="_blank"
-										class="text-sm font-black text-slate-900 hover:text-emerald-600"
+										class="text-sm font-black text-ink hover:text-brand-fg"
 									>
 										{request.creatorName}
 									</a>
-									<p class="text-[11px] font-bold text-slate-500">@{request.creatorUsername}</p>
+									<p class="text-[11px] font-bold text-ink-dim">@{request.creatorUsername}</p>
 								{:else}
-									<span class="text-sm font-black text-slate-900">{request.organizationName}</span>
+									<span class="text-sm font-black text-ink">{request.organizationName}</span>
 								{/if}
 							</div>
 						</div>
 
 						<div class="shrink-0 text-right">
-							<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+							<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 								{m.av_requested_badge()}
 							</span>
 							<div class="mt-1 flex justify-end">
 								<VerificationBadge level={request.requestedLevel} />
 							</div>
-							<span class="mt-1 block text-[10px] font-bold text-slate-400">
+							<span class="mt-1 block text-[10px] font-bold text-ink-faint">
 								{formatDate(request.createdAt)}
 							</span>
 						</div>
 					</div>
 
 					<!-- Evidence -->
-					<div class="space-y-2 rounded-2xl border-2 border-slate-200 bg-slate-50 p-3">
-						<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+					<div class="space-y-2 rounded-2xl border-2 border-edge-soft bg-panel p-3">
+						<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 							{m.av_evidence()}
 						</span>
 						{#if request.documentUrl}
@@ -173,13 +173,13 @@
 								href={assetUrl(request.documentUrl)}
 								target="_blank"
 								rel="noreferrer external"
-								class="inline-flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline"
+								class="inline-flex items-center gap-1 text-xs font-black text-brand-soft-fg hover:underline"
 							>
 								<ExternalLink class="h-3.5 w-3.5" />
 								{m.av_open_document()}
 							</a>
 						{:else}
-							<p class="text-xs font-medium text-slate-500">{m.av_no_document()}</p>
+							<p class="text-xs font-medium text-ink-dim">{m.av_no_document()}</p>
 						{/if}
 
 						{#if request.socialProofs?.length}
@@ -190,7 +190,7 @@
 											href={proof}
 											target="_blank"
 											rel="noreferrer external"
-											class="text-[11px] font-bold text-slate-600 hover:text-emerald-700 hover:underline"
+											class="text-[11px] font-bold text-ink-soft hover:text-brand-soft-fg hover:underline"
 										>
 											{proof}
 										</a>
@@ -201,14 +201,14 @@
 					</div>
 
 					{#if request.adminNotes}
-						<p class="rounded-xl bg-slate-100 p-2 text-[11px] font-medium text-slate-700">
+						<p class="rounded-xl bg-well p-2 text-[11px] font-medium text-ink-soft">
 							<strong class="font-black">{m.av_note()}</strong>
 							{request.adminNotes}
 						</p>
 					{/if}
 
 					{#if open}
-						<div class="space-y-2 border-t-2 border-slate-200 pt-3">
+						<div class="space-y-2 border-t-2 border-edge-soft pt-3">
 							<!-- Outside the three forms below on purpose: one note is carried
 							     into whichever decision the operator picks, as a hidden
 							     field, so switching between them keeps what was typed. -->
@@ -228,7 +228,7 @@
 									<input type="hidden" name="adminNotes" value={notes[request.id] ?? ''} />
 									<button
 										type="submit"
-										class="rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-slate-900 hover:bg-orange-50"
+										class="rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-tint-orange"
 									>
 										{m.av_need_more_info()}
 									</button>
@@ -240,7 +240,7 @@
 									<input type="hidden" name="adminNotes" value={notes[request.id] ?? ''} />
 									<button
 										type="submit"
-										class="rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-red-700 hover:bg-red-50"
+										class="rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-danger-fg hover:bg-danger-soft"
 									>
 										{m.av_reject()}
 									</button>
@@ -252,7 +252,7 @@
 									<input type="hidden" name="adminNotes" value={notes[request.id] ?? ''} />
 									<button
 										type="submit"
-										class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+										class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-brand px-3 py-1.5 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 									>
 										<ShieldCheck class="h-3.5 w-3.5" />
 										{m.av_approve()}

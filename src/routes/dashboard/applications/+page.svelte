@@ -72,10 +72,10 @@
 				<a
 					href={tabLink(tab.key)}
 					data-sveltekit-noscroll
-					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {activeTab ===
+					class="cursor-pointer rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {activeTab ===
 					tab.key
-						? 'bg-slate-900 text-white'
-						: 'bg-white text-slate-800 hover:bg-slate-100'}"
+						? 'bg-inverse text-inverse-ink'
+						: 'bg-surface text-ink hover:bg-well'}"
 				>
 					{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
 				</a>
@@ -89,14 +89,14 @@
 		<NoResults search={listState.search} />
 	{:else if data.applications.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
-			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">{m.ap_empty_title()}</h3>
-			<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
+			<Inbox class="mx-auto h-10 w-10 text-ink-faint" />
+			<h3 class="text-base font-black text-ink">{m.ap_empty_title()}</h3>
+			<p class="mx-auto max-w-sm text-xs font-medium text-ink-soft">
 				{isCreatorView ? m.ap_empty_creator() : m.ap_empty_brand()}
 			</p>
 			<a
 				href={isCreatorView ? resolve('/campaigns') : resolve('/dashboard/campaigns')}
-				class="inline-block rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+				class="inline-block rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 			>
 				{isCreatorView ? m.bl_browse_briefs() : m.ap_manage_campaigns()}
 			</a>
@@ -114,7 +114,7 @@
 									kind="avatar"
 									seed={application.creatorUsername ?? application.creatorName}
 									label={application.creatorName}
-									class="h-11 w-11 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+									class="h-11 w-11 shrink-0 rounded-2xl border-2 border-edge object-cover"
 									loading="lazy"
 									decoding="async"
 									width="44"
@@ -125,7 +125,7 @@
 								<div class="mb-1 flex flex-wrap items-center gap-2">
 									<BookingStatusBadge status={application.status} kind="application" />
 									<CompensationBadge type={application.compensationType} />
-									<span class="text-[10px] font-bold text-slate-400">
+									<span class="text-[10px] font-bold text-ink-faint">
 										{formatDate(application.createdAt)}
 									</span>
 								</div>
@@ -133,32 +133,32 @@
 								{#if isCreatorView}
 									<a
 										href={resolve(`/campaigns/${application.campaignSlug}`)}
-										class="text-sm font-black text-slate-900 hover:text-emerald-600"
+										class="text-sm font-black text-ink hover:text-brand-fg"
 									>
 										{application.campaignTitle}
 									</a>
-									<p class="text-[11px] font-bold text-slate-500">
+									<p class="text-[11px] font-bold text-ink-dim">
 										{application.organizationName}
 									</p>
 								{:else}
 									<a
 										href={resolve(`/creators/${application.creatorUsername}`)}
-										class="text-sm font-black text-slate-900 hover:text-emerald-600"
+										class="text-sm font-black text-ink hover:text-brand-fg"
 									>
 										{application.creatorName}
 									</a>
-									<p class="text-[11px] font-bold text-slate-500">
+									<p class="text-[11px] font-bold text-ink-dim">
 										{m.ap_for_campaign({ title: application.campaignTitle })}
 									</p>
 									<div
-										class="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-600"
+										class="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-bold text-ink-soft"
 									>
-										<span class="flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5">
-											<Award class="h-3 w-3 text-emerald-600" />
+										<span class="flex items-center gap-1 rounded bg-well px-1.5 py-0.5">
+											<Award class="h-3 w-3 text-brand-fg" />
 											{m.card_score({ score: application.creatorScore })}
 										</span>
-										<span class="flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5">
-											<Users class="h-3 w-3 text-emerald-600" />
+										<span class="flex items-center gap-1 rounded bg-well px-1.5 py-0.5">
+											<Users class="h-3 w-3 text-brand-fg" />
 											{m.ap_reach_suffix({ reach: formatReach(application.creatorReach) })}
 										</span>
 									</div>
@@ -168,34 +168,34 @@
 
 						<div class="shrink-0 text-right">
 							{#if application.compensationType === 'paid'}
-								<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+								<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 									{m.ap_proposed_rate()}
 								</span>
-								<span class="text-sm font-black text-slate-900">
+								<span class="text-sm font-black text-ink">
 									{application.proposedPrice.toLocaleString()}
-									<span class="text-emerald-600">{application.currencyCode}</span>
+									<span class="text-brand-fg">{application.currencyCode}</span>
 								</span>
 							{:else}
-								<span class="text-xs font-black text-slate-600">{m.ap_non_cash()}</span>
+								<span class="text-xs font-black text-ink-soft">{m.ap_non_cash()}</span>
 							{/if}
 						</div>
 					</div>
 
 					<p
-						class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed font-medium text-slate-700"
+						class="rounded-xl border border-edge-soft bg-panel p-3 text-xs leading-relaxed font-medium text-ink-soft"
 					>
 						"{application.pitch}"
 					</p>
 
 					{#if application.decisionNote}
-						<p class="text-[11px] font-medium text-slate-500 italic">
+						<p class="text-[11px] font-medium text-ink-dim italic">
 							{m.ap_note_prefix({ note: application.decisionNote })}
 						</p>
 					{/if}
 
 					<!-- Actions -->
 					<div
-						class="flex flex-wrap items-center justify-end gap-2 border-t-2 border-slate-200 pt-3"
+						class="flex flex-wrap items-center justify-end gap-2 border-t-2 border-edge-soft pt-3"
 					>
 						{#if isCreatorView}
 							{#if ['applied', 'shortlisted'].includes(application.status)}
@@ -207,7 +207,7 @@
 									<input type="hidden" name="id" value={application.id} />
 									<button
 										type="submit"
-										class="rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-slate-900 hover:bg-slate-50"
+										class="rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-panel"
 									>
 										{m.ap_withdraw()}
 									</button>
@@ -215,7 +215,7 @@
 							{/if}
 							<a
 								href={resolve(`/campaigns/${application.campaignSlug}`)}
-								class="inline-flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-slate-900 hover:bg-slate-50"
+								class="inline-flex items-center gap-1 rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-panel"
 							>
 								<ExternalLink class="h-3 w-3" />
 								{m.ap_view_brief()}
@@ -226,7 +226,7 @@
 								<input type="hidden" name="status" value="rejected" />
 								<button
 									type="submit"
-									class="rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-slate-900 hover:bg-red-50"
+									class="rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-danger-soft"
 								>
 									{m.ap_reject()}
 								</button>
@@ -242,7 +242,7 @@
 									<input type="hidden" name="status" value="shortlisted" />
 									<button
 										type="submit"
-										class="rounded-xl border-2 border-slate-900 bg-[#e0e7ff] px-3 py-1.5 text-xs font-black text-indigo-950 hover:bg-indigo-200"
+										class="rounded-xl border-2 border-edge bg-tile-indigo px-3 py-1.5 text-xs font-black text-info-fg hover:bg-info-soft"
 									>
 										{m.ap_shortlist()}
 									</button>
@@ -254,7 +254,7 @@
 								<input type="hidden" name="status" value="selected" />
 								<button
 									type="submit"
-									class="rounded-xl border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+									class="rounded-xl border-2 border-edge bg-brand px-3 py-1.5 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 								>
 									{m.ap_select_open()}
 								</button>

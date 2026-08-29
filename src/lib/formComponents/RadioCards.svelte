@@ -78,15 +78,15 @@
 </script>
 
 <fieldset class="space-y-2">
-	<legend class="text-xs font-black text-slate-900">{legend}</legend>
+	<legend class="text-xs font-black text-ink">{legend}</legend>
 
 	<div class="grid {gridClass} gap-3">
 		{#each options as option (option.value)}
 			{@const selected = current === option.value}
 			<label
-				class="flex cursor-pointer flex-col gap-1 rounded-2xl border-2 p-3 transition-all focus-within:ring-2 focus-within:ring-emerald-500 {selected
-					? `border-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] ${option.selectedClass ?? 'bg-slate-100'}`
-					: 'border-slate-300 bg-white hover:border-slate-900'}"
+				class="flex cursor-pointer flex-col gap-1 rounded-2xl border-2 p-3 transition-all focus-within:ring-2 focus-within:ring-brand-edge {selected
+					? `border-edge shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] ${option.selectedClass ?? 'bg-well'}`
+					: 'border-edge-mid bg-surface hover:border-edge'}"
 			>
 				<input
 					type="radio"
@@ -98,18 +98,18 @@
 				/>
 				{#if option.icon}
 					{@const Icon = option.icon}
-					<Icon class="h-5 w-5 {option.iconClass ?? 'text-slate-700'}" />
+					<Icon class="h-5 w-5 {option.iconClass ?? 'text-ink-soft'}" />
 				{/if}
-				<span class="text-sm font-black text-slate-900">{option.title}</span>
+				<span class="text-sm font-black text-ink">{option.title}</span>
 				{#if option.description}
-					<span class="text-[11px] font-medium text-slate-600">{option.description}</span>
+					<span class="text-[11px] font-medium text-ink-soft">{option.description}</span>
 				{/if}
 			</label>
 		{/each}
 	</div>
 
 	{#if fieldError}
-		<p class="flex items-center gap-2 text-xs font-bold text-red-600" aria-live="polite">
+		<p class="flex items-center gap-2 text-xs font-bold text-danger" aria-live="polite">
 			<CircleAlert class="h-3.5 w-3.5" />
 			{fieldError}
 		</p>

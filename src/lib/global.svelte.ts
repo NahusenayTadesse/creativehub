@@ -3,7 +3,7 @@ import { intlLocale } from '$lib/locale';
 
 export const bgGradient = `bg-linear-to-r from-background  to-secondary`;
 
-export const selectItem = `hover:bg-gray-100 hover:shadow-md hover:scale-101 duration-300 transition-all ease-in-out dark:hover:bg-gray-900`;
+export const selectItem = `hover:bg-well hover:shadow-md hover:scale-101 duration-300 transition-all ease-in-out dark:hover:bg-inverse`;
 
 export const dropdownClass = `flex capitalize flex-row gap-2 ${selectItem}`;
 

@@ -44,23 +44,23 @@
 		<div class="space-y-2">
 			<div class="flex items-start justify-between gap-2">
 				<div
-					class="flex h-10 w-10 items-center justify-center rounded-2xl border-2 border-slate-900 bg-slate-900 text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+					class="flex h-10 w-10 items-center justify-center rounded-2xl border-2 border-edge bg-inverse text-inverse-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 				>
 					<DynamicIcon name={category.icon} class="h-5 w-5" />
 				</div>
 				{#if !category.isActive}
 					<span
-						class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
+						class="rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 					>
 						{m.common_hidden()}
 					</span>
 				{/if}
 			</div>
 			<div>
-				<h3 class="text-sm font-black text-slate-900">{category.name}</h3>
-				<p class="font-mono text-[11px] font-bold text-slate-500">/{category.slug}</p>
+				<h3 class="text-sm font-black text-ink">{category.name}</h3>
+				<p class="font-mono text-[11px] font-bold text-ink-dim">/{category.slug}</p>
 			</div>
-			<p class="line-clamp-2 text-xs font-medium text-slate-600">{category.description}</p>
+			<p class="line-clamp-2 text-xs font-medium text-ink-soft">{category.description}</p>
 		</div>
 	{/snippet}
 </CrudSection>

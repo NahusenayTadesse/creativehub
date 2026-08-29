@@ -27,19 +27,19 @@
 	const windowed = $derived(pageWindow(result.page, result.pageCount));
 
 	const linkClass =
-		'flex h-8 min-w-8 cursor-pointer items-center justify-center gap-1 rounded-xl border-2 border-slate-900 px-2.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors';
-	const idleClass = 'bg-white text-slate-800 hover:bg-slate-100';
-	const currentClass = 'bg-slate-900 text-white';
+		'flex h-8 min-w-8 cursor-pointer items-center justify-center gap-1 rounded-xl border-2 border-edge px-2.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors';
+	const idleClass = 'bg-surface text-ink hover:bg-well';
+	const currentClass = 'bg-inverse text-inverse-ink';
 	const disabledClass =
-		'flex h-8 min-w-8 items-center justify-center gap-1 rounded-xl border-2 border-slate-300 px-2.5 text-xs font-black text-slate-400';
+		'flex h-8 min-w-8 items-center justify-center gap-1 rounded-xl border-2 border-edge-mid px-2.5 text-xs font-black text-ink-faint';
 </script>
 
 {#if result.total > 0}
 	<div
-		class="flex flex-col items-center justify-between gap-3 border-t-2 border-slate-900 pt-4 sm:flex-row {className}"
+		class="flex flex-col items-center justify-between gap-3 border-t-2 border-edge pt-4 sm:flex-row {className}"
 	>
 		<div class="flex flex-wrap items-center gap-2">
-			<p class="text-xs font-bold text-slate-600">
+			<p class="text-xs font-bold text-ink-soft">
 				{#if result.total === 1}
 					{m.pg_showing_one()}
 				{:else}
@@ -49,7 +49,7 @@
 			{#if result.rankedWithin}
 				<!-- The order below this cut is the database's, not the ranker's. -->
 				<span
-					class="flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-900"
+					class="flex items-center gap-1 rounded-full border border-warn-edge bg-warn-soft px-2 py-0.5 text-[11px] font-black text-warn-fg"
 				>
 					<Sparkles class="h-3 w-3" />
 					{m.pg_ranked_note({ count: result.rankedWithin })}
@@ -80,7 +80,7 @@
 
 				{#each windowed as number, index (index)}
 					{#if number === null}
-						<span class="px-1 text-xs font-black text-slate-400">…</span>
+						<span class="px-1 text-xs font-black text-ink-faint">…</span>
 					{:else if number === result.page}
 						<span class="{linkClass} {currentClass}" aria-current="page">{number}</span>
 					{:else}

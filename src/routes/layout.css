@@ -6,51 +6,114 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ------------------------------------------------------------------ *
- * shadcn tokens, retuned to the Creator Network palette.
+ * The Creator Network palette, in two themes.
  *
- * The marketing surface is a neo-brutalist bento system: a light grey ground,
- * white cards with a hard 2px slate border and a solid offset shadow, emerald
- * as the single accent, and four pastel tiles. The tokens below make shadcn's
- * own components (dialogs, selects, tables, sidebar) sit inside that world
- * instead of next to it.
+ * The product is a neo-brutalist bento system: a flat ground, cards with a
+ * hard 2px border and a solid offset shadow, emerald as the single accent,
+ * and four pastel tiles that carry meaning (mint is settled, yellow is
+ * pending).
+ *
+ * Dark mode inverts the ink rather than softening it. The border and the
+ * offset shadow — the loudest thing on every card, and the whole point of the
+ * style — change hand from slate to light slate instead of disappearing. The
+ * shadow is deliberately a step dimmer than the border (slate-300 against
+ * slate-200) so it still reads as an offset and not as a glow.
+ *
+ * Everything below is a semantic token. Components name the role — surface,
+ * ink, edge — and never the colour, so a palette change is an edit here
+ * rather than an edit in 58 files.
  * ------------------------------------------------------------------ */
 
 :root {
-	--background: oklch(0.967 0.001 286.375); /* #f3f4f6 */
-	--foreground: oklch(0.208 0.042 265.755); /* slate-900 #0f172a */
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.208 0.042 265.755);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.208 0.042 265.755);
-	--primary: oklch(0.596 0.145 163.225); /* emerald-600 #059669 */
-	--primary-foreground: oklch(1 0 0);
-	--secondary: oklch(0.946 0.048 156.743); /* mint #dcfce7 */
-	--secondary-foreground: oklch(0.208 0.042 265.755);
-	--muted: oklch(0.967 0.001 286.375);
-	--muted-foreground: oklch(0.446 0.03 256.802); /* slate-500 */
-	--accent: oklch(0.946 0.048 156.743);
-	--accent-foreground: oklch(0.208 0.042 265.755);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.208 0.042 265.755); /* hard slate borders */
-	--input: oklch(0.208 0.042 265.755);
-	--ring: oklch(0.596 0.145 163.225);
-	--chart-1: oklch(0.696 0.17 162.48); /* emerald */
-	--chart-2: oklch(0.585 0.233 277.117); /* indigo */
-	--chart-3: oklch(0.769 0.188 70.08); /* amber */
-	--chart-4: oklch(0.208 0.042 265.755); /* slate */
-	--chart-5: oklch(0.645 0.246 16.439); /* rose */
-	--radius: 1rem;
-	--sidebar: oklch(1 0 0);
-	--sidebar-foreground: oklch(0.208 0.042 265.755);
-	--sidebar-primary: oklch(0.596 0.145 163.225);
-	--sidebar-primary-foreground: oklch(1 0 0);
-	--sidebar-accent: oklch(0.946 0.048 156.743);
-	--sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-	--sidebar-border: oklch(0.208 0.042 265.755);
-	--sidebar-ring: oklch(0.596 0.145 163.225);
+	/* --- neutrals ------------------------------------------------- */
+	--ground: #f3f4f6; /* the page behind the cards */
+	--surface: #ffffff; /* the card itself */
+	--panel: #f8fafc; /* a quieter block inside a card */
+	--well: #f1f5f9; /* an inset: track, thumbnail, empty state */
 
-	/* Bento surfaces. Referenced by the utility classes below. */
-	--bento-ink: 15 23 42; /* slate-900, as an rgb triple for shadows */
+	--ink: #0f172a; /* body and headings */
+	--ink-soft: #475569; /* supporting copy */
+	--ink-dim: #64748b; /* eyebrows, labels, captions */
+	--ink-faint: #94a3b8; /* placeholders, disabled, meta */
+
+	--edge: #0f172a; /* the hard structural border */
+	--edge-soft: #e2e8f0; /* a hairline between rows */
+	--edge-mid: #cbd5e1; /* a visible but unemphatic rule */
+
+	/* The emphatic tile — the one figure on a page that outranks the rest.
+	   It is the inverse of the page, so it flips with the theme rather than
+	   staying dark and vanishing into a dark ground. */
+	--inverse: #0f172a;
+	--inverse-ink: #ffffff;
+	--inverse-hover: #1e293b; /* its hover — a step back toward the page */
+	--inverse-ink-dim: #94a3b8; /* supporting copy *on* the inverse surface */
+	--inverse-brand: #34d399; /* emerald that sits on the inverse surface */
+	--inverse-brand-soft: #04241b; /* and a tinted chip on that same surface */
+	--inverse-brand-edge: #14523f;
+
+	/* A slab is a region that stays dark in both themes — the footer, and any
+	   band that exists to ground the page rather than to stand out on it. An
+	   emphatic tile inverts; a slab does not, because a near-white block at the
+	   foot of a dark page is a lamp, not a footer. */
+	--slab: #030712;
+	--slab-raised: #111827;
+	--slab-ink: #ffffff;
+	--slab-ink-dim: #94a3b8;
+	--slab-edge: #1e293b;
+	--slab-brand: #34d399;
+
+	/* --- brand ---------------------------------------------------- */
+	--brand: #059669; /* a filled control */
+	--brand-strong: #047857; /* its hover */
+	--brand-ink: #ffffff; /* text on that fill */
+	--brand-fg: #059669; /* emerald as text on a surface */
+	--brand-soft: #d1fae5; /* a tinted chip */
+	--brand-soft-fg: #065f46; /* text on that chip */
+	--brand-edge: #059669;
+	--brand-ink-deep: #0f172a; /* where the design puts dark ink on emerald */
+
+	/* --- status --------------------------------------------------- */
+	--warn: #f59e0b;
+	--warn-soft: #fef3c7;
+	--warn-fg: #92400e;
+	--warn-edge: #f59e0b;
+	--warn-ink: #ffffff; /* text on a filled amber control */
+
+	--danger: #ef4444;
+	--danger-soft: #fee2e2;
+	--danger-fg: #991b1b;
+	--danger-edge: #ef4444;
+	--danger-ink: #ffffff; /* text on a filled red control */
+
+	--info: #6366f1;
+	--info-soft: #e0e7ff;
+	--info-fg: #312e81;
+	--info-edge: #6366f1;
+
+	/* Tints that carry one specific state each and must stay distinguishable
+	   from warn/danger/info: orange is "needs another pass", sky is agency
+	   representation, blue is money released, violet is an admin or a barter
+	   deal. */
+	--tint-orange: #ffedd5;
+	--tint-orange-fg: #7c2d12;
+	--tint-orange-edge: #f97316;
+	--tint-blue: #dbeafe;
+	--tint-blue-fg: #1e3a8a;
+	--tint-blue-edge: #3b82f6;
+	--tint-sky: #e0f2fe;
+	--tint-sky-fg: #0c4a6e;
+	--tint-sky-edge: #0284c7;
+	--tint-violet: #f3e8ff;
+	--tint-violet-fg: #581c87;
+	--tint-violet-edge: #a855f7;
+	--tint-violet-solid: #7e22ce;
+	--tint-violet-solid-hover: #6b21a8;
+	--tint-rose-fg: #e11d48;
+
+	/* --- bento surfaces ------------------------------------------- */
+	--bento-ink: 15 23 42; /* border, as an rgb triple */
+	--bento-shadow: 15 23 42; /* the offset shadow */
+	--bento-shadow-accent: 16 185 129; /* the emerald offset, used sparingly */
 	--bento-surface: #ffffff;
 	--bento-ground: #f3f4f6;
 	--bento-dark: #0f172a;
@@ -58,18 +121,240 @@
 	--bento-yellow: #fef9c3;
 	--bento-peach: #ffedd5;
 	--bento-indigo: #e0e7ff;
+	--bento-mint-ink: #065f46;
+	--bento-yellow-ink: #854d0e;
+	--bento-peach-ink: #9a3412;
+	--bento-indigo-ink: #312e81;
+
+	/* --- shadcn ---------------------------------------------------- */
+	--background: var(--ground);
+	--foreground: var(--ink);
+	--card: var(--surface);
+	--card-foreground: var(--ink);
+	--popover: var(--surface);
+	--popover-foreground: var(--ink);
+	--primary: var(--brand);
+	--primary-foreground: var(--brand-ink);
+	--secondary: #dcfce7;
+	--secondary-foreground: var(--ink);
+	--muted: var(--well);
+	--muted-foreground: var(--ink-dim);
+	--accent: #dcfce7;
+	--accent-foreground: var(--ink);
+	--destructive: var(--danger);
+	--border: var(--edge);
+	--input: var(--edge);
+	--ring: var(--brand);
+	--chart-1: #10b981;
+	--chart-2: #6366f1;
+	--chart-3: #f59e0b;
+	--chart-4: #0f172a;
+	--chart-5: #f43f5e;
+	--radius: 1rem;
+	--sidebar: var(--surface);
+	--sidebar-foreground: var(--ink);
+	--sidebar-primary: var(--brand);
+	--sidebar-primary-foreground: var(--brand-ink);
+	--sidebar-accent: #dcfce7;
+	--sidebar-accent-foreground: var(--ink);
+	--sidebar-border: var(--edge);
+	--sidebar-ring: var(--brand);
+
+	/* The scrim behind a dialog. It has to darken the page enough to separate the
+	   panel from it, which takes more on a dark ground than on a light one. */
+	--overlay: rgb(0 0 0 / 0.2);
+
+	--selection: #a7f3d0;
+	color-scheme: light;
 }
 
 /*
- * The product ships one visual world: the light bento palette above. The
- * `.dark` variant is left defined for shadcn internals that reference it, but
- * the theme is pinned to light in the root layout so the marketing surface is
- * never rendered in a palette its hardcoded slate/emerald classes were not
- * drawn for.
+ * Dark. Only the tokens are redefined — no component below this point knows
+ * which theme it is in.
  */
+.dark {
+	--ground: #0b1120;
+	--surface: #151e31;
+	--panel: #182133;
+	--well: #1e2a3f;
+
+	--ink: #e8edf5;
+	--ink-soft: #b6c2d4;
+	--ink-dim: #94a3b8;
+	--ink-faint: #6b7c96;
+
+	--edge: #e2e8f0;
+	--edge-soft: #2c3852;
+	--edge-mid: #46536e;
+
+	--inverse: #e8edf5;
+	--inverse-ink: #0b1120;
+	--inverse-hover: #d4dced;
+	--inverse-ink-dim: #4a5568;
+	--inverse-brand: #047857;
+	--inverse-brand-soft: #d1fae5;
+	--inverse-brand-edge: #6ee7b7;
+
+	/* Already dark, so it barely moves — just enough below the page ground to
+	   still read as a separate band. */
+	--slab: #060b14;
+	--slab-raised: #101725;
+	--slab-ink: #e8edf5;
+	--slab-ink-dim: #8496b0;
+	--slab-edge: #1c2740;
+	--slab-brand: #34d399;
+
+	--brand: #10b981;
+	--brand-strong: #34d399;
+	--brand-ink: #04231a;
+	--brand-fg: #34d399;
+	--brand-soft: #06291f;
+	--brand-soft-fg: #6ee7b7;
+	--brand-edge: #10b981;
+	--brand-ink-deep: #04231a;
+
+	--warn: #fbbf24;
+	--warn-soft: #33270d;
+	--warn-fg: #fcd34d;
+	--warn-edge: #b45309;
+	--warn-ink: #2b1c05;
+
+	--danger: #f87171;
+	--danger-soft: #3a1417;
+	--danger-fg: #fca5a5;
+	--danger-edge: #b91c1c;
+	--danger-ink: #2b0708;
+
+	--info: #818cf8;
+	--info-soft: #1c1c46;
+	--info-fg: #a5b4fc;
+	--info-edge: #4338ca;
+
+	--tint-orange: #331a0b;
+	--tint-orange-fg: #fdba74;
+	--tint-orange-edge: #c2410c;
+	--tint-blue: #12224a;
+	--tint-blue-fg: #93c5fd;
+	--tint-blue-edge: #1d4ed8;
+	--tint-sky: #0b2942;
+	--tint-sky-fg: #7dd3fc;
+	--tint-sky-edge: #0369a1;
+	--tint-violet: #2a1145;
+	--tint-violet-fg: #d8b4fe;
+	--tint-violet-edge: #7e22ce;
+	--tint-violet-solid: #7e22ce;
+	--tint-violet-solid-hover: #9333ea;
+	--tint-rose-fg: #fb7185;
+
+	--bento-ink: 226 232 240;
+	--bento-shadow: 203 213 225;
+	--bento-shadow-accent: 52 211 153;
+	--bento-surface: #151e31;
+	--bento-ground: #0b1120;
+	--bento-dark: #e8edf5;
+	--bento-mint: #052e22;
+	--bento-yellow: #302a11;
+	--bento-peach: #33210f;
+	--bento-indigo: #1c1c46;
+	--bento-mint-ink: #6ee7b7;
+	--bento-yellow-ink: #fcd34d;
+	--bento-peach-ink: #fdba74;
+	--bento-indigo-ink: #a5b4fc;
+
+	--secondary: #06291f;
+	--secondary-foreground: var(--ink);
+	--accent: #06291f;
+	--accent-foreground: var(--ink);
+	--chart-1: #34d399;
+	--chart-2: #818cf8;
+	--chart-3: #fbbf24;
+	--chart-4: #e2e8f0;
+	--chart-5: #fb7185;
+	--sidebar-accent: #06291f;
+	--sidebar-accent-foreground: var(--ink);
+
+	--overlay: rgb(0 0 0 / 0.6);
+
+	--selection: #065f46;
+	color-scheme: dark;
+}
 
 @theme inline {
 	--font-sans: 'Inter Variable', system-ui, sans-serif;
+
+	/* Semantic palette — the vocabulary components are written in. */
+	--color-ground: var(--ground);
+	--color-overlay: var(--overlay);
+	--color-surface: var(--surface);
+	--color-panel: var(--panel);
+	--color-well: var(--well);
+	--color-ink: var(--ink);
+	--color-ink-soft: var(--ink-soft);
+	--color-ink-dim: var(--ink-dim);
+	--color-ink-faint: var(--ink-faint);
+	--color-edge: var(--edge);
+	--color-edge-soft: var(--edge-soft);
+	--color-edge-mid: var(--edge-mid);
+	--color-inverse: var(--inverse);
+	--color-inverse-ink: var(--inverse-ink);
+	--color-inverse-hover: var(--inverse-hover);
+	--color-inverse-ink-dim: var(--inverse-ink-dim);
+	--color-inverse-brand: var(--inverse-brand);
+	--color-inverse-brand-soft: var(--inverse-brand-soft);
+	--color-inverse-brand-edge: var(--inverse-brand-edge);
+	--color-slab: var(--slab);
+	--color-slab-raised: var(--slab-raised);
+	--color-slab-ink: var(--slab-ink);
+	--color-slab-ink-dim: var(--slab-ink-dim);
+	--color-slab-edge: var(--slab-edge);
+	--color-slab-brand: var(--slab-brand);
+	--color-brand: var(--brand);
+	--color-brand-strong: var(--brand-strong);
+	--color-brand-ink: var(--brand-ink);
+	--color-brand-fg: var(--brand-fg);
+	--color-brand-soft: var(--brand-soft);
+	--color-brand-soft-fg: var(--brand-soft-fg);
+	--color-brand-edge: var(--brand-edge);
+	--color-brand-ink-deep: var(--brand-ink-deep);
+	--color-warn: var(--warn);
+	--color-warn-soft: var(--warn-soft);
+	--color-warn-fg: var(--warn-fg);
+	--color-warn-edge: var(--warn-edge);
+	--color-warn-ink: var(--warn-ink);
+	--color-danger: var(--danger);
+	--color-danger-soft: var(--danger-soft);
+	--color-danger-fg: var(--danger-fg);
+	--color-danger-edge: var(--danger-edge);
+	--color-danger-ink: var(--danger-ink);
+	--color-info: var(--info);
+	--color-info-soft: var(--info-soft);
+	--color-info-fg: var(--info-fg);
+	--color-info-edge: var(--info-edge);
+	--color-tint-orange: var(--tint-orange);
+	--color-tint-orange-fg: var(--tint-orange-fg);
+	--color-tint-orange-edge: var(--tint-orange-edge);
+	--color-tint-blue: var(--tint-blue);
+	--color-tint-blue-fg: var(--tint-blue-fg);
+	--color-tint-blue-edge: var(--tint-blue-edge);
+	--color-tint-sky: var(--tint-sky);
+	--color-tint-sky-fg: var(--tint-sky-fg);
+	--color-tint-sky-edge: var(--tint-sky-edge);
+	--color-tint-violet: var(--tint-violet);
+	--color-tint-violet-fg: var(--tint-violet-fg);
+	--color-tint-violet-edge: var(--tint-violet-edge);
+	--color-tint-violet-solid: var(--tint-violet-solid);
+	--color-tint-violet-solid-hover: var(--tint-violet-solid-hover);
+	--color-tint-rose-fg: var(--tint-rose-fg);
+	--color-tile-mint: var(--bento-mint);
+	--color-tile-yellow: var(--bento-yellow);
+	--color-tile-peach: var(--bento-peach);
+	--color-tile-indigo: var(--bento-indigo);
+	--color-tile-mint-ink: var(--bento-mint-ink);
+	--color-tile-yellow-ink: var(--bento-yellow-ink);
+	--color-tile-peach-ink: var(--bento-peach-ink);
+	--color-tile-indigo-ink: var(--bento-indigo-ink);
+
+	/* shadcn */
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -101,6 +386,7 @@
 	--color-card: var(--card);
 	--color-foreground: var(--foreground);
 	--color-background: var(--background);
+
 	--radius-sm: calc(var(--radius) * 0.6);
 	--radius-md: calc(var(--radius) * 0.8);
 	--radius-lg: var(--radius);
@@ -115,16 +401,17 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
-		background-color: var(--bento-ground);
-		color: var(--foreground);
+		background-color: var(--ground);
+		color: var(--ink);
 		font-family: var(--font-sans);
 		-webkit-font-smoothing: antialiased;
 	}
 	html {
 		@apply font-sans;
+		background-color: var(--ground);
 	}
 	::selection {
-		background-color: #a7f3d0;
+		background-color: var(--selection);
 	}
 }
 
@@ -134,11 +421,11 @@
 
 .bento-card {
 	background-color: var(--bento-surface);
-	color: var(--foreground);
+	color: var(--ink);
 	border: 2px solid rgb(var(--bento-ink));
 	border-radius: 1.5rem;
 	padding: 1.5rem;
-	box-shadow: 4px 4px 0px 0px rgb(var(--bento-ink));
+	box-shadow: 4px 4px 0px 0px rgb(var(--bento-shadow));
 	transition: all 0.2s ease-in-out;
 }
 
@@ -146,78 +433,78 @@
    whatever the finger last brushed, so cards jump around mid-scroll. */
 @media (hover: hover) {
 	.bento-card:hover {
-		box-shadow: 6px 6px 0px 0px rgb(var(--bento-ink));
+		box-shadow: 6px 6px 0px 0px rgb(var(--bento-shadow));
 		transform: translateY(-2px);
 	}
 }
 
 /* Cards that hold forms or tables should not lift under the cursor. */
 .bento-card-static:hover {
-	box-shadow: 4px 4px 0px 0px rgb(var(--bento-ink));
+	box-shadow: 4px 4px 0px 0px rgb(var(--bento-shadow));
 	transform: none;
 }
 
 .bento-card-dark {
 	background-color: var(--bento-dark);
-	color: #ffffff;
+	color: var(--inverse-ink);
 	border: 2px solid rgb(var(--bento-ink));
 	border-radius: 1.5rem;
 	padding: 1.5rem;
-	box-shadow: 4px 4px 0px 0px rgb(var(--bento-ink));
+	box-shadow: 4px 4px 0px 0px rgb(var(--bento-shadow));
 }
 
 .bento-card-mint {
 	background-color: var(--bento-mint);
-	color: var(--foreground);
+	color: var(--ink);
 	border: 2px solid rgb(var(--bento-ink));
 	border-radius: 1.5rem;
 	padding: 1.5rem;
-	box-shadow: 4px 4px 0px 0px rgb(var(--bento-ink));
+	box-shadow: 4px 4px 0px 0px rgb(var(--bento-shadow));
 }
 
 .bento-card-yellow {
 	background-color: var(--bento-yellow);
-	color: var(--foreground);
+	color: var(--ink);
 	border: 2px solid rgb(var(--bento-ink));
 	border-radius: 1.5rem;
 	padding: 1.5rem;
-	box-shadow: 4px 4px 0px 0px rgb(var(--bento-ink));
+	box-shadow: 4px 4px 0px 0px rgb(var(--bento-shadow));
 }
 
 .bento-card-peach {
 	background-color: var(--bento-peach);
-	color: var(--foreground);
+	color: var(--ink);
 	border: 2px solid rgb(var(--bento-ink));
 	border-radius: 1.5rem;
 	padding: 1.5rem;
-	box-shadow: 4px 4px 0px 0px rgb(var(--bento-ink));
+	box-shadow: 4px 4px 0px 0px rgb(var(--bento-shadow));
 }
 
 .bento-card-indigo {
 	background-color: var(--bento-indigo);
-	color: var(--foreground);
+	color: var(--ink);
 	border: 2px solid rgb(var(--bento-ink));
 	border-radius: 1.5rem;
 	padding: 1.5rem;
-	box-shadow: 4px 4px 0px 0px rgb(var(--bento-ink));
+	box-shadow: 4px 4px 0px 0px rgb(var(--bento-shadow));
 }
 
 .bento-btn {
 	border: 2px solid rgb(var(--bento-ink));
-	box-shadow: 3px 3px 0px 0px rgb(var(--bento-ink));
+	box-shadow: 3px 3px 0px 0px rgb(var(--bento-shadow));
 	transition: all 0.15s ease-in-out;
 }
 
 @media (hover: hover) {
 	.bento-btn:hover {
 		transform: translate(-1px, -1px);
-		box-shadow: 4px 4px 0px 0px rgb(var(--bento-ink));
+		box-shadow: 4px 4px 0px 0px rgb(var(--bento-shadow));
 	}
 }
 
 .bento-btn:active {
 	transform: translate(1px, 1px);
-	box-shadow: 1px 1px 0px 0px rgb(var(--bento-ink));
+	box-shadow: 1px 1px 0px 0px rgb(var(--bento-shadow));
 }
 
 /* The tiny uppercase label that sits above almost every figure in the app. */
@@ -226,7 +513,7 @@
 	font-weight: 900;
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
-	color: var(--muted-foreground);
+	color: var(--ink-dim);
 }
 
 /* ------------------------------------------------------------------ *
@@ -240,7 +527,7 @@
 [data-slot='dropdown-menu-content'] {
 	border-width: 2px;
 	border-color: rgb(var(--bento-ink));
-	box-shadow: 6px 6px 0px 0px rgb(var(--bento-ink));
+	box-shadow: 6px 6px 0px 0px rgb(var(--bento-shadow));
 }
 
 [data-slot='select-trigger'],

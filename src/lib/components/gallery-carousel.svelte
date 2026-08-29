@@ -72,7 +72,7 @@
 				{#each slides as slide, index (slide.id)}
 					<Carousel.Item class="ps-0">
 						<div
-							class="relative h-[260px] overflow-hidden rounded-3xl border-2 border-slate-900 bg-slate-900 shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] sm:h-[340px] lg:h-[420px]"
+							class="relative h-[260px] overflow-hidden rounded-3xl border-2 border-edge bg-inverse shadow-[6px_6px_0px_0px_rgb(var(--bento-shadow))] sm:h-[340px] lg:h-[420px]"
 						>
 							<!-- The first slide sits at the top of the page, so it is not deferred. -->
 							<AppImage
@@ -91,7 +91,7 @@
 							<div class="absolute inset-x-0 bottom-0 space-y-3 p-6 sm:p-8 lg:max-w-2xl">
 								<h2 class="text-xl font-black text-white sm:text-3xl">{slide.title}</h2>
 								{#if slide.subtitle}
-									<p class="text-xs leading-relaxed font-medium text-slate-200 sm:text-sm">
+									<p class="text-xs leading-relaxed font-medium text-slab-ink-dim sm:text-sm">
 										{slide.subtitle}
 									</p>
 								{/if}
@@ -101,7 +101,7 @@
 									<a
 										href={slide.linkUrl}
 										rel="external"
-										class="inline-flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-[#fef9c3] px-5 py-2.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]"
+										class="inline-flex items-center gap-1.5 rounded-xl border-2 border-edge bg-tile-yellow px-5 py-2.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))]"
 									>
 										<span>{slide.linkLabel || m.home_gallery_cta()}</span>
 										<ArrowRight class="h-4 w-4" />
@@ -117,11 +117,11 @@
 		{#if slides.length > 1}
 			<Carousel.Previous
 				aria-label={m.tbl_previous()}
-				class="inset-y-0 start-4 my-auto size-10 rounded-xl border-2 border-slate-900 bg-white/90 text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] backdrop-blur transition-colors hover:bg-white"
+				class="inset-y-0 start-4 my-auto size-10 rounded-xl border-2 border-edge bg-surface/90 text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] backdrop-blur transition-colors hover:bg-surface"
 			/>
 			<Carousel.Next
 				aria-label={m.tbl_next()}
-				class="inset-y-0 end-4 my-auto size-10 rounded-xl border-2 border-slate-900 bg-white/90 text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] backdrop-blur transition-colors hover:bg-white"
+				class="inset-y-0 end-4 my-auto size-10 rounded-xl border-2 border-edge bg-surface/90 text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] backdrop-blur transition-colors hover:bg-surface"
 			/>
 
 			<div class="absolute inset-x-0 bottom-4 flex items-center justify-center gap-2">
@@ -131,8 +131,8 @@
 						aria-label={m.home_gallery_go_to({ index: index + 1 })}
 						aria-current={index === selected}
 						onclick={() => api?.scrollTo(index)}
-						class="h-2.5 rounded-full border-2 border-slate-900 transition-all {index === selected
-							? 'w-7 bg-emerald-400'
+						class="h-2.5 rounded-full border-2 border-edge transition-all {index === selected
+							? 'w-7 bg-brand-strong'
 							: 'w-2.5 bg-white/80 hover:bg-white'}"
 					></button>
 				{/each}

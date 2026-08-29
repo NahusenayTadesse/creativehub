@@ -187,54 +187,54 @@
 							<a
 								href={resolve(`/campaigns/${campaign.slug}`)}
 								target="_blank"
-								class="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 hover:underline"
+								class="inline-flex items-center gap-1 text-[11px] font-black text-brand-soft-fg hover:underline"
 							>
 								<ExternalLink class="h-3 w-3" />
 								{m.dc_view_public()}
 							</a>
 						{/if}
 					</div>
-					<h3 class="text-base font-black text-slate-900">{campaign.title}</h3>
-					<p class="mt-1 line-clamp-2 max-w-2xl text-xs font-medium text-slate-600">
+					<h3 class="text-base font-black text-ink">{campaign.title}</h3>
+					<p class="mt-1 line-clamp-2 max-w-2xl text-xs font-medium text-ink-soft">
 						{campaign.description}
 					</p>
 				</div>
 
 				<div class="shrink-0 text-right">
 					{#if campaign.compensationType === 'paid'}
-						<span class="block text-[10px] font-black tracking-wider text-slate-500 uppercase">
+						<span class="block text-[10px] font-black tracking-wider text-ink-dim uppercase">
 							{m.dc_budget()}
 						</span>
-						<span class="text-sm font-black text-slate-900">
+						<span class="text-sm font-black text-ink">
 							{campaign.budgetMin.toLocaleString()} – {campaign.budgetMax.toLocaleString()}
-							<span class="text-emerald-600">{campaign.currencyCode}</span>
+							<span class="text-brand-fg">{campaign.currencyCode}</span>
 						</span>
 					{:else if campaign.compensationType === 'event_pass'}
-						<span class="text-xs font-black text-indigo-900">{m.dc_event_access()}</span>
+						<span class="text-xs font-black text-info-fg">{m.dc_event_access()}</span>
 					{:else}
-						<span class="text-xs font-black text-amber-900">{m.dc_barter()}</span>
+						<span class="text-xs font-black text-warn-fg">{m.dc_barter()}</span>
 					{/if}
 				</div>
 			</div>
 
 			<div class="flex flex-wrap items-center gap-2 text-[11px]">
 				<span
-					class="flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 font-bold text-slate-700"
+					class="flex items-center gap-1 rounded-lg border border-edge-mid bg-panel px-2 py-1 font-bold text-ink-soft"
 				>
-					<Users class="h-3 w-3 text-emerald-600" />
+					<Users class="h-3 w-3 text-brand-fg" />
 					{m.dc_needed({ count: campaign.creatorsNeeded })}
 				</span>
 				<a
 					href={resolve('/dashboard/applications')}
-					class="flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 font-bold text-slate-700 hover:border-slate-900"
+					class="flex items-center gap-1 rounded-lg border border-edge-mid bg-panel px-2 py-1 font-bold text-ink-soft hover:border-edge"
 				>
-					<Send class="h-3 w-3 text-emerald-600" />
+					<Send class="h-3 w-3 text-brand-fg" />
 					{m.dc_applications({ count: countFor(campaign.id) })}
 				</a>
 				<span
-					class="flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 font-bold text-slate-700"
+					class="flex items-center gap-1 rounded-lg border border-edge-mid bg-panel px-2 py-1 font-bold text-ink-soft"
 				>
-					<Calendar class="h-3 w-3 text-emerald-600" />
+					<Calendar class="h-3 w-3 text-brand-fg" />
 					{formatDate(campaign.deadline)}
 				</span>
 			</div>

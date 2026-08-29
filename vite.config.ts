@@ -59,7 +59,7 @@ export default defineConfig({
 						'self',
 						'unsafe-hashes',
 						/* mode-watcher theme init */
-						'sha256-sxV3WjhjHTBOQef3iCo1EqzS6eCRHLGUg+dQjbWXpV0=',
+						'sha256-Cr3r+iKjDTUxJaxM3r/Iq0ow6clOB9AqoT6j0wMFMIM=',
 						/* Svelte event replay: this.__e=event */
 						'sha256-7dQwUgLau1NFCCGjfn9FsYptB6ZtWxJin6VohGIu20I='
 					],

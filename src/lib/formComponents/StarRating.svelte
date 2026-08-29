@@ -89,9 +89,7 @@
 			class="cursor-pointer transition-transform {padClass}"
 			aria-label={starLabel(star)}
 		>
-			<Star
-				class="{starClass} {star <= current ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}"
-			/>
+			<Star class="{starClass} {star <= current ? 'fill-warn text-warn' : 'text-ink-faint'}" />
 		</button>
 	{/each}
 </div>
@@ -99,5 +97,5 @@
 <input type="hidden" {name} value={current} />
 
 {#if fieldError}
-	<p class="text-xs font-bold text-red-600" aria-live="polite">{fieldError}</p>
+	<p class="text-xs font-bold text-danger" aria-live="polite">{fieldError}</p>
 {/if}

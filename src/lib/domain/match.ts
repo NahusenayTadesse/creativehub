@@ -184,16 +184,16 @@ export function calculateMatch({
 	);
 
 	let tier: MatchBreakdown['tier'] = 'moderate';
-	let tierClass = 'text-amber-800 bg-amber-100 border-amber-400';
+	let tierClass = 'text-warn-fg bg-warn-soft border-warn-edge';
 	if (total >= 90) {
 		tier = 'exceptional';
-		tierClass = 'text-emerald-900 bg-emerald-100 border-emerald-400';
+		tierClass = 'text-brand-soft-fg bg-brand-soft border-brand-edge';
 	} else if (total >= 80) {
 		tier = 'strong';
-		tierClass = 'text-indigo-900 bg-indigo-100 border-indigo-400';
+		tierClass = 'text-info-fg bg-info-soft border-info-edge';
 	} else if (total < 65) {
 		tier = 'low';
-		tierClass = 'text-slate-700 bg-slate-100 border-slate-400';
+		tierClass = 'text-ink-soft bg-well border-edge-mid';
 	}
 
 	const tierLabel = {

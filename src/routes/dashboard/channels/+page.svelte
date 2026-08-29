@@ -70,7 +70,7 @@
 >
 	{#snippet extraActions()}
 		<span
-			class="rounded-2xl border-2 border-slate-900 bg-[#fef9c3] px-4 py-2.5 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]"
+			class="rounded-2xl border-2 border-edge bg-tile-yellow px-4 py-2.5 text-xs font-black text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))]"
 		>
 			{m.ch_total_reach({ reach: formatReach(totalReach) })}
 		</span>
@@ -80,13 +80,13 @@
 		<div class="space-y-3">
 			<div class="flex items-start justify-between gap-2">
 				<div>
-					<h3 class="text-sm font-black text-slate-900">{platformName(account.platformId)}</h3>
-					<p class="text-[11px] font-bold text-slate-500">{account.handle}</p>
+					<h3 class="text-sm font-black text-ink">{platformName(account.platformId)}</h3>
+					<p class="text-[11px] font-bold text-ink-dim">{account.handle}</p>
 				</div>
 				<div class="flex shrink-0 flex-col items-end gap-1">
 					{#if account.isVerified}
 						<span
-							class="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800"
+							class="inline-flex items-center gap-1 rounded-md bg-brand-soft px-2 py-0.5 text-[10px] font-bold text-brand-soft-fg"
 						>
 							<CircleCheckBig class="h-3 w-3" />
 							{m.ch_confirmed()}
@@ -94,7 +94,7 @@
 					{/if}
 					{#if !account.isActive}
 						<span
-							class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
+							class="rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 						>
 							{m.common_hidden()}
 						</span>
@@ -102,18 +102,18 @@
 				</div>
 			</div>
 
-			<div class="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
+			<div class="flex items-center justify-between rounded-xl bg-panel px-3 py-2 text-xs">
 				<div>
-					<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+					<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 						{m.ch_followers()}
 					</span>
-					<span class="font-black text-slate-900">{formatReach(account.followers)}</span>
+					<span class="font-black text-ink">{formatReach(account.followers)}</span>
 				</div>
 				<div class="text-right">
-					<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+					<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 						{m.profile_engagement()}
 					</span>
-					<span class="font-black text-emerald-700">{account.engagementRate.toFixed(1)}%</span>
+					<span class="font-black text-brand-soft-fg">{account.engagementRate.toFixed(1)}%</span>
 				</div>
 			</div>
 
@@ -122,7 +122,7 @@
 					href={account.profileUrl}
 					target="_blank"
 					rel="noreferrer"
-					class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline"
+					class="inline-flex items-center gap-1 text-[11px] font-bold text-brand-soft-fg hover:underline"
 				>
 					<ExternalLink class="h-3 w-3" />
 					{m.ch_open_channel()}

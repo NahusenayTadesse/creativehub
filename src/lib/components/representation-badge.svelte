@@ -17,18 +17,18 @@
 
 {#if claimed}
 	<span
-		class="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-900 shadow-2xs {className}"
+		class="inline-flex items-center gap-1 rounded-md bg-tint-sky px-2 py-0.5 text-[11px] font-semibold text-tint-sky-fg shadow-2xs {className}"
 		title={m.repr_direct_title()}
 	>
-		<Handshake class="h-3 w-3 text-sky-700" />
+		<Handshake class="h-3 w-3 text-tint-sky-edge" />
 		<span>{m.repr_direct_label()}</span>
 	</span>
 {:else}
 	<span
-		class="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 shadow-2xs {className}"
+		class="inline-flex items-center gap-1 rounded-md bg-warn-soft px-2 py-0.5 text-[11px] font-semibold text-warn-fg shadow-2xs {className}"
 		title={m.repr_intro_title()}
 	>
-		<Mail class="h-3 w-3 text-amber-700" />
+		<Mail class="h-3 w-3 text-warn-fg" />
 		<span>{m.repr_intro_label()}</span>
 	</span>
 {/if}

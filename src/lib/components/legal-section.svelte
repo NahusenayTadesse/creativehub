@@ -5,8 +5,8 @@
 </script>
 
 <section class="space-y-2">
-	<h2 class="text-base font-black text-slate-900">{heading}</h2>
-	<div class="space-y-2 text-sm leading-relaxed font-medium text-slate-700">
+	<h2 class="text-base font-black text-ink">{heading}</h2>
+	<div class="space-y-2 text-sm leading-relaxed font-medium text-ink-soft">
 		{@render children()}
 	</div>
 </section>

@@ -35,22 +35,22 @@
 <div id="campaigns-view-container" class="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
 	<!-- Header -->
 	<div
-		class="flex flex-col justify-between gap-4 border-b-2 border-slate-900 pb-6 sm:flex-row sm:items-center"
+		class="flex flex-col justify-between gap-4 border-b-2 border-edge pb-6 sm:flex-row sm:items-center"
 	>
 		<div>
 			<div class="mb-1 flex items-center gap-2">
-				<span class="text-xs font-black tracking-widest text-slate-500 uppercase">
+				<span class="text-xs font-black tracking-widest text-ink-dim uppercase">
 					{m.campaigns_eyebrow()}
 				</span>
 				<span
-					class="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-900"
+					class="inline-flex items-center gap-1 rounded-full border border-brand-edge bg-brand-soft px-2.5 py-0.5 text-[10px] font-black text-brand-soft-fg"
 				>
-					<Globe class="h-3 w-3 text-emerald-700" />
+					<Globe class="h-3 w-3 text-brand-soft-fg" />
 					{m.discover_global_badge()}
 				</span>
 			</div>
-			<h1 class="text-2xl font-black text-slate-900 sm:text-3xl">{m.campaigns_title()}</h1>
-			<p class="mt-1 text-xs font-medium text-slate-600">
+			<h1 class="text-2xl font-black text-ink sm:text-3xl">{m.campaigns_title()}</h1>
+			<p class="mt-1 text-xs font-medium text-ink-soft">
 				{m.campaigns_subtitle()}
 			</p>
 		</div>
@@ -58,9 +58,9 @@
 		{#if data.user?.role === 'business' || data.user?.role === 'admin'}
 			<a
 				href={resolve('/dashboard/campaigns')}
-				class="flex shrink-0 items-center gap-2 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-slate-800"
+				class="flex shrink-0 items-center gap-2 rounded-2xl border-2 border-edge bg-inverse px-4 py-2.5 text-xs font-black text-inverse-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:bg-inverse-hover"
 			>
-				<Plus class="h-4 w-4 text-emerald-400" />
+				<Plus class="h-4 w-4 text-inverse-brand" />
 				<span>{m.campaigns_post_new()}</span>
 			</a>
 		{/if}
@@ -71,10 +71,10 @@
 		<a
 			href={typeLink('all')}
 			data-sveltekit-noscroll
-			class="block cursor-pointer rounded-2xl border-2 border-slate-900 p-4 text-left transition-all {selectedType ===
+			class="block cursor-pointer rounded-2xl border-2 border-edge p-4 text-left transition-all {selectedType ===
 			'all'
-				? 'bg-slate-900 text-white shadow-[4px_4px_0px_0px_rgba(16,185,129,1)]'
-				: 'bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50'}"
+				? 'bg-inverse text-inverse-ink shadow-[4px_4px_0px_0px_rgb(var(--bento-shadow-accent))]'
+				: 'bg-surface text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel'}"
 		>
 			<span class="block text-[10px] font-black tracking-widest uppercase opacity-70">
 				{m.campaigns_all_opportunities()}
@@ -87,13 +87,13 @@
 		<a
 			href={typeLink('paid')}
 			data-sveltekit-noscroll
-			class="block cursor-pointer rounded-2xl border-2 border-slate-900 p-4 text-left transition-all {selectedType ===
+			class="block cursor-pointer rounded-2xl border-2 border-edge p-4 text-left transition-all {selectedType ===
 			'paid'
-				? 'bg-[#dcfce7] font-black text-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]'
-				: 'bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50'}"
+				? 'bg-tile-mint font-black text-ink shadow-[4px_4px_0px_0px_rgb(var(--bento-shadow))]'
+				: 'bg-surface text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel'}"
 		>
 			<div
-				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-emerald-800 uppercase"
+				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-brand-soft-fg uppercase"
 			>
 				<Briefcase class="h-3.5 w-3.5" />
 				<span>{m.campaigns_type_paid()}</span>
@@ -106,13 +106,13 @@
 		<a
 			href={typeLink('event_pass')}
 			data-sveltekit-noscroll
-			class="block cursor-pointer rounded-2xl border-2 border-slate-900 p-4 text-left transition-all {selectedType ===
+			class="block cursor-pointer rounded-2xl border-2 border-edge p-4 text-left transition-all {selectedType ===
 			'event_pass'
-				? 'bg-[#e0e7ff] font-black text-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]'
-				: 'bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50'}"
+				? 'bg-tile-indigo font-black text-ink shadow-[4px_4px_0px_0px_rgb(var(--bento-shadow))]'
+				: 'bg-surface text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel'}"
 		>
 			<div
-				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-indigo-900 uppercase"
+				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-info-fg uppercase"
 			>
 				<Ticket class="h-3.5 w-3.5" />
 				<span>{m.campaigns_type_event()}</span>
@@ -125,13 +125,13 @@
 		<a
 			href={typeLink('barter')}
 			data-sveltekit-noscroll
-			class="block cursor-pointer rounded-2xl border-2 border-slate-900 p-4 text-left transition-all {selectedType ===
+			class="block cursor-pointer rounded-2xl border-2 border-edge p-4 text-left transition-all {selectedType ===
 			'barter'
-				? 'bg-[#fef9c3] font-black text-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]'
-				: 'bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50'}"
+				? 'bg-tile-yellow font-black text-ink shadow-[4px_4px_0px_0px_rgb(var(--bento-shadow))]'
+				: 'bg-surface text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel'}"
 		>
 			<div
-				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-amber-900 uppercase"
+				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-warn-fg uppercase"
 			>
 				<Gift class="h-3.5 w-3.5" />
 				<span>{m.campaigns_type_barter()}</span>
@@ -145,19 +145,17 @@
 	<!-- Market filter + search -->
 	<div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
 		<div class="flex flex-1 scrollbar-none items-center gap-2 overflow-x-auto pb-1">
-			<span
-				class="mr-1 flex items-center gap-1 text-xs font-black whitespace-nowrap text-slate-700"
-			>
-				<Globe class="h-3.5 w-3.5 text-emerald-600" />
+			<span class="mr-1 flex items-center gap-1 text-xs font-black whitespace-nowrap text-ink-soft">
+				<Globe class="h-3.5 w-3.5 text-brand-fg" />
 				{m.campaigns_market_label()}
 			</span>
 			<a
 				href={marketLink('all')}
 				data-sveltekit-noscroll
-				class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {selectedMarket ===
+				class="cursor-pointer rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {selectedMarket ===
 				'all'
-					? 'bg-emerald-600 text-white'
-					: 'bg-white text-slate-800 hover:bg-slate-100'}"
+					? 'bg-brand text-brand-ink'
+					: 'bg-surface text-ink hover:bg-well'}"
 			>
 				{m.campaigns_all_markets({ count: data.allMarketsTotal })}
 			</a>
@@ -165,10 +163,10 @@
 				<a
 					href={marketLink(country.id)}
 					data-sveltekit-noscroll
-					class="flex cursor-pointer items-center gap-1.5 rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {selectedMarket ===
+					class="flex cursor-pointer items-center gap-1.5 rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {selectedMarket ===
 					String(country.id)
-						? 'bg-slate-900 text-white'
-						: 'bg-white text-slate-800 hover:bg-slate-100'}"
+						? 'bg-inverse text-inverse-ink'
+						: 'bg-surface text-ink hover:bg-well'}"
 				>
 					<span>{country.flag}</span>
 					<span>{country.name}</span>
@@ -198,14 +196,14 @@
 		<PaginationBar result={data.campaigns} />
 	{:else}
 		<div class="bento-card bento-card-static space-y-3 p-12 text-center">
-			<Search class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">{m.campaigns_empty_title()}</h3>
-			<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
+			<Search class="mx-auto h-10 w-10 text-ink-faint" />
+			<h3 class="text-base font-black text-ink">{m.campaigns_empty_title()}</h3>
+			<p class="mx-auto max-w-sm text-xs font-medium text-ink-soft">
 				{m.campaigns_empty_body()}
 			</p>
 			<a
 				href={page.url.pathname}
-				class="inline-block cursor-pointer rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+				class="inline-block cursor-pointer rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 			>
 				{m.campaigns_reset_filters()}
 			</a>

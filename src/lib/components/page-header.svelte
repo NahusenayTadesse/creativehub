@@ -15,13 +15,13 @@
 </script>
 
 <div
-	class="flex flex-col justify-between gap-4 border-b-2 border-slate-900 pb-4 sm:flex-row sm:items-end"
+	class="flex flex-col justify-between gap-4 border-b-2 border-edge pb-4 sm:flex-row sm:items-end"
 >
 	<div>
-		<span class="text-xs font-black tracking-widest text-slate-500 uppercase">{eyebrow}</span>
-		<h1 class="text-2xl font-black text-slate-900 sm:text-3xl">{title}</h1>
+		<span class="text-xs font-black tracking-widest text-ink-dim uppercase">{eyebrow}</span>
+		<h1 class="text-2xl font-black text-ink sm:text-3xl">{title}</h1>
 		{#if description}
-			<p class="mt-1 max-w-2xl text-xs font-medium text-slate-600">{description}</p>
+			<p class="mt-1 max-w-2xl text-xs font-medium text-ink-soft">{description}</p>
 		{/if}
 	</div>
 

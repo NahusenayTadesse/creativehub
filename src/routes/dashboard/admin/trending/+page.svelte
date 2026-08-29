@@ -217,7 +217,7 @@
 		| 'autoRefresh'
 		| 'isFrozen';
 
-	const sectionTitle = 'flex items-center gap-2 text-sm font-black text-slate-900';
+	const sectionTitle = 'flex items-center gap-2 text-sm font-black text-ink';
 </script>
 
 {#snippet numberField(name: NumberField, label: string, help: string, min: number, max: number)}
@@ -225,7 +225,7 @@
 {/snippet}
 
 {#snippet toggleField(name: ToggleFieldName, label: string, help: string)}
-	<div class="bento-card-static rounded-2xl border-2 border-slate-900 bg-white p-2">
+	<div class="bento-card-static rounded-2xl border-2 border-edge bg-surface p-2">
 		<InputComp {form} {errors} {name} {label} type="checkboxSingle" hint={help} />
 	</div>
 {/snippet}
@@ -242,10 +242,10 @@
 			<form method="POST" action="?/freeze" use:enhance={handle(m.at_freeze_toggled())}>
 				<button
 					type="submit"
-					class="flex items-center gap-2 rounded-2xl border-2 border-slate-900 px-3 py-2 text-xs font-black shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] {data
+					class="flex items-center gap-2 rounded-2xl border-2 border-edge px-3 py-2 text-xs font-black shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] {data
 						.config.isFrozen
-						? 'bg-amber-400 text-slate-900'
-						: 'bg-white text-slate-900 hover:bg-slate-100'}"
+						? 'bg-warn text-ink'
+						: 'bg-surface text-ink hover:bg-well'}"
 				>
 					{#if data.config.isFrozen}
 						<LockOpen class="h-3.5 w-3.5" />{m.at_unfreeze()}
@@ -259,7 +259,7 @@
 				<button
 					type="submit"
 					disabled={data.config.isFrozen}
-					class="flex items-center gap-2 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-3 py-2 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-50"
+					class="flex items-center gap-2 rounded-2xl border-2 border-edge bg-brand px-3 py-2 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-50"
 				>
 					<RefreshCw class="h-3.5 w-3.5" />
 					{m.at_recompute()}
@@ -271,40 +271,40 @@
 	<!-- ================= STATUS ================= -->
 	<div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
 		<div class="bento-card bento-card-static">
-			<span class="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+			<span class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
 				{m.at_status_mode()}
 			</span>
-			<p class="text-base font-black text-slate-900">
+			<p class="text-base font-black text-ink">
 				{modes.find((mode) => mode.key === data.config.mode)?.label}
 			</p>
 		</div>
 		<div class="bento-card bento-card-static">
-			<span class="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+			<span class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
 				{m.at_status_slots()}
 			</span>
-			<p class="text-base font-black text-slate-900">
+			<p class="text-base font-black text-ink">
 				{data.board.length} / {data.config.slots}
 			</p>
 		</div>
 		<div class="bento-card bento-card-static">
-			<span class="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+			<span class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
 				{m.at_status_last_run()}
 			</span>
-			<p class="text-sm font-black text-slate-900">{stamp(data.config.lastRunAt)}</p>
+			<p class="text-sm font-black text-ink">{stamp(data.config.lastRunAt)}</p>
 		</div>
 		<div class="bento-card bento-card-static">
-			<span class="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+			<span class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
 				{m.at_status_next_run()}
 			</span>
-			<p class="text-sm font-black text-slate-900">
+			<p class="text-sm font-black text-ink">
 				{nextRunAt ? stamp(nextRunAt) : m.at_status_auto_off()}
 			</p>
 		</div>
 		<div class={data.config.isFrozen ? 'bento-card-yellow' : 'bento-card bento-card-static'}>
-			<span class="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+			<span class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
 				{m.at_status_state()}
 			</span>
-			<p class="text-base font-black text-slate-900">
+			<p class="text-base font-black text-ink">
 				{data.config.isFrozen ? m.at_status_frozen() : m.at_status_live()}
 			</p>
 		</div>
@@ -312,8 +312,8 @@
 
 	{#if data.config.isFrozen}
 		<div class="bento-card-yellow flex items-start gap-2">
-			<Lock class="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-			<p class="text-[11px] font-medium text-amber-900">{m.at_frozen_warning()}</p>
+			<Lock class="mt-0.5 h-4 w-4 shrink-0 text-warn-fg" />
+			<p class="text-[11px] font-medium text-warn-fg">{m.at_frozen_warning()}</p>
 		</div>
 	{/if}
 
@@ -321,26 +321,29 @@
 	<div class="bento-card bento-card-static space-y-4">
 		<div class="flex items-center justify-between">
 			<h2 class={sectionTitle}>
-				<Flame class="h-4 w-4 text-emerald-600" />
+				<Flame class="h-4 w-4 text-brand-fg" />
 				{m.at_board_title()}
 			</h2>
-			<a href={resolve('/')} class="text-[11px] font-black text-emerald-700 hover:text-emerald-800">
+			<a
+				href={resolve('/')}
+				class="text-[11px] font-black text-brand-soft-fg hover:text-brand-soft-fg"
+			>
 				{m.at_board_view_site()}
 			</a>
 		</div>
 
 		{#if !data.board.length}
 			<div class="space-y-2 py-10 text-center">
-				<Inbox class="mx-auto h-8 w-8 text-slate-400" />
-				<p class="text-sm font-black text-slate-900">{m.at_board_empty()}</p>
-				<p class="text-xs font-medium text-slate-600">{m.at_board_empty_body()}</p>
+				<Inbox class="mx-auto h-8 w-8 text-ink-faint" />
+				<p class="text-sm font-black text-ink">{m.at_board_empty()}</p>
+				<p class="text-xs font-medium text-ink-soft">{m.at_board_empty_body()}</p>
 			</div>
 		{:else}
 			<div class="overflow-x-auto">
 				<table class="w-full min-w-[720px] text-left">
 					<thead>
 						<tr
-							class="border-b-2 border-slate-900 text-[10px] font-black tracking-widest text-slate-500 uppercase"
+							class="border-b-2 border-edge text-[10px] font-black tracking-widest text-ink-dim uppercase"
 						>
 							<th class="pb-2">{m.at_col_rank()}</th>
 							<th class="pb-2">{m.at_col_creator()}</th>
@@ -352,29 +355,29 @@
 					</thead>
 					<tbody>
 						{#each data.board as entry (entry.creatorId)}
-							<tr class="border-b border-slate-200 align-top text-xs font-medium text-slate-700">
-								<td class="py-2 font-black text-slate-900">#{entry.rank}</td>
+							<tr class="border-b border-edge-soft align-top text-xs font-medium text-ink-soft">
+								<td class="py-2 font-black text-ink">#{entry.rank}</td>
 								<td class="py-2">
 									<a
 										href={resolve(`/creators/${entry.username}`)}
-										class="font-black text-slate-900 hover:text-emerald-700"
+										class="font-black text-ink hover:text-brand-soft-fg"
 									>
 										{entry.fullName}
 									</a>
-									<span class="block text-[10px] text-slate-500">
+									<span class="block text-[10px] text-ink-dim">
 										{entry.countryFlag ?? ''}
 										{entry.countryName ?? ''} · {compact(entry.totalReach)}
 									</span>
 								</td>
-								<td class="py-2 font-black text-slate-900">{entry.trendingScore.toFixed(1)}</td>
+								<td class="py-2 font-black text-ink">{entry.trendingScore.toFixed(1)}</td>
 								<td class="py-2">
 									<span
 										class="rounded-md border-2 px-2 py-0.5 text-[10px] font-black tracking-wider uppercase {entry.source ===
 										'pinned'
-											? 'border-indigo-500 bg-indigo-100 text-indigo-900'
+											? 'border-info-edge bg-info-soft text-info-fg'
 											: entry.source === 'manual'
-												? 'border-slate-500 bg-slate-100 text-slate-800'
-												: 'border-emerald-600 bg-emerald-100 text-emerald-900'}"
+												? 'border-edge-mid bg-well text-ink'
+												: 'border-brand-edge bg-brand-soft text-brand-soft-fg'}"
 									>
 										{sourceLabel(entry.source)}
 									</span>
@@ -384,24 +387,24 @@
 										<div class="flex flex-wrap gap-1">
 											{#each topContributors(entry.breakdown.components) as component (component.key)}
 												<span
-													class="rounded-md border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-[10px] font-bold text-slate-700"
+													class="rounded-md border border-edge-mid bg-panel px-1.5 py-0.5 text-[10px] font-bold text-ink-soft"
 												>
 													{signalLabel(component.key)} +{component.contribution.toFixed(1)}
 												</span>
 											{/each}
 											{#if entry.breakdown.multiplier !== 1}
 												<span
-													class="rounded-md border border-amber-400 bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-900"
+													class="rounded-md border border-warn-edge bg-warn-soft px-1.5 py-0.5 text-[10px] font-black text-warn-fg"
 												>
 													×{entry.breakdown.multiplier}
 												</span>
 											{/if}
 										</div>
 									{:else}
-										<span class="text-[10px] text-slate-400">{m.at_no_breakdown()}</span>
+										<span class="text-[10px] text-ink-faint">{m.at_no_breakdown()}</span>
 									{/if}
 								</td>
-								<td class="py-2 text-[10px] text-slate-500">{day(entry.firstRankedAt)}</td>
+								<td class="py-2 text-[10px] text-ink-dim">{day(entry.firstRankedAt)}</td>
 							</tr>
 						{/each}
 					</tbody>
@@ -418,7 +421,7 @@
 		<!-- Mode -->
 		<div class="bento-card bento-card-static space-y-3">
 			<h2 class={sectionTitle}>
-				<Shuffle class="h-4 w-4 text-emerald-600" />
+				<Shuffle class="h-4 w-4 text-brand-fg" />
 				{m.at_mode_title()}
 			</h2>
 			<div class="grid gap-3 sm:grid-cols-3">
@@ -427,17 +430,17 @@
 					<button
 						type="button"
 						onclick={() => ($form.mode = mode.key)}
-						class="rounded-2xl border-2 border-slate-900 p-3 text-left shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] transition-colors {$form.mode ===
+						class="rounded-2xl border-2 border-edge p-3 text-left shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] transition-colors {$form.mode ===
 						mode.key
-							? 'bg-slate-900 text-white'
-							: 'bg-white text-slate-900 hover:bg-slate-100'}"
+							? 'bg-inverse text-inverse-ink'
+							: 'bg-surface text-ink hover:bg-well'}"
 					>
 						<Icon class="mb-2 h-4 w-4" />
 						<span class="block text-xs font-black">{mode.label}</span>
 						<span
 							class="mt-1 block text-[10px] font-medium {$form.mode === mode.key
-								? 'text-slate-300'
-								: 'text-slate-500'}"
+								? 'text-ink-faint'
+								: 'text-ink-dim'}"
 						>
 							{mode.help}
 						</span>
@@ -452,14 +455,14 @@
 		>
 			<div class="flex flex-wrap items-center justify-between gap-2">
 				<h2 class={sectionTitle}>
-					<SlidersHorizontal class="h-4 w-4 text-emerald-600" />
+					<SlidersHorizontal class="h-4 w-4 text-brand-fg" />
 					{m.at_signals_title()}
 				</h2>
-				<span class="text-[10px] font-black text-slate-500">
+				<span class="text-[10px] font-black text-ink-dim">
 					{m.at_weights_total({ total: totalWeight })}
 				</span>
 			</div>
-			<p class="text-[11px] font-medium text-slate-600">{m.at_signals_help()}</p>
+			<p class="text-[11px] font-medium text-ink-soft">{m.at_signals_help()}</p>
 
 			<div class="flex flex-wrap gap-2">
 				{#each presets as preset (preset.key)}
@@ -467,7 +470,7 @@
 						type="button"
 						title={preset.description}
 						onclick={() => applyPreset(preset.weights)}
-						class="rounded-xl border-2 border-slate-900 bg-white px-2.5 py-1.5 text-[10px] font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-100"
+						class="rounded-xl border-2 border-edge bg-surface px-2.5 py-1.5 text-[10px] font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-soft"
 					>
 						{preset.label}
 					</button>
@@ -488,7 +491,7 @@
 						hint={signal.help}
 						formatValue={(weight) =>
 							`${weight} · ${m.at_weight_share({ percent: shareOf(signal.key) })}`}
-						className="h-2 appearance-none rounded-full border-2 border-slate-900 bg-slate-200"
+						className="h-2 appearance-none rounded-full border-2 border-edge bg-well"
 					/>
 				{/each}
 			</div>
@@ -498,7 +501,7 @@
 		<div class="grid gap-4 lg:grid-cols-2">
 			<div class="bento-card bento-card-static space-y-4">
 				<h2 class={sectionTitle}>
-					<Clock class="h-4 w-4 text-emerald-600" />
+					<Clock class="h-4 w-4 text-brand-fg" />
 					{m.at_basis_title()}
 				</h2>
 				<div class="grid gap-3 sm:grid-cols-2">
@@ -521,7 +524,7 @@
 
 			<div class="bento-card bento-card-static space-y-4">
 				<h2 class={sectionTitle}>
-					<Filter class="h-4 w-4 text-emerald-600" />
+					<Filter class="h-4 w-4 text-brand-fg" />
 					{m.at_eligibility_title()}
 				</h2>
 				<div class="grid gap-3 sm:grid-cols-2">
@@ -568,10 +571,10 @@
 		<div class="grid gap-4 lg:grid-cols-2">
 			<div class="bento-card bento-card-static space-y-4">
 				<h2 class={sectionTitle}>
-					<Shuffle class="h-4 w-4 text-emerald-600" />
+					<Shuffle class="h-4 w-4 text-brand-fg" />
 					{m.at_fairness_title()}
 				</h2>
-				<p class="text-[11px] font-medium text-slate-600">{m.at_fairness_help()}</p>
+				<p class="text-[11px] font-medium text-ink-soft">{m.at_fairness_help()}</p>
 				<div class="grid gap-3 sm:grid-cols-2">
 					{@render numberField('maxPerCategory', m.at_max_per_category(), m.at_cap_help(), 0, 48)}
 					{@render numberField('maxPerCountry', m.at_max_per_country(), m.at_cap_help(), 0, 48)}
@@ -583,7 +586,7 @@
 
 			<div class="bento-card bento-card-static space-y-4">
 				<h2 class={sectionTitle}>
-					<RefreshCw class="h-4 w-4 text-emerald-600" />
+					<RefreshCw class="h-4 w-4 text-brand-fg" />
 					{m.at_automation_title()}
 				</h2>
 				<div class="grid gap-3 sm:grid-cols-2">
@@ -606,7 +609,7 @@
 			<button
 				type="submit"
 				formaction="?/preview"
-				class="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-slate-900 bg-white py-3 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-100"
+				class="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-edge bg-surface py-3 text-xs font-black text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-well"
 			>
 				<Eye class="h-4 w-4" />
 				{m.at_preview()}
@@ -614,7 +617,7 @@
 			<button
 				type="submit"
 				disabled={$delayed}
-				class="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+				class="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-edge bg-brand py-3 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 			>
 				{#if $delayed}
 					<LoadingBtn name={m.common_saving()} />
@@ -629,20 +632,20 @@
 	{#if preview}
 		<div class="bento-card bento-card-static space-y-4">
 			<h2 class={sectionTitle}>
-				<Eye class="h-4 w-4 text-emerald-600" />
+				<Eye class="h-4 w-4 text-brand-fg" />
 				{m.at_preview_title()}
 			</h2>
-			<p class="text-[11px] font-medium text-slate-600">{m.at_preview_hint()}</p>
+			<p class="text-[11px] font-medium text-ink-soft">{m.at_preview_hint()}</p>
 
 			<div class="flex flex-wrap gap-2 text-[10px] font-black">
-				<span class="rounded-md border-2 border-slate-900 bg-white px-2 py-1">
+				<span class="rounded-md border-2 border-edge bg-surface px-2 py-1">
 					{m.at_preview_eligible({
 						eligible: preview.stats.eligible,
 						total: preview.stats.creators
 					})}
 				</span>
 				{#each Object.entries(preview.stats.exclusions) as [reason, count] (reason)}
-					<span class="rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-slate-600">
+					<span class="rounded-md border border-edge-mid bg-panel px-2 py-1 text-ink-soft">
 						{reasonLabel(reason)}: {count}
 					</span>
 				{/each}
@@ -650,19 +653,19 @@
 
 			{#if preview.entering.length || preview.leaving.length}
 				<div class="grid gap-3 sm:grid-cols-2">
-					<div class="rounded-2xl border-2 border-emerald-600 bg-emerald-50 p-3">
-						<span class="text-[10px] font-black tracking-widest text-emerald-800 uppercase">
+					<div class="rounded-2xl border-2 border-brand-edge bg-brand-soft p-3">
+						<span class="text-[10px] font-black tracking-widest text-brand-soft-fg uppercase">
 							{m.at_preview_entering()}
 						</span>
-						<p class="text-[11px] font-bold text-emerald-900">
+						<p class="text-[11px] font-bold text-brand-soft-fg">
 							{preview.entering.length ? preview.entering.join(', ') : m.at_preview_none()}
 						</p>
 					</div>
-					<div class="rounded-2xl border-2 border-red-500 bg-red-50 p-3">
-						<span class="text-[10px] font-black tracking-widest text-red-800 uppercase">
+					<div class="rounded-2xl border-2 border-danger-edge bg-danger-soft p-3">
+						<span class="text-[10px] font-black tracking-widest text-danger-fg uppercase">
 							{m.at_preview_leaving()}
 						</span>
-						<p class="text-[11px] font-bold text-red-900">
+						<p class="text-[11px] font-bold text-danger-fg">
 							{preview.leaving.length ? preview.leaving.join(', ') : m.at_preview_none()}
 						</p>
 					</div>
@@ -673,8 +676,8 @@
 				{#each preview.rows as row (row.creatorId)}
 					<div
 						class="rounded-2xl border-2 p-3 {row.rank
-							? 'border-slate-900 bg-white'
-							: 'border-dashed border-slate-300 bg-slate-50'}"
+							? 'border-edge bg-surface'
+							: 'border-dashed border-edge-mid bg-panel'}"
 					>
 						<button
 							type="button"
@@ -683,38 +686,38 @@
 								(openBreakdown = openBreakdown === row.creatorId ? null : row.creatorId)}
 						>
 							<span class="flex items-center gap-3">
-								<span class="w-8 text-sm font-black text-slate-900">
+								<span class="w-8 text-sm font-black text-ink">
 									{row.rank ? `#${row.rank}` : '—'}
 								</span>
 								<span>
-									<span class="block text-xs font-black text-slate-900">{row.fullName}</span>
-									<span class="block text-[10px] font-medium text-slate-500">
+									<span class="block text-xs font-black text-ink">{row.fullName}</span>
+									<span class="block text-[10px] font-medium text-ink-dim">
 										{row.countryName ?? ''} · {compact(row.followers)} · {sourceLabel(row.source)}
 									</span>
 								</span>
 							</span>
 							<span class="text-right">
-								<span class="block text-sm font-black text-slate-900">{row.score.toFixed(1)}</span>
+								<span class="block text-sm font-black text-ink">{row.score.toFixed(1)}</span>
 								{#if row.multiplier !== 1}
-									<span class="text-[10px] font-black text-amber-700">×{row.multiplier}</span>
+									<span class="text-[10px] font-black text-warn-fg">×{row.multiplier}</span>
 								{/if}
 							</span>
 						</button>
 
 						{#if openBreakdown === row.creatorId}
-							<div class="mt-3 space-y-1 border-t border-slate-200 pt-3">
+							<div class="mt-3 space-y-1 border-t border-edge-soft pt-3">
 								{#each row.components as component (component.key)}
 									<div class="flex items-center gap-2">
-										<span class="w-32 shrink-0 text-[10px] font-black text-slate-700">
+										<span class="w-32 shrink-0 text-[10px] font-black text-ink-soft">
 											{signalLabel(component.key)}
 										</span>
-										<span class="h-2 flex-1 overflow-hidden rounded-full bg-slate-200">
+										<span class="h-2 flex-1 overflow-hidden rounded-full bg-well">
 											<span
-												class="block h-full rounded-full bg-emerald-500"
+												class="block h-full rounded-full bg-brand"
 												style="width: {Math.round(component.normalized * 100)}%"
 											></span>
 										</span>
-										<span class="w-28 shrink-0 text-right text-[10px] font-medium text-slate-500">
+										<span class="w-28 shrink-0 text-right text-[10px] font-medium text-ink-dim">
 											{m.at_component_detail({
 												raw: Number(component.raw).toFixed(1),
 												points: component.contribution.toFixed(1)
@@ -723,7 +726,7 @@
 									</div>
 								{/each}
 								{#if row.note}
-									<p class="pt-1 text-[10px] font-medium text-slate-500">{row.note}</p>
+									<p class="pt-1 text-[10px] font-medium text-ink-dim">{row.note}</p>
 								{/if}
 							</div>
 						{/if}
@@ -736,16 +739,16 @@
 	<!-- ================= OVERRIDES ================= -->
 	<div class="bento-card bento-card-static space-y-4">
 		<h2 class={sectionTitle}>
-			<Pin class="h-4 w-4 text-emerald-600" />
+			<Pin class="h-4 w-4 text-brand-fg" />
 			{m.at_overrides_title()}
 		</h2>
-		<p class="text-[11px] font-medium text-slate-600">{m.at_overrides_help()}</p>
+		<p class="text-[11px] font-medium text-ink-soft">{m.at_overrides_help()}</p>
 
 		<form
 			method="POST"
 			action="?/addOverride"
 			use:overrideSuper.enhance
-			class="grid gap-3 rounded-2xl border-2 border-slate-900 bg-slate-50 p-3 md:grid-cols-6"
+			class="grid gap-3 rounded-2xl border-2 border-edge bg-panel p-3 md:grid-cols-6"
 		>
 			<div class="md:col-span-2">
 				<InputComp
@@ -791,8 +794,8 @@
 				/>
 			{:else}
 				<div class="space-y-1">
-					<span class="block text-[11px] font-black text-slate-800">{m.at_override_effect()}</span>
-					<p class="text-[10px] font-medium text-slate-500">{m.at_kind_block_help()}</p>
+					<span class="block text-[11px] font-black text-ink">{m.at_override_effect()}</span>
+					<p class="text-[10px] font-medium text-ink-dim">{m.at_kind_block_help()}</p>
 				</div>
 			{/if}
 
@@ -819,7 +822,7 @@
 			<div class="flex items-end">
 				<button
 					type="submit"
-					class="w-full rounded-2xl border-2 border-slate-900 bg-slate-900 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-800"
+					class="w-full rounded-2xl border-2 border-edge bg-inverse py-2.5 text-xs font-black text-inverse-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-inverse-hover"
 				>
 					{m.at_override_add()}
 				</button>
@@ -827,24 +830,24 @@
 		</form>
 
 		{#if !data.overrides.length}
-			<p class="py-4 text-center text-xs font-medium text-slate-500">{m.at_override_none()}</p>
+			<p class="py-4 text-center text-xs font-medium text-ink-dim">{m.at_override_none()}</p>
 		{:else}
 			<div class="space-y-2">
 				{#each data.overrides as override (override.id)}
 					{@const expired = override.expiresAt && new Date(override.expiresAt) < new Date()}
 					<div
-						class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-slate-900 bg-white p-3 {expired
+						class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-edge bg-surface p-3 {expired
 							? 'opacity-50'
 							: ''}"
 					>
 						<div class="flex items-center gap-3">
 							<span
-								class="flex h-8 w-8 items-center justify-center rounded-xl border-2 border-slate-900 {override.kind ===
+								class="flex h-8 w-8 items-center justify-center rounded-xl border-2 border-edge {override.kind ===
 								'block'
-									? 'bg-red-100 text-red-800'
+									? 'bg-danger-soft text-danger-fg'
 									: override.kind === 'boost'
-										? 'bg-amber-100 text-amber-800'
-										: 'bg-indigo-100 text-indigo-800'}"
+										? 'bg-warn-soft text-warn-fg'
+										: 'bg-info-soft text-info-fg'}"
 							>
 								{#if override.kind === 'block'}
 									<Ban class="h-4 w-4" />
@@ -855,9 +858,9 @@
 								{/if}
 							</span>
 							<div>
-								<span class="block text-xs font-black text-slate-900">
+								<span class="block text-xs font-black text-ink">
 									{override.fullName}
-									<span class="text-[10px] font-bold text-slate-500">
+									<span class="text-[10px] font-bold text-ink-dim">
 										· {kindLabel(override.kind)}
 										{#if override.kind === 'pin' && override.position}
 											· #{override.position}
@@ -866,7 +869,7 @@
 										{/if}
 									</span>
 								</span>
-								<span class="block text-[10px] font-medium text-slate-500">
+								<span class="block text-[10px] font-medium text-ink-dim">
 									{override.note ?? ''}
 									{#if override.expiresAt}
 										· {expired
@@ -885,7 +888,7 @@
 							<input type="hidden" name="id" value={override.id} />
 							<button
 								type="submit"
-								class="flex items-center gap-1 rounded-xl border-2 border-slate-900 bg-white px-2.5 py-1.5 text-[10px] font-black text-slate-900 hover:bg-red-100"
+								class="flex items-center gap-1 rounded-xl border-2 border-edge bg-surface px-2.5 py-1.5 text-[10px] font-black text-ink hover:bg-danger-soft"
 							>
 								<Trash2 class="h-3 w-3" />
 								{m.at_override_remove()}
@@ -901,18 +904,18 @@
 	{#if data.cooldowns.length}
 		<div class="bento-card bento-card-static space-y-3">
 			<h2 class={sectionTitle}>
-				<TimerReset class="h-4 w-4 text-emerald-600" />
+				<TimerReset class="h-4 w-4 text-brand-fg" />
 				{m.at_resting_title()}
 			</h2>
-			<p class="text-[11px] font-medium text-slate-600">{m.at_resting_help()}</p>
+			<p class="text-[11px] font-medium text-ink-soft">{m.at_resting_help()}</p>
 			<div class="space-y-2">
 				{#each data.cooldowns as rest (rest.creatorId)}
 					<div
-						class="flex items-center justify-between gap-3 rounded-2xl border-2 border-slate-900 bg-white p-3"
+						class="flex items-center justify-between gap-3 rounded-2xl border-2 border-edge bg-surface p-3"
 					>
-						<span class="text-xs font-black text-slate-900">
+						<span class="text-xs font-black text-ink">
 							{rest.fullName}
-							<span class="text-[10px] font-medium text-slate-500">
+							<span class="text-[10px] font-medium text-ink-dim">
 								· {m.at_resting_until({ date: stamp(rest.restingUntil) })}
 							</span>
 						</span>
@@ -924,7 +927,7 @@
 							<input type="hidden" name="id" value={rest.creatorId} />
 							<button
 								type="submit"
-								class="rounded-xl border-2 border-slate-900 bg-white px-2.5 py-1.5 text-[10px] font-black text-slate-900 hover:bg-emerald-100"
+								class="rounded-xl border-2 border-edge bg-surface px-2.5 py-1.5 text-[10px] font-black text-ink hover:bg-brand-soft"
 							>
 								{m.at_resting_clear()}
 							</button>
@@ -938,18 +941,18 @@
 	<!-- ================= HISTORY ================= -->
 	<div class="bento-card bento-card-static space-y-3">
 		<h2 class={sectionTitle}>
-			<History class="h-4 w-4 text-emerald-600" />
+			<History class="h-4 w-4 text-brand-fg" />
 			{m.at_runs_title()}
 		</h2>
 
 		{#if !data.runs.length}
-			<p class="py-4 text-center text-xs font-medium text-slate-500">{m.at_runs_empty()}</p>
+			<p class="py-4 text-center text-xs font-medium text-ink-dim">{m.at_runs_empty()}</p>
 		{:else}
 			<div class="overflow-x-auto">
 				<table class="w-full min-w-[640px] text-left">
 					<thead>
 						<tr
-							class="border-b-2 border-slate-900 text-[10px] font-black tracking-widest text-slate-500 uppercase"
+							class="border-b-2 border-edge text-[10px] font-black tracking-widest text-ink-dim uppercase"
 						>
 							<th class="pb-2">{m.at_run_when()}</th>
 							<th class="pb-2">{m.at_run_trigger()}</th>
@@ -961,8 +964,8 @@
 					</thead>
 					<tbody>
 						{#each data.runs as run (run.id)}
-							<tr class="border-b border-slate-200 text-xs font-medium text-slate-700">
-								<td class="py-2 font-black text-slate-900">{stamp(run.createdAt)}</td>
+							<tr class="border-b border-edge-soft text-xs font-medium text-ink-soft">
+								<td class="py-2 font-black text-ink">{stamp(run.createdAt)}</td>
 								<td class="py-2">
 									{run.trigger === 'auto'
 										? m.at_trigger_auto()
@@ -973,7 +976,7 @@
 								<td class="py-2">{modes.find((mode) => mode.key === run.mode)?.label}</td>
 								<td class="py-2">{run.entryCount} / {run.candidateCount}</td>
 								<td class="py-2">{run.changedCount}</td>
-								<td class="py-2 text-[10px] text-slate-500">{run.actorLabel ?? '—'}</td>
+								<td class="py-2 text-[10px] text-ink-dim">{run.actorLabel ?? '—'}</td>
 							</tr>
 						{/each}
 					</tbody>

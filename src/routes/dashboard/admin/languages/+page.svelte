@@ -35,12 +35,12 @@
 	{#snippet row(language)}
 		<div class="flex items-center justify-between gap-3">
 			<div>
-				<h3 class="text-sm font-black text-slate-900">{language.name}</h3>
-				<p class="font-mono text-[11px] font-bold text-slate-500">{language.code}</p>
+				<h3 class="text-sm font-black text-ink">{language.name}</h3>
+				<p class="font-mono text-[11px] font-bold text-ink-dim">{language.code}</p>
 			</div>
 			{#if !language.isActive}
 				<span
-					class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
+					class="rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 				>
 					{m.common_hidden()}
 				</span>

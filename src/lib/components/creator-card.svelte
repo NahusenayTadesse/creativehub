@@ -29,11 +29,11 @@
 
 <div
 	id="creator-card-{creator.id}"
-	class="group flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-slate-900 bg-white shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[6px_6px_0px_0px_rgba(15,23,42,1)]"
+	class="group flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-edge bg-surface shadow-[4px_4px_0px_0px_rgb(var(--bento-shadow))] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[6px_6px_0px_0px_rgb(var(--bento-shadow))]"
 >
 	<div>
 		<!-- Cover with score, save and quick-view controls -->
-		<div class="relative h-28 border-b-2 border-slate-900 bg-slate-100">
+		<div class="relative h-28 border-b-2 border-edge bg-well">
 			<AppImage
 				src={creator.cover}
 				alt=""
@@ -52,24 +52,24 @@
 					type="button"
 					onclick={() => onSave?.(creator)}
 					title={saved ? m.card_remove_shortlist() : m.card_save_shortlist()}
-					class="absolute top-2.5 right-2.5 rounded-xl border-2 border-slate-900 p-2 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors {saved
-						? 'bg-red-500 text-white'
-						: 'bg-white text-slate-900 hover:bg-slate-100'}"
+					class="absolute top-2.5 right-2.5 rounded-xl border-2 border-edge p-2 shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors {saved
+						? 'bg-danger text-danger-ink'
+						: 'bg-surface text-ink hover:bg-well'}"
 				>
-					<Heart class="h-3.5 w-3.5 {saved ? 'fill-white' : ''}" />
+					<Heart class="h-3.5 w-3.5 {saved ? 'fill-current' : ''}" />
 				</button>
 			{/if}
 
 			<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
 				<div
-					class="flex items-center gap-1 rounded-xl border border-slate-900 bg-slate-900 px-2.5 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_0px_rgba(16,185,129,1)]"
+					class="flex items-center gap-1 rounded-xl border border-edge bg-inverse px-2.5 py-1 text-[11px] font-black text-inverse-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow-accent))]"
 				>
-					<Award class="h-3.5 w-3.5 text-emerald-400" />
+					<Award class="h-3.5 w-3.5 text-inverse-brand" />
 					<span>{m.card_score({ score: creator.score })}</span>
 				</div>
 				{#if matchScore !== undefined}
 					<div
-						class="flex items-center gap-1 rounded-xl border border-slate-900 bg-emerald-500 px-2 py-1 text-[11px] font-black text-slate-950 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+						class="flex items-center gap-1 rounded-xl border border-edge bg-brand px-2 py-1 text-[11px] font-black text-brand-ink-deep shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 					>
 						<span>{m.card_match({ score: matchScore })}</span>
 					</div>
@@ -81,7 +81,7 @@
 					type="button"
 					onclick={() => onQuickView?.(creator)}
 					title={m.card_quick_view_title()}
-					class="absolute right-2.5 bottom-2.5 flex cursor-pointer items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/90 px-2.5 py-1 text-[10px] font-black text-white shadow-md backdrop-blur-xs transition-all hover:scale-105 hover:bg-slate-900"
+					class="absolute right-2.5 bottom-2.5 flex cursor-pointer items-center gap-1 rounded-xl border border-edge-mid bg-slate-900/90 px-2.5 py-1 text-[10px] font-black text-inverse-ink shadow-md backdrop-blur-xs transition-all hover:scale-105 hover:bg-inverse"
 				>
 					<Eye class="h-3 w-3 text-emerald-400" />
 					<span>{m.card_quick_view()}</span>
@@ -97,16 +97,16 @@
 						seed={creator.username}
 						label={creator.fullName}
 						loading="lazy"
-						class="h-14 w-14 rounded-2xl border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+						class="h-14 w-14 rounded-2xl border-2 border-edge object-cover shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 						decoding="async"
 						width="56"
 						height="56"
 					/>
 					<span
-						class="absolute right-0 bottom-0 h-4 w-4 rounded-full border-2 border-slate-900 {creator.availability ===
+						class="absolute right-0 bottom-0 h-4 w-4 rounded-full border-2 border-edge {creator.availability ===
 						'available'
-							? 'bg-emerald-500'
-							: 'bg-amber-500'}"
+							? 'bg-brand'
+							: 'bg-warn'}"
 					></span>
 				</div>
 			</div>
@@ -118,11 +118,11 @@
 				<div class="min-w-0">
 					<a
 						href={profileHref}
-						class="line-clamp-1 block text-base font-black text-slate-900 transition-colors group-hover:text-emerald-600"
+						class="line-clamp-1 block text-base font-black text-ink transition-colors group-hover:text-brand-fg"
 					>
 						{creator.fullName}
 					</a>
-					<p class="text-xs font-bold text-slate-500">@{creator.username}</p>
+					<p class="text-xs font-bold text-ink-dim">@{creator.username}</p>
 				</div>
 				<div class="flex shrink-0 flex-col items-end gap-1">
 					<VerificationBadge level={creator.verificationLevel} />
@@ -130,61 +130,59 @@
 				</div>
 			</div>
 
-			<div class="mt-2 mb-3 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+			<div class="mt-2 mb-3 flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
 				<span
-					class="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-800"
+					class="inline-flex items-center gap-1 rounded-lg border border-edge-mid bg-well px-2 py-0.5 text-[11px] font-bold text-ink"
 				>
 					<span class="text-sm">{creator.countryFlag ?? '🌍'}</span>
 					<span>{creator.countryName ?? 'Ethiopia'}</span>
 				</span>
 				{#if creator.city}
-					<span class="flex items-center gap-1 text-[11px] font-medium text-slate-500">
-						<MapPin class="h-3 w-3 shrink-0 text-emerald-600" />
+					<span class="flex items-center gap-1 text-[11px] font-medium text-ink-dim">
+						<MapPin class="h-3 w-3 shrink-0 text-brand-fg" />
 						{creator.city}
 					</span>
 				{/if}
 				{#if creator.categories?.[0]}
 					<span>•</span>
 					<span
-						class="truncate rounded-md border border-slate-900 bg-[#e0e7ff] px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-900 uppercase"
+						class="truncate rounded-md border border-edge bg-tile-indigo px-2 py-0.5 text-[10px] font-black tracking-wider text-ink uppercase"
 					>
 						{creator.categories[0]}
 					</span>
 				{/if}
 			</div>
 
-			<p class="mb-4 line-clamp-2 text-xs leading-relaxed font-medium text-slate-600">
+			<p class="mb-4 line-clamp-2 text-xs leading-relaxed font-medium text-ink-soft">
 				{creator.bio}
 			</p>
 
 			<!-- Stats strip -->
 			<div
-				class="mb-4 grid grid-cols-3 gap-2 rounded-2xl border-2 border-slate-900 bg-[#fef9c3] p-2.5 text-center text-xs shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+				class="mb-4 grid grid-cols-3 gap-2 rounded-2xl border-2 border-edge bg-tile-yellow p-2.5 text-center text-xs shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 			>
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+					<div class="text-[9px] font-black tracking-wider text-ink-soft uppercase">
 						{m.card_reach()}
 					</div>
-					<div class="mt-0.5 text-sm font-black text-slate-900">
+					<div class="mt-0.5 text-sm font-black text-ink">
 						{formatReach(creator.totalReach)}
 					</div>
 				</div>
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+					<div class="text-[9px] font-black tracking-wider text-ink-soft uppercase">
 						{m.card_platform()}
 					</div>
-					<div class="mt-0.5 text-xs font-black text-emerald-800">
+					<div class="mt-0.5 text-xs font-black text-brand-soft-fg">
 						{creator.platformName ?? '—'}
 					</div>
 				</div>
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+					<div class="text-[9px] font-black tracking-wider text-ink-soft uppercase">
 						{m.card_rating()}
 					</div>
-					<div
-						class="mt-0.5 flex items-center justify-center gap-0.5 text-xs font-black text-slate-900"
-					>
-						<Star class="h-3.5 w-3.5 fill-amber-400 text-slate-900" />
+					<div class="mt-0.5 flex items-center justify-center gap-0.5 text-xs font-black text-ink">
+						<Star class="h-3.5 w-3.5 fill-warn text-ink" />
 						<span>{creator.averageRating.toFixed(1)}</span>
 					</div>
 				</div>
@@ -194,15 +192,15 @@
 
 	<!-- Footer -->
 	<div
-		class="flex items-center justify-between gap-2 border-t-2 border-slate-900 bg-slate-50 px-4 pt-3 pb-4"
+		class="flex items-center justify-between gap-2 border-t-2 border-edge bg-panel px-4 pt-3 pb-4"
 	>
 		<div>
-			<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+			<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 				{m.starting_from()}
 			</span>
-			<span class="text-sm font-black text-slate-900">
+			<span class="text-sm font-black text-ink">
 				{creator.startingPrice.toLocaleString()}
-				<span class="text-xs font-black text-emerald-600">{creator.currencyCode}</span>
+				<span class="text-xs font-black text-brand-fg">{creator.currencyCode}</span>
 			</span>
 		</div>
 
@@ -211,15 +209,15 @@
 				<button
 					type="button"
 					onclick={() => onQuickView?.(creator)}
-					class="flex cursor-pointer items-center gap-1 rounded-xl border-2 border-slate-900 bg-amber-100 px-2.5 py-1.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-amber-200"
+					class="flex cursor-pointer items-center gap-1 rounded-xl border-2 border-edge bg-warn-soft px-2.5 py-1.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-warn-soft"
 				>
-					<Eye class="h-3.5 w-3.5 text-slate-900" />
+					<Eye class="h-3.5 w-3.5 text-ink" />
 					<span>{m.card_quick_view()}</span>
 				</button>
 			{/if}
 			<a
 				href={profileHref}
-				class="cursor-pointer rounded-xl border-2 border-slate-900 bg-white px-2.5 py-1.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-slate-100"
+				class="cursor-pointer rounded-xl border-2 border-edge bg-surface px-2.5 py-1.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-well"
 			>
 				{m.view_profile()}
 			</a>
@@ -227,14 +225,14 @@
 				<button
 					type="button"
 					onclick={() => onBook?.(creator)}
-					class="cursor-pointer rounded-xl border-2 border-slate-900 bg-emerald-600 px-2.5 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700"
+					class="cursor-pointer rounded-xl border-2 border-edge bg-brand px-2.5 py-1.5 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-brand-strong"
 				>
 					{m.book_creator()}
 				</button>
 			{:else}
 				<a
 					href="{profileHref}#packages"
-					class="cursor-pointer rounded-xl border-2 border-slate-900 bg-emerald-600 px-2.5 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700"
+					class="cursor-pointer rounded-xl border-2 border-edge bg-brand px-2.5 py-1.5 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-brand-strong"
 				>
 					{m.book_creator()}
 				</a>

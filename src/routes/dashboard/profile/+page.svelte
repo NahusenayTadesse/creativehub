@@ -93,18 +93,18 @@
 				<a
 					href={resolve(`/creators/${creator.username}`)}
 					target="_blank"
-					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-white px-4 py-2.5 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50"
+					class="flex items-center gap-1.5 rounded-2xl border-2 border-edge bg-surface px-4 py-2.5 text-xs font-black text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel"
 				>
-					<ExternalLink class="h-4 w-4 text-emerald-600" />
+					<ExternalLink class="h-4 w-4 text-brand-fg" />
 					{m.pf_view_public()}
 				</a>
 			{/if}
 			<form method="POST" action="?/togglePublish" use:enhance={publishHandler}>
 				<button
 					type="submit"
-					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 px-4 py-2.5 text-xs font-black shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] {creator.isPublished
-						? 'bg-white text-slate-900 hover:bg-slate-50'
-						: 'bg-emerald-600 text-white hover:bg-emerald-700'}"
+					class="flex items-center gap-1.5 rounded-2xl border-2 border-edge px-4 py-2.5 text-xs font-black shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] {creator.isPublished
+						? 'bg-surface text-ink hover:bg-panel'
+						: 'bg-brand text-brand-ink hover:bg-brand-strong'}"
 				>
 					{#if creator.isPublished}
 						<EyeOff class="h-4 w-4" />
@@ -121,30 +121,30 @@
 	<!-- Status strip -->
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 		<div class="bento-card-mint">
-			<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
+			<span class="block text-[10px] font-black tracking-widest text-ink-soft uppercase">
 				{m.pf_visibility()}
 			</span>
-			<span class="text-lg font-black text-slate-900">
+			<span class="text-lg font-black text-ink">
 				{creator.isPublished ? m.pf_live_in_discovery() : m.pf_not_published()}
 			</span>
 		</div>
 		<div class="bento-card bento-card-static">
-			<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
+			<span class="block text-[10px] font-black tracking-widest text-ink-soft uppercase">
 				{m.pf_creator_score()}
 			</span>
-			<span class="flex items-center gap-1.5 text-lg font-black text-slate-900">
-				<Award class="h-4 w-4 text-emerald-600" />
+			<span class="flex items-center gap-1.5 text-lg font-black text-ink">
+				<Award class="h-4 w-4 text-brand-fg" />
 				{creator.score}/100
 			</span>
 		</div>
 		<div class="bento-card bento-card-static">
-			<span class="block text-[10px] font-black tracking-widest text-slate-600 uppercase">
+			<span class="block text-[10px] font-black tracking-widest text-ink-soft uppercase">
 				{m.pf_total_reach()}
 			</span>
-			<span class="text-lg font-black text-slate-900">{formatReach(creator.totalReach)}</span>
+			<span class="text-lg font-black text-ink">{formatReach(creator.totalReach)}</span>
 		</div>
 		<div class="bento-card bento-card-static">
-			<span class="mb-1 block text-[10px] font-black tracking-widest text-slate-600 uppercase">
+			<span class="mb-1 block text-[10px] font-black tracking-widest text-ink-soft uppercase">
 				{m.pf_verification()}
 			</span>
 			<VerificationBadge level={creator.verificationLevel} />
@@ -154,23 +154,23 @@
 	<!-- Publish readiness -->
 	{#if !creator.isPublished}
 		<div class="bento-card-yellow space-y-2">
-			<h3 class="flex items-center gap-1.5 text-sm font-black text-slate-900">
+			<h3 class="flex items-center gap-1.5 text-sm font-black text-ink">
 				{#if blockers.length}
-					<CircleAlert class="h-4 w-4 text-amber-700" />
+					<CircleAlert class="h-4 w-4 text-warn-fg" />
 					{m.pf_before_publish()}
 				{:else}
-					<CircleCheckBig class="h-4 w-4 text-emerald-700" />
+					<CircleCheckBig class="h-4 w-4 text-brand-soft-fg" />
 					{m.pf_ready()}
 				{/if}
 			</h3>
 			{#if blockers.length}
 				<ul class="space-y-1">
 					{#each blockers as item (item)}
-						<li class="text-xs font-medium text-amber-900">{m.pf_blocker_line({ item })}</li>
+						<li class="text-xs font-medium text-warn-fg">{m.pf_blocker_line({ item })}</li>
 					{/each}
 				</ul>
 			{:else}
-				<p class="text-xs font-medium text-amber-900">
+				<p class="text-xs font-medium text-warn-fg">
 					{m.pf_ready_body()}
 				</p>
 			{/if}
@@ -297,13 +297,13 @@
 				name="languageIds"
 				label={m.pf_working_languages()}
 				items={languageItems}
-				selectedClass="bg-[#e0e7ff]"
+				selectedClass="bg-tile-indigo"
 			/>
 
 			<button
 				type="submit"
 				disabled={$delayed}
-				class="mt-4 w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+				class="mt-4 w-full rounded-2xl border-2 border-edge bg-brand py-3 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 			>
 				{#if $delayed}
 					<LoadingBtn name={m.common_saving()} />

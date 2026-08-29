@@ -35,7 +35,7 @@
 		errors = NO_ERRORS,
 		value = $bindable<(string | number)[]>([]),
 		hint = '',
-		selectedClass = 'bg-[#dcfce7]'
+		selectedClass = 'bg-tile-mint'
 	}: {
 		label: string;
 		name: string;
@@ -76,18 +76,18 @@
 </script>
 
 <div class="space-y-1 pt-2">
-	<span class="text-xs font-black text-slate-900">{label}</span>
+	<span class="text-xs font-black text-ink">{label}</span>
 	{#if hint}
-		<p class="text-[11px] font-medium text-slate-500">{hint}</p>
+		<p class="text-[11px] font-medium text-ink-dim">{hint}</p>
 	{/if}
 
 	<div class="flex flex-wrap gap-2 pt-1">
 		{#each items as item (item.value)}
 			{@const selected = chosen.has(String(item.value))}
 			<label
-				class="cursor-pointer rounded-xl border-2 px-3 py-1.5 text-xs font-black transition-all focus-within:ring-2 focus-within:ring-emerald-500 {selected
-					? `border-slate-900 text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] ${selectedClass}`
-					: 'border-slate-300 bg-white text-slate-600 hover:border-slate-900'}"
+				class="cursor-pointer rounded-xl border-2 px-3 py-1.5 text-xs font-black transition-all focus-within:ring-2 focus-within:ring-brand-edge {selected
+					? `border-edge text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] ${selectedClass}`
+					: 'border-edge-mid bg-surface text-ink-soft hover:border-edge'}"
 			>
 				<input
 					type="checkbox"
@@ -103,7 +103,7 @@
 	</div>
 
 	{#if fieldError}
-		<p class="flex items-center gap-2 pt-1 text-xs font-bold text-red-600" aria-live="polite">
+		<p class="flex items-center gap-2 pt-1 text-xs font-bold text-danger" aria-live="polite">
 			<CircleAlert class="h-3.5 w-3.5" />
 			{fieldError}
 		</p>

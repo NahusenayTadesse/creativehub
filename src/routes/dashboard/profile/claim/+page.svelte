@@ -59,10 +59,10 @@
 		     it back — offering the form again here would only create a second. -->
 		<div class="bento-card bento-card-static space-y-4">
 			<div class="flex items-start gap-3">
-				<Clock class="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+				<Clock class="mt-0.5 h-5 w-5 shrink-0 text-warn" />
 				<div class="space-y-1">
-					<h2 class="text-sm font-black text-slate-900">{m.cl_pending_title()}</h2>
-					<p class="text-xs font-medium text-slate-600">
+					<h2 class="text-sm font-black text-ink">{m.cl_pending_title()}</h2>
+					<p class="text-xs font-medium text-ink-soft">
 						{m.cl_pending_body({
 							name: data.open.creatorName,
 							date: formatDate(data.open.createdAt)
@@ -71,22 +71,22 @@
 				</div>
 			</div>
 
-			<div class="flex items-center gap-3 rounded-2xl border-2 border-slate-200 bg-slate-50 p-3">
+			<div class="flex items-center gap-3 rounded-2xl border-2 border-edge-soft bg-panel p-3">
 				<AppImage
 					src={data.open.creatorAvatar}
 					alt=""
 					kind="avatar"
 					seed={data.open.creatorUsername}
 					label={data.open.creatorName}
-					class="h-10 w-10 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+					class="h-10 w-10 shrink-0 rounded-2xl border-2 border-edge object-cover"
 					loading="lazy"
 					decoding="async"
 					width="40"
 					height="40"
 				/>
 				<div>
-					<p class="text-sm font-black text-slate-900">{data.open.creatorName}</p>
-					<p class="text-[11px] font-bold text-slate-500">@{data.open.creatorUsername}</p>
+					<p class="text-sm font-black text-ink">{data.open.creatorName}</p>
+					<p class="text-[11px] font-bold text-ink-dim">@{data.open.creatorUsername}</p>
 				</div>
 			</div>
 
@@ -94,7 +94,7 @@
 				<input type="hidden" name="id" value={data.open.id} />
 				<button
 					type="submit"
-					class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-red-700 hover:bg-red-50"
+					class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-danger-fg hover:bg-danger-soft"
 				>
 					<X class="h-3.5 w-3.5" />
 					{m.cl_withdraw()}
@@ -104,42 +104,42 @@
 	{:else if data.target}
 		<div class="bento-card bento-card-static space-y-4">
 			<div class="flex items-center justify-between gap-3">
-				<span class="text-[9px] font-black tracking-wider text-slate-500 uppercase">
+				<span class="text-[9px] font-black tracking-wider text-ink-dim uppercase">
 					{m.cl_claiming()}
 				</span>
 				<a
 					href={clearLink}
 					data-sveltekit-noscroll
-					class="inline-flex items-center gap-1 text-[11px] font-black text-slate-600 hover:text-emerald-700"
+					class="inline-flex items-center gap-1 text-[11px] font-black text-ink-soft hover:text-brand-soft-fg"
 				>
 					<ArrowLeft class="h-3.5 w-3.5" />
 					{m.cl_change()}
 				</a>
 			</div>
 
-			<div class="flex items-center gap-3 rounded-2xl border-2 border-slate-900 bg-slate-50 p-3">
+			<div class="flex items-center gap-3 rounded-2xl border-2 border-edge bg-panel p-3">
 				<AppImage
 					src={data.target.avatar}
 					alt=""
 					kind="avatar"
 					seed={data.target.username}
 					label={data.target.fullName}
-					class="h-12 w-12 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+					class="h-12 w-12 shrink-0 rounded-2xl border-2 border-edge object-cover"
 					loading="lazy"
 					decoding="async"
 					width="48"
 					height="48"
 				/>
 				<div>
-					<p class="text-sm font-black text-slate-900">{data.target.fullName}</p>
-					<p class="text-[11px] font-bold text-slate-500">
+					<p class="text-sm font-black text-ink">{data.target.fullName}</p>
+					<p class="text-[11px] font-bold text-ink-dim">
 						@{data.target.username}
 						{#if data.target.countryName}
 							· {data.target.countryFlag ?? '🌍'}
 							{data.target.countryName}{data.target.city ? `, ${data.target.city}` : ''}
 						{/if}
 					</p>
-					<p class="text-[11px] font-bold text-emerald-700">
+					<p class="text-[11px] font-bold text-brand-soft-fg">
 						{m.ap_reach_suffix({ reach: formatReach(data.target.totalReach) })}
 						{#if data.target.platformName}
 							· {data.target.platformName}
@@ -162,7 +162,7 @@
 					placeholder={m.cl_evidence_placeholder()}
 					required
 				/>
-				<p class="text-[11px] font-medium text-slate-500">{m.cl_evidence_help()}</p>
+				<p class="text-[11px] font-medium text-ink-dim">{m.cl_evidence_help()}</p>
 
 				<InputComp {form} {errors} name="proofUrl" type="text" label={m.cl_proof_label()} />
 
@@ -170,7 +170,7 @@
 					<button
 						type="submit"
 						disabled={$delayed}
-						class="flex items-center justify-center gap-2 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+						class="flex items-center justify-center gap-2 rounded-2xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 					>
 						{#if $delayed}
 							<LoadingBtn name={m.cl_submit()} />
@@ -184,23 +184,23 @@
 		</div>
 	{:else}
 		{#if data.lastRejected}
-			<div class="bento-card bento-card-static space-y-1 border-red-300!">
-				<h2 class="text-sm font-black text-slate-900">{m.cl_rejected_title()}</h2>
-				<p class="text-xs font-medium text-slate-600">
+			<div class="bento-card bento-card-static space-y-1 border-danger-edge!">
+				<h2 class="text-sm font-black text-ink">{m.cl_rejected_title()}</h2>
+				<p class="text-xs font-medium text-ink-soft">
 					{m.cl_rejected_body({ name: data.lastRejected.creatorName })}
 				</p>
 				{#if data.lastRejected.adminNotes}
-					<p class="rounded-xl bg-slate-100 p-2 text-[11px] font-medium text-slate-700">
+					<p class="rounded-xl bg-well p-2 text-[11px] font-medium text-ink-soft">
 						{data.lastRejected.adminNotes}
 					</p>
 				{/if}
-				<p class="text-[11px] font-medium text-slate-500">{m.cl_rejected_retry()}</p>
+				<p class="text-[11px] font-medium text-ink-dim">{m.cl_rejected_retry()}</p>
 			</div>
 		{/if}
 
 		{#if data.candidates.length}
 			<div class="space-y-3">
-				<h2 class="text-sm font-black text-slate-900">{m.cl_suggestions_title()}</h2>
+				<h2 class="text-sm font-black text-ink">{m.cl_suggestions_title()}</h2>
 				{#each data.candidates as candidate (candidate.id)}
 					<div
 						class="bento-card bento-card-static flex flex-wrap items-center justify-between gap-3"
@@ -212,7 +212,7 @@
 								kind="avatar"
 								seed={candidate.username}
 								label={candidate.fullName}
-								class="h-11 w-11 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+								class="h-11 w-11 shrink-0 rounded-2xl border-2 border-edge object-cover"
 								loading="lazy"
 								decoding="async"
 								width="44"
@@ -222,18 +222,18 @@
 								<a
 									href={resolve(`/creators/${candidate.username}`)}
 									target="_blank"
-									class="text-sm font-black text-slate-900 hover:text-emerald-600"
+									class="text-sm font-black text-ink hover:text-brand-fg"
 								>
 									{candidate.fullName}
 								</a>
-								<p class="text-[11px] font-bold text-slate-500">
+								<p class="text-[11px] font-bold text-ink-dim">
 									@{candidate.username}
 									{#if candidate.countryName}
 										· {candidate.countryFlag ?? '🌍'}
 										{candidate.countryName}{candidate.city ? `, ${candidate.city}` : ''}
 									{/if}
 								</p>
-								<p class="text-[11px] font-bold text-emerald-700">
+								<p class="text-[11px] font-bold text-brand-soft-fg">
 									{m.ap_reach_suffix({ reach: formatReach(candidate.totalReach) })}
 									{#if candidate.platformName}
 										· {candidate.platformName}
@@ -245,7 +245,7 @@
 						<a
 							href={pickLink(candidate.username)}
 							data-sveltekit-noscroll
-							class="rounded-xl border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+							class="rounded-xl border-2 border-edge bg-brand px-3 py-1.5 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 						>
 							{m.cl_choose()}
 						</a>
@@ -254,16 +254,16 @@
 			</div>
 		{:else}
 			<div class="bento-card bento-card-static space-y-3 py-16 text-center">
-				<SearchX class="mx-auto h-10 w-10 text-slate-400" />
-				<h3 class="text-base font-black text-slate-900">{m.cl_none_title()}</h3>
-				<p class="mx-auto max-w-md text-xs font-medium text-slate-600">{m.cl_none_body()}</p>
+				<SearchX class="mx-auto h-10 w-10 text-ink-faint" />
+				<h3 class="text-base font-black text-ink">{m.cl_none_title()}</h3>
+				<p class="mx-auto max-w-md text-xs font-medium text-ink-soft">{m.cl_none_body()}</p>
 			</div>
 		{/if}
 
 		<div class="flex justify-center">
 			<a
 				href={resolve('/dashboard/profile/create')}
-				class="inline-flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-white px-4 py-2 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-100"
+				class="inline-flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-4 py-2 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-well"
 			>
 				<UserPlus class="h-3.5 w-3.5" />
 				{m.cl_create_instead()}

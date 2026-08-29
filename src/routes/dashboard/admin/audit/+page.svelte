@@ -43,10 +43,10 @@
 			<a
 				href={entityLink('all')}
 				data-sveltekit-noscroll
-				class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] {entityFilter ===
+				class="cursor-pointer rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] {entityFilter ===
 				'all'
-					? 'bg-slate-900 text-white'
-					: 'bg-white text-slate-800 hover:bg-slate-100'}"
+					? 'bg-inverse text-inverse-ink'
+					: 'bg-surface text-ink hover:bg-well'}"
 			>
 				{m.ad_all_count({ count: totalEntries })}
 			</a>
@@ -54,10 +54,10 @@
 				<a
 					href={entityLink(entity)}
 					data-sveltekit-noscroll
-					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black capitalize shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] {entityFilter ===
+					class="cursor-pointer rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black capitalize shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] {entityFilter ===
 					entity
-						? 'bg-slate-900 text-white'
-						: 'bg-white text-slate-800 hover:bg-slate-100'}"
+						? 'bg-inverse text-inverse-ink'
+						: 'bg-surface text-ink hover:bg-well'}"
 				>
 					{entity} ({data.entityCounts[entity]})
 				</a>
@@ -69,36 +69,36 @@
 
 	{#if data.entries.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
-			<ScrollText class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">{m.ad_empty()}</h3>
+			<ScrollText class="mx-auto h-10 w-10 text-ink-faint" />
+			<h3 class="text-base font-black text-ink">{m.ad_empty()}</h3>
 		</div>
 	{:else}
 		<div class="bento-card bento-card-static overflow-x-auto p-0!">
 			<table class="w-full min-w-[800px] text-sm">
 				<thead>
-					<tr class="border-b-2 border-slate-900 bg-slate-50">
+					<tr class="border-b-2 border-edge bg-panel">
 						<th
-							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-ink-soft uppercase"
 						>
 							{m.ad_col_when()}
 						</th>
 						<th
-							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-ink-soft uppercase"
 						>
 							{m.ad_col_actor()}
 						</th>
 						<th
-							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-ink-soft uppercase"
 						>
 							{m.ad_col_object()}
 						</th>
 						<th
-							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-ink-soft uppercase"
 						>
 							{m.ad_col_transition()}
 						</th>
 						<th
-							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+							class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-ink-soft uppercase"
 						>
 							{m.ad_col_reason()}
 						</th>
@@ -106,29 +106,29 @@
 				</thead>
 				<tbody>
 					{#each data.entries.rows as entry (entry.id)}
-						<tr class="border-b border-slate-200 last:border-0">
-							<td class="px-4 py-2.5 text-[11px] font-bold whitespace-nowrap text-slate-500">
+						<tr class="border-b border-edge-soft last:border-0">
+							<td class="px-4 py-2.5 text-[11px] font-bold whitespace-nowrap text-ink-dim">
 								{formatTime(entry.createdAt)}
 							</td>
-							<td class="px-4 py-2.5 text-[11px] font-bold text-slate-700">
+							<td class="px-4 py-2.5 text-[11px] font-bold text-ink-soft">
 								{entry.actorLabel ?? entry.actorId?.slice(0, 8) ?? m.ad_system()}
 							</td>
 							<td class="px-4 py-2.5">
 								<span
-									class="rounded-md border border-slate-400 bg-slate-100 px-1.5 py-0.5 text-[10px] font-black tracking-wider text-slate-700 uppercase"
+									class="rounded-md border border-edge-mid bg-well px-1.5 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 								>
 									{entry.entity}{entry.entityId ? ` #${entry.entityId}` : ''}
 								</span>
 							</td>
-							<td class="px-4 py-2.5 text-[11px] font-bold text-slate-700">
+							<td class="px-4 py-2.5 text-[11px] font-bold text-ink-soft">
 								{entry.action.replace(/_/g, ' ')}
 								{#if entry.fromState || entry.toState}
-									<span class="text-slate-400">
+									<span class="text-ink-faint">
 										{entry.fromState ?? '—'} → {entry.toState ?? '—'}
 									</span>
 								{/if}
 							</td>
-							<td class="max-w-xs px-4 py-2.5 text-[11px] font-medium text-slate-600">
+							<td class="max-w-xs px-4 py-2.5 text-[11px] font-medium text-ink-soft">
 								{entry.reason ?? ''}
 							</td>
 						</tr>

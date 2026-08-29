@@ -43,19 +43,19 @@
 	     this in ends up with a second, empty page and no way back to the one
 	     that already carries their audience. -->
 	{#if data.candidates.length}
-		<div class="bento-card bento-card-static space-y-3 border-amber-400!">
-			<h2 class="text-sm font-black text-slate-900">{m.cl_suggestions_title()}</h2>
+		<div class="bento-card bento-card-static space-y-3 border-warn-edge!">
+			<h2 class="text-sm font-black text-ink">{m.cl_suggestions_title()}</h2>
 			<ul class="space-y-1">
 				{#each data.candidates as candidate (candidate.id)}
-					<li class="text-xs font-bold text-slate-700">
+					<li class="text-xs font-bold text-ink-soft">
 						{candidate.fullName}
-						<span class="font-medium text-slate-500">@{candidate.username}</span>
+						<span class="font-medium text-ink-dim">@{candidate.username}</span>
 					</li>
 				{/each}
 			</ul>
 			<a
 				href={resolve('/dashboard/profile/claim')}
-				class="inline-flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+				class="inline-flex items-center gap-1.5 rounded-xl border-2 border-edge bg-brand px-3 py-1.5 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 			>
 				<Hand class="h-3.5 w-3.5" />
 				{m.cl_choose()}
@@ -142,7 +142,7 @@
 			<button
 				type="submit"
 				disabled={$delayed}
-				class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+				class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-edge bg-brand py-3 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 			>
 				{#if $delayed}
 					<LoadingBtn name={m.pc_creating()} />
@@ -159,7 +159,7 @@
 	<div class="flex justify-center">
 		<a
 			href={resolve('/dashboard/profile/claim')}
-			class="text-xs font-bold text-slate-600 underline hover:text-emerald-700"
+			class="text-xs font-bold text-ink-soft underline hover:text-brand-soft-fg"
 		>
 			{m.cl_title()}
 		</a>

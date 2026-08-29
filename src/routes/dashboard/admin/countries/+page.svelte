@@ -56,22 +56,22 @@
 				<div class="flex items-center gap-2">
 					<span class="text-2xl">{country.flag}</span>
 					<div>
-						<h3 class="text-sm font-black text-slate-900">{country.name}</h3>
-						<p class="text-[11px] font-bold text-slate-500">{country.code}</p>
+						<h3 class="text-sm font-black text-ink">{country.name}</h3>
+						<p class="text-[11px] font-bold text-ink-dim">{country.code}</p>
 					</div>
 				</div>
 				{#if !country.isActive}
 					<span
-						class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
+						class="rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 					>
 						{m.common_hidden()}
 					</span>
 				{/if}
 			</div>
 
-			<div class="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
-				<span class="font-bold text-slate-600">{country.currencyCode}</span>
-				<span class="font-black text-slate-900">
+			<div class="flex items-center justify-between rounded-xl bg-panel px-3 py-2 text-xs">
+				<span class="font-bold text-ink-soft">{country.currencyCode}</span>
+				<span class="font-black text-ink">
 					{m.co_per_usd({ rate: country.usdRate.toLocaleString() })}
 				</span>
 			</div>
@@ -80,7 +80,7 @@
 				<div class="flex flex-wrap gap-1">
 					{#each country.paymentRails as rail (rail)}
 						<span
-							class="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-900"
+							class="rounded-md border border-brand-edge bg-brand-soft px-2 py-0.5 text-[10px] font-bold text-brand-soft-fg"
 						>
 							{rail}
 						</span>

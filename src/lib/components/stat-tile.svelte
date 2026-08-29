@@ -30,13 +30,20 @@
 		dark: 'bento-card-dark'
 	};
 
+	/**
+	 * Each pastel tile has an ink drawn against that tile rather than against the
+	 * page, so the footnote keeps its contrast in both themes — the tiles go deep
+	 * in dark rather than pale, and their inks go light with them.
+	 *
+	 * `dark` is the emphatic tile: it inverts, so its ink is the inverse scale.
+	 */
 	const noteClass: Record<string, string> = {
-		white: 'text-slate-500',
-		mint: 'text-emerald-800',
-		yellow: 'text-amber-800',
-		indigo: 'text-indigo-800',
-		peach: 'text-orange-800',
-		dark: 'text-slate-400'
+		white: 'text-ink-dim',
+		mint: 'text-tile-mint-ink',
+		yellow: 'text-tile-yellow-ink',
+		indigo: 'text-tile-indigo-ink',
+		peach: 'text-tile-peach-ink',
+		dark: 'text-inverse-ink-dim'
 	};
 </script>
 
@@ -45,8 +52,8 @@
 		<div class="flex items-start justify-between gap-2">
 			<span
 				class="block text-[10px] font-black tracking-widest uppercase {tone === 'dark'
-					? 'text-emerald-400'
-					: 'text-slate-600'}"
+					? 'text-inverse-brand'
+					: 'text-ink-soft'}"
 			>
 				{label}
 			</span>
@@ -54,7 +61,7 @@
 				{@render icon()}
 			{/if}
 		</div>
-		<span class="text-3xl font-black {tone === 'dark' ? 'text-white' : 'text-slate-900'}">
+		<span class="text-3xl font-black {tone === 'dark' ? 'text-inverse-ink' : 'text-ink'}">
 			{value}
 		</span>
 	</div>

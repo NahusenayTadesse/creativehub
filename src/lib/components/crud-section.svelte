@@ -113,7 +113,7 @@
 			<!-- The box stays so a fruitless search can be cleared, but "Showing
 			     0 – 0 of 0" above a "No results" panel says nothing twice. -->
 			{#if list.total > 0}
-				<span class="text-xs font-bold text-slate-600">
+				<span class="text-xs font-bold text-ink-soft">
 					{m.pg_showing({ start: list.from, end: list.to, total: list.total })}
 				</span>
 			{/if}
@@ -124,17 +124,17 @@
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
 			{#if list?.state.search}
 				<!-- The table has rows; this search does not reach them. -->
-				<SearchX class="mx-auto h-10 w-10 text-slate-400" />
-				<h3 class="text-base font-black text-slate-900">{m.pg_no_results()}</h3>
-				<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
+				<SearchX class="mx-auto h-10 w-10 text-ink-faint" />
+				<h3 class="text-base font-black text-ink">{m.pg_no_results()}</h3>
+				<p class="mx-auto max-w-sm text-xs font-medium text-ink-soft">
 					{m.crud_no_search_match({ search: list.state.search })}
 				</p>
 			{:else}
-				<Inbox class="mx-auto h-10 w-10 text-slate-400" />
-				<h3 class="text-base font-black text-slate-900">
+				<Inbox class="mx-auto h-10 w-10 text-ink-faint" />
+				<h3 class="text-base font-black text-ink">
 					{emptyMessage ?? m.crud_empty_default()}
 				</h3>
-				<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
+				<p class="mx-auto max-w-sm text-xs font-medium text-ink-soft">
 					{m.crud_empty_hint({ label })}
 				</p>
 			{/if}
@@ -149,7 +149,7 @@
 				<div class="bento-card bento-card-static flex flex-col justify-between gap-3">
 					{@render row(record)}
 
-					<div class="flex items-center justify-end gap-2 border-t-2 border-slate-200 pt-3">
+					<div class="flex items-center justify-end gap-2 border-t-2 border-edge-soft pt-3">
 						<CrudDialog
 							title={m.crud_edit({ label })}
 							data={editForm}

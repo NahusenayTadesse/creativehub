@@ -153,22 +153,22 @@
 <div id="discovery-view-container" class="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
 	<!-- Header -->
 	<div
-		class="flex flex-col justify-between gap-4 border-b-2 border-slate-900 pb-6 md:flex-row md:items-center"
+		class="flex flex-col justify-between gap-4 border-b-2 border-edge pb-6 md:flex-row md:items-center"
 	>
 		<div>
 			<div class="mb-1 flex items-center gap-2">
-				<span class="text-xs font-black tracking-widest text-slate-500 uppercase">
+				<span class="text-xs font-black tracking-widest text-ink-dim uppercase">
 					{m.discover_eyebrow()}
 				</span>
 				<span
-					class="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-900"
+					class="inline-flex items-center gap-1 rounded-full border border-brand-edge bg-brand-soft px-2.5 py-0.5 text-[10px] font-black text-brand-soft-fg"
 				>
-					<Globe class="h-3 w-3 text-emerald-700" />
+					<Globe class="h-3 w-3 text-brand-soft-fg" />
 					{m.discover_global_badge()}
 				</span>
 			</div>
-			<h1 class="text-2xl font-black text-slate-900 sm:text-3xl">{m.discover_title()}</h1>
-			<p class="mt-1 text-xs font-medium text-slate-600">
+			<h1 class="text-2xl font-black text-ink sm:text-3xl">{m.discover_title()}</h1>
+			<p class="mt-1 text-xs font-medium text-ink-soft">
 				{m.discover_subtitle({
 					creators: data.creators.total,
 					markets: data.reference.countries.length
@@ -195,7 +195,7 @@
 					go({ sort: value === 'score' ? null : SORTS[value].sort, dir: SORTS[value].dir ?? null })}
 			>
 				<Select.Trigger
-					class="w-full cursor-pointer rounded-2xl border-2 border-slate-900 bg-white px-3 py-2.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] sm:w-auto"
+					class="w-full cursor-pointer rounded-2xl border-2 border-edge bg-surface px-3 py-2.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] sm:w-auto"
 				>
 					{sortLabels[sortChoice] ?? sortLabels.score}
 				</Select.Trigger>
@@ -211,17 +211,17 @@
 	<!-- Match panel -->
 	{#if data.campaigns.length}
 		<div
-			class="rounded-3xl border-2 border-slate-900 bg-slate-900 p-5 text-white shadow-[4px_4px_0px_0px_rgba(16,185,129,1)]"
+			class="rounded-3xl border-2 border-edge bg-inverse p-5 text-inverse-ink shadow-[4px_4px_0px_0px_rgb(var(--bento-shadow-accent))]"
 		>
 			<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 				<div class="space-y-1">
 					<span
-						class="flex items-center gap-1.5 text-xs font-black tracking-widest text-emerald-400 uppercase"
+						class="flex items-center gap-1.5 text-xs font-black tracking-widest text-inverse-brand uppercase"
 					>
 						<Sparkles class="h-3.5 w-3.5" />
 						{m.discover_match_eyebrow()}
 					</span>
-					<p class="max-w-xl text-xs font-medium text-slate-300">
+					<p class="max-w-xl text-xs font-medium text-inverse-ink-dim">
 						{m.discover_match_body()}
 					</p>
 				</div>
@@ -245,7 +245,7 @@
 							target the size it was.
 						-->
 						<Select.Trigger
-							class="h-auto! min-h-10 w-full max-w-full min-w-0 cursor-pointer rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-xs font-black whitespace-normal text-slate-900 sm:w-auto sm:min-w-56"
+							class="h-auto! min-h-10 w-full max-w-full min-w-0 cursor-pointer rounded-xl border-2 border-edge bg-surface px-3 py-2 text-xs font-black whitespace-normal text-ink sm:w-auto sm:min-w-56"
 						>
 							<span class="line-clamp-2 text-left">
 								{selectedCampaign?.title ?? m.discover_choose_campaign()}
@@ -267,8 +267,8 @@
 								? go({ sort: null, campaign: null })
 								: go({ sort: 'match', campaign: matchCampaignId })}
 						class="w-full cursor-pointer rounded-xl border-2 px-4 py-2 text-xs font-black transition-colors sm:w-auto {matchOn
-							? 'border-slate-900 bg-emerald-500 text-slate-950'
-							: 'border-white bg-transparent text-white hover:bg-white/10'}"
+							? 'border-edge bg-brand text-brand-ink-deep'
+							: 'border-inverse-ink bg-transparent text-inverse-ink hover:bg-inverse-ink/10'}"
 					>
 						{matchOn ? m.discover_showing_top_matches() : m.discover_show_top_matches()}
 					</button>
@@ -279,20 +279,18 @@
 
 	<!-- Country chips. Counts come from the database, over the whole filtered set. -->
 	<div
-		class="bento-card bento-card-static border-2 border-slate-900 bg-gradient-to-r from-emerald-50/50 via-white to-slate-50 p-4 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] sm:p-5"
+		class="bento-card bento-card-static border-2 border-edge bg-gradient-to-r from-brand-soft/50 via-surface to-panel p-4 shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] sm:p-5"
 	>
 		<div class="mb-3 flex items-center justify-between">
-			<span
-				class="flex items-center gap-1.5 text-xs font-black tracking-wider text-slate-900 uppercase"
-			>
-				<Globe class="h-3.5 w-3.5 text-emerald-600" />
+			<span class="flex items-center gap-1.5 text-xs font-black tracking-wider text-ink uppercase">
+				<Globe class="h-3.5 w-3.5 text-brand-fg" />
 				{m.discover_filter_by_market()}
 			</span>
 			{#if selectedCountryIds.length}
 				<button
 					type="button"
 					onclick={() => go({ country: null, region: null })}
-					class="cursor-pointer text-[10px] font-bold text-rose-600 hover:underline"
+					class="cursor-pointer text-[10px] font-bold text-tint-rose-fg hover:underline"
 				>
 					{m.discover_clear_count({ count: selectedCountryIds.length })}
 				</button>
@@ -304,9 +302,9 @@
 				<a
 					href={countryLink(String(country.id))}
 					data-sveltekit-noscroll
-					class="flex cursor-pointer items-center gap-1.5 rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {active
-						? 'bg-slate-900 text-white'
-						: 'bg-white text-slate-800 hover:bg-slate-100'}"
+					class="flex cursor-pointer items-center gap-1.5 rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {active
+						? 'bg-inverse text-inverse-ink'
+						: 'bg-surface text-ink hover:bg-well'}"
 				>
 					<span>{country.flag}</span>
 					<span>{country.name}</span>
@@ -322,16 +320,16 @@
 		<aside
 			class="bento-card bento-card-static h-fit space-y-6 p-5 lg:sticky lg:top-24 lg:col-span-1"
 		>
-			<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
+			<div class="flex items-center justify-between border-b-2 border-edge pb-3">
 				<span
-					class="flex items-center gap-1.5 text-xs font-black tracking-wider text-slate-900 uppercase"
+					class="flex items-center gap-1.5 text-xs font-black tracking-wider text-ink uppercase"
 				>
-					<SlidersHorizontal class="h-4 w-4 text-emerald-600" />
+					<SlidersHorizontal class="h-4 w-4 text-brand-fg" />
 					<span>{m.discover_filters()}</span>
 				</span>
 				<a
 					href={page.url.pathname}
-					class="flex cursor-pointer items-center gap-1 rounded-md border border-slate-900 bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-500 hover:text-emerald-700"
+					class="flex cursor-pointer items-center gap-1 rounded-md border border-edge bg-well px-2 py-0.5 text-[11px] font-black text-ink-dim hover:text-brand-soft-fg"
 				>
 					<RotateCcw class="h-3 w-3" />
 					<span>{m.discover_reset()}</span>
@@ -388,7 +386,7 @@
 				onChange={(next) => go({ verification: next === 'all' ? null : String(next) })}
 			/>
 
-			<div class="border-t-2 border-slate-900 pt-3">
+			<div class="border-t-2 border-edge pt-3">
 				<InputComp
 					name="availability"
 					type="checkboxSingle"
@@ -405,17 +403,17 @@
 		<!-- Results -->
 		<div class="space-y-4 lg:col-span-3">
 			<div
-				class="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-600"
+				class="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-ink-soft"
 			>
 				<div class="flex items-center gap-2">
 					<span>
 						{m.discover_showing_creators()}
-						<strong class="text-slate-900">{data.creators.total}</strong>
+						<strong class="text-ink">{data.creators.total}</strong>
 						{m.discover_creators_word()}
 					</span>
 					{#if matchOn}
 						<span
-							class="flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-black text-emerald-800"
+							class="flex items-center gap-1 rounded-full border border-brand-edge bg-brand-soft px-2 py-0.5 text-[11px] font-black text-brand-soft-fg"
 						>
 							<Sparkles class="h-3 w-3" />
 							<span>{m.discover_sorted_by_match()}</span>
@@ -429,16 +427,16 @@
 						<a
 							href={countryLink(countryId)}
 							data-sveltekit-noscroll
-							class="flex cursor-pointer items-center gap-1 rounded-full border border-slate-900 bg-[#e0e7ff] px-2.5 py-0.5 text-[11px] font-black tracking-wider text-indigo-950 uppercase hover:bg-indigo-200"
+							class="flex cursor-pointer items-center gap-1 rounded-full border border-edge bg-tile-indigo px-2.5 py-0.5 text-[11px] font-black tracking-wider text-info-fg uppercase hover:bg-info-soft"
 						>
 							<span>{country?.flag}</span>
 							<span>{country?.name}</span>
-							<X class="h-3 w-3 text-indigo-800" />
+							<X class="h-3 w-3 text-info-fg" />
 						</a>
 					{/each}
 					{#if categorySlug !== 'all'}
 						<span
-							class="rounded-full border border-slate-900 bg-[#dcfce7] px-3 py-1 text-[11px] font-black tracking-wider text-slate-900 uppercase"
+							class="rounded-full border border-edge bg-tile-mint px-3 py-1 text-[11px] font-black tracking-wider text-ink uppercase"
 						>
 							{data.reference.categories.find((c) => c.slug === categorySlug)?.name}
 						</span>
@@ -448,14 +446,14 @@
 
 			{#if data.creators.rows.length === 0}
 				<div class="bento-card bento-card-static space-y-3 p-12 text-center">
-					<Search class="mx-auto h-10 w-10 text-slate-400" />
-					<h3 class="text-base font-black text-slate-900">{m.discover_empty_title()}</h3>
-					<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
+					<Search class="mx-auto h-10 w-10 text-ink-faint" />
+					<h3 class="text-base font-black text-ink">{m.discover_empty_title()}</h3>
+					<p class="mx-auto max-w-sm text-xs font-medium text-ink-soft">
 						{m.discover_empty_body()}
 					</p>
 					<a
 						href={page.url.pathname}
-						class="inline-block cursor-pointer rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+						class="inline-block cursor-pointer rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 					>
 						{m.discover_reset_all()}
 					</a>

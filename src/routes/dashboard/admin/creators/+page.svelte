@@ -118,7 +118,7 @@
 >
 	{#snippet extraActions()}
 		<span
-			class="rounded-2xl border-2 border-slate-900 bg-[#dcfce7] px-4 py-2.5 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]"
+			class="rounded-2xl border-2 border-edge bg-tile-mint px-4 py-2.5 text-xs font-black text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))]"
 		>
 			{m.ac_published_count({ published, total: data.rows.length })}
 		</span>
@@ -134,15 +134,15 @@
 						kind="avatar"
 						seed={creator.username}
 						label={creator.fullName}
-						class="h-10 w-10 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+						class="h-10 w-10 shrink-0 rounded-2xl border-2 border-edge object-cover"
 						loading="lazy"
 						decoding="async"
 						width="40"
 						height="40"
 					/>
 					<div class="min-w-0">
-						<h3 class="truncate text-sm font-black text-slate-900">{creator.fullName}</h3>
-						<p class="truncate text-[11px] font-bold text-slate-500">@{creator.username}</p>
+						<h3 class="truncate text-sm font-black text-ink">{creator.fullName}</h3>
+						<p class="truncate text-[11px] font-bold text-ink-dim">@{creator.username}</p>
 					</div>
 				</div>
 				<div class="flex shrink-0 flex-col items-end gap-1">
@@ -150,14 +150,14 @@
 						<a
 							href={resolve(`/creators/${creator.username}`)}
 							target="_blank"
-							class="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 hover:underline"
+							class="inline-flex items-center gap-1 text-[10px] font-black text-brand-soft-fg hover:underline"
 						>
 							<ExternalLink class="h-3 w-3" />
 							{m.ac_live()}
 						</a>
 					{:else}
 						<span
-							class="rounded-md border border-amber-500 bg-amber-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-amber-900 uppercase"
+							class="rounded-md border border-warn-edge bg-warn-soft px-2 py-0.5 text-[10px] font-black tracking-wider text-warn-fg uppercase"
 						>
 							{m.ac_unpublished()}
 						</span>
@@ -169,42 +169,42 @@
 				<VerificationBadge level={creator.verificationLevel} />
 				{#if creator.isFeatured}
 					<span
-						class="rounded-md border border-slate-900 bg-[#e0e7ff] px-2 py-0.5 text-[10px] font-black tracking-wider text-indigo-950 uppercase"
+						class="rounded-md border border-edge bg-tile-indigo px-2 py-0.5 text-[10px] font-black tracking-wider text-info-fg uppercase"
 					>
 						{m.ac_featured()}
 					</span>
 				{/if}
 				{#if creator.isTrending}
 					<span
-						class="rounded-md border border-slate-900 bg-[#fef9c3] px-2 py-0.5 text-[10px] font-black tracking-wider text-amber-950 uppercase"
+						class="rounded-md border border-edge bg-tile-yellow px-2 py-0.5 text-[10px] font-black tracking-wider text-warn-fg uppercase"
 					>
 						{m.ac_trending()}
 					</span>
 				{/if}
 			</div>
 
-			<div class="grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2 text-center text-xs">
+			<div class="grid grid-cols-3 gap-2 rounded-xl bg-panel p-2 text-center text-xs">
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-500 uppercase">
+					<div class="text-[9px] font-black tracking-wider text-ink-dim uppercase">
 						{m.card_reach()}
 					</div>
-					<div class="font-black text-slate-900">{formatReach(creator.totalReach)}</div>
+					<div class="font-black text-ink">{formatReach(creator.totalReach)}</div>
 				</div>
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-500 uppercase">
+					<div class="text-[9px] font-black tracking-wider text-ink-dim uppercase">
 						{m.home_score()}
 					</div>
-					<div class="flex items-center justify-center gap-0.5 font-black text-slate-900">
-						<Award class="h-3 w-3 text-emerald-600" />
+					<div class="flex items-center justify-center gap-0.5 font-black text-ink">
+						<Award class="h-3 w-3 text-brand-fg" />
 						{creator.score}
 					</div>
 				</div>
 				<div>
-					<div class="text-[9px] font-black tracking-wider text-slate-500 uppercase">
+					<div class="text-[9px] font-black tracking-wider text-ink-dim uppercase">
 						{m.card_rating()}
 					</div>
-					<div class="flex items-center justify-center gap-0.5 font-black text-slate-900">
-						<Star class="h-3 w-3 fill-amber-400 text-slate-900" />
+					<div class="flex items-center justify-center gap-0.5 font-black text-ink">
+						<Star class="h-3 w-3 fill-warn text-ink" />
 						{creator.averageRating.toFixed(1)}
 					</div>
 				</div>

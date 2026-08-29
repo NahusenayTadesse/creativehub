@@ -27,7 +27,7 @@
 </script>
 
 {#if data.length === 0}
-	<p class="py-8 text-center text-xs font-medium text-slate-500">
+	<p class="py-8 text-center text-xs font-medium text-ink-dim">
 		{m.chart_empty()}
 	</p>
 {:else}
@@ -43,7 +43,7 @@
 					<div class="relative flex flex-1 items-end">
 						{#if hovered === index}
 							<div
-								class="absolute -top-1 left-1/2 z-10 -translate-x-1/2 rounded-lg border-2 border-slate-900 bg-white px-2 py-1 text-[10px] font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+								class="absolute -top-1 left-1/2 z-10 -translate-x-1/2 rounded-lg border-2 border-edge bg-surface px-2 py-1 text-[10px] font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 							>
 								{point.count === 1
 									? m.chart_tooltip_one({ total: point.total.toLocaleString(), count: point.count })
@@ -64,11 +64,11 @@
 								total: point.total.toLocaleString(),
 								count: point.count
 							})}
-							class="w-full rounded-t-xl border-2 border-slate-900 bg-emerald-500 transition-all hover:bg-emerald-400"
+							class="w-full rounded-t-xl border-2 border-edge bg-brand transition-all hover:bg-brand-strong"
 							style="height: {Math.max(pct, 3)}%"
 						></button>
 					</div>
-					<span class="text-center text-[10px] font-black tracking-wider text-slate-500 uppercase">
+					<span class="text-center text-[10px] font-black tracking-wider text-ink-dim uppercase">
 						{label(point.month)}
 					</span>
 				</div>

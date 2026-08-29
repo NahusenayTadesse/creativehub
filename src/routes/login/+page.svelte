@@ -39,20 +39,20 @@
 	<div class="w-full max-w-md space-y-6">
 		<a href={resolve('/')} class="flex items-center justify-center gap-3">
 			<div
-				class="flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-slate-900 bg-slate-900 text-xl font-black text-white shadow-[3px_3px_0px_0px_rgba(16,185,129,1)]"
+				class="flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-edge bg-inverse text-xl font-black text-inverse-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow-accent))]"
 			>
 				ET
 			</div>
-			<span class="text-xl font-black tracking-tight text-slate-900">{m.brand_name()}</span>
+			<span class="text-xl font-black tracking-tight text-ink">{m.brand_name()}</span>
 		</a>
 
 		<div class="bento-card bento-card-static space-y-5">
-			<div class="border-b-2 border-slate-900 pb-4">
-				<span class="text-xs font-black tracking-widest text-slate-500 uppercase"
+			<div class="border-b-2 border-edge pb-4">
+				<span class="text-xs font-black tracking-widest text-ink-dim uppercase"
 					>{m.login_eyebrow()}</span
 				>
-				<h1 class="text-2xl font-black text-slate-900">{m.login_title()}</h1>
-				<p class="mt-1 text-xs font-medium text-slate-600">
+				<h1 class="text-2xl font-black text-ink">{m.login_title()}</h1>
+				<p class="mt-1 text-xs font-medium text-ink-soft">
 					{m.login_subtitle()}
 				</p>
 			</div>
@@ -84,7 +84,7 @@
 				<button
 					type="submit"
 					disabled={$delayed}
-					class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700 disabled:opacity-60"
+					class="w-full rounded-2xl border-2 border-edge bg-brand py-3 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-brand-strong disabled:opacity-60"
 				>
 					{#if $delayed}
 						<LoadingBtn name={m.login_signing_in()} />
@@ -96,11 +96,11 @@
 
 			{#if data.google}
 				<div class="flex items-center gap-3">
-					<span class="h-0.5 flex-1 bg-slate-200"></span>
-					<span class="text-[11px] font-black tracking-widest text-slate-500 uppercase"
+					<span class="h-0.5 flex-1 bg-well"></span>
+					<span class="text-[11px] font-black tracking-widest text-ink-dim uppercase"
 						>{m.login_or()}</span
 					>
-					<span class="h-0.5 flex-1 bg-slate-200"></span>
+					<span class="h-0.5 flex-1 bg-well"></span>
 				</div>
 
 				<!-- A real form post, so this works with scripting off like the one above.
@@ -109,7 +109,7 @@
 				<form method="POST" action={googleAction}>
 					<button
 						type="submit"
-						class="flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-slate-900 bg-white py-3 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-slate-50"
+						class="flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-edge bg-surface py-3 text-xs font-black text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-panel"
 					>
 						<svg class="h-4 w-4" viewBox="0 0 18 18" aria-hidden="true">
 							<path
@@ -134,15 +134,15 @@
 				</form>
 			{/if}
 
-			<p class="text-center text-xs font-medium text-slate-600">
+			<p class="text-center text-xs font-medium text-ink-soft">
 				{m.login_no_account()}
-				<a href={resolve('/register')} class="font-black text-emerald-700 hover:underline"
+				<a href={resolve('/register')} class="font-black text-brand-soft-fg hover:underline"
 					>{m.login_create_one()}</a
 				>
 			</p>
 		</div>
 
-		<p class="text-center text-[11px] font-medium text-slate-500">
+		<p class="text-center text-[11px] font-medium text-ink-dim">
 			{m.login_disclaimer()}
 		</p>
 	</div>

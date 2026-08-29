@@ -47,9 +47,9 @@
 	]);
 
 	const roleTone: Record<string, string> = {
-		admin: 'border-purple-500 bg-purple-100 text-purple-900',
-		business: 'border-indigo-500 bg-indigo-100 text-indigo-900',
-		creator: 'border-emerald-500 bg-emerald-100 text-emerald-900'
+		admin: 'border-tint-violet-edge bg-tint-violet text-tint-violet-fg',
+		business: 'border-info-edge bg-info-soft text-info-fg',
+		creator: 'border-brand-edge bg-brand-soft text-brand-soft-fg'
 	};
 </script>
 
@@ -64,10 +64,10 @@
 				<a
 					href={roleLink(tab.key)}
 					data-sveltekit-noscroll
-					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {roleFilter ===
+					class="cursor-pointer rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {roleFilter ===
 					tab.key
-						? 'bg-slate-900 text-white'
-						: 'bg-white text-slate-800 hover:bg-slate-100'}"
+						? 'bg-inverse text-inverse-ink'
+						: 'bg-surface text-ink hover:bg-well'}"
 				>
 					{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
 				</a>
@@ -80,24 +80,24 @@
 	<div class="bento-card bento-card-static overflow-x-auto p-0!">
 		<table class="w-full min-w-[720px] text-sm">
 			<thead>
-				<tr class="border-b-2 border-slate-900 bg-slate-50">
+				<tr class="border-b-2 border-edge bg-panel">
 					<th
-						class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+						class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-ink-soft uppercase"
 					>
 						{m.au_col_user()}
 					</th>
 					<th
-						class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+						class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-ink-soft uppercase"
 					>
 						{m.au_col_linked()}
 					</th>
 					<th
-						class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-slate-600 uppercase"
+						class="px-4 py-3 text-left text-[11px] font-black tracking-wider text-ink-soft uppercase"
 					>
 						{m.au_col_role()}
 					</th>
 					<th
-						class="px-4 py-3 text-right text-[11px] font-black tracking-wider text-slate-600 uppercase"
+						class="px-4 py-3 text-right text-[11px] font-black tracking-wider text-ink-soft uppercase"
 					>
 						{m.au_col_change()}
 					</th>
@@ -105,23 +105,23 @@
 			</thead>
 			<tbody>
 				{#each data.users.rows as user (user.id)}
-					<tr class="border-b border-slate-200 last:border-0">
+					<tr class="border-b border-edge-soft last:border-0">
 						<td class="px-4 py-3">
-							<p class="text-xs font-black text-slate-900">{user.name}</p>
-							<p class="text-[11px] font-bold text-slate-500">{user.email}</p>
+							<p class="text-xs font-black text-ink">{user.name}</p>
+							<p class="text-[11px] font-bold text-ink-dim">{user.email}</p>
 						</td>
-						<td class="px-4 py-3 text-[11px] font-bold text-slate-600">
+						<td class="px-4 py-3 text-[11px] font-bold text-ink-soft">
 							{#if user.creatorUsername}
 								<a
 									href={resolve(`/creators/${user.creatorUsername}`)}
-									class="hover:text-emerald-700 hover:underline"
+									class="hover:text-brand-soft-fg hover:underline"
 								>
 									@{user.creatorUsername}
 								</a>
 							{:else if user.organizationName}
 								{user.organizationName}
 							{:else}
-								<span class="text-slate-400">—</span>
+								<span class="text-ink-faint">—</span>
 							{/if}
 						</td>
 						<td class="px-4 py-3">
@@ -164,7 +164,7 @@
 								</div>
 								<button
 									type="submit"
-									class="rounded-lg border-2 border-slate-900 bg-emerald-600 px-3 py-1 text-xs font-black text-white hover:bg-emerald-700"
+									class="rounded-lg border-2 border-edge bg-brand px-3 py-1 text-xs font-black text-brand-ink hover:bg-brand-strong"
 								>
 									{m.common_save()}
 								</button>

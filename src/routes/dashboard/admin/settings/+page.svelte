@@ -32,8 +32,8 @@
 	/>
 
 	<div class="bento-card-yellow flex items-start gap-2">
-		<CircleAlert class="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-		<p class="text-[11px] font-medium text-amber-900">
+		<CircleAlert class="mt-0.5 h-4 w-4 shrink-0 text-warn-fg" />
+		<p class="text-[11px] font-medium text-warn-fg">
 			{m.as_fee_warning()}
 		</p>
 	</div>
@@ -73,7 +73,7 @@
 			<button
 				type="submit"
 				disabled={$delayed}
-				class="mt-4 w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+				class="mt-4 w-full rounded-2xl border-2 border-edge bg-brand py-3 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 			>
 				{#if $delayed}
 					<LoadingBtn name={m.common_saving()} />

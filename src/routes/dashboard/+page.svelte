@@ -39,24 +39,24 @@
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 			<a href={resolve('/dashboard/profile/create')} class="bento-card space-y-3">
 				<div
-					class="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-slate-900 bg-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+					class="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-edge bg-inverse shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 				>
-					<UserRoundCog class="h-6 w-6 text-emerald-400" />
+					<UserRoundCog class="h-6 w-6 text-inverse-brand" />
 				</div>
-				<h3 class="text-lg font-black text-slate-900">{m.ob_creator_title()}</h3>
-				<p class="text-xs font-medium text-slate-600">
+				<h3 class="text-lg font-black text-ink">{m.ob_creator_title()}</h3>
+				<p class="text-xs font-medium text-ink-soft">
 					{m.ob_creator_body()}
 				</p>
 			</a>
 
 			<a href={resolve('/dashboard/organization/create')} class="bento-card space-y-3">
 				<div
-					class="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-slate-900 bg-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+					class="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-edge bg-inverse shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 				>
-					<Building2 class="h-6 w-6 text-indigo-300" />
+					<Building2 class="h-6 w-6 text-info" />
 				</div>
-				<h3 class="text-lg font-black text-slate-900">{m.ob_org_title()}</h3>
-				<p class="text-xs font-medium text-slate-600">
+				<h3 class="text-lg font-black text-ink">{m.ob_org_title()}</h3>
+				<p class="text-xs font-medium text-ink-soft">
 					{m.ob_org_body()}
 				</p>
 			</a>
@@ -72,7 +72,7 @@
 			{#snippet actions()}
 				<a
 					href={resolve('/campaigns')}
-					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+					class="flex items-center gap-1.5 rounded-2xl border-2 border-edge bg-brand px-4 py-2.5 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 				>
 					<Send class="h-4 w-4" />
 					{m.dashc_find_briefs()}
@@ -89,7 +89,7 @@
 			>
 				{#snippet icon()}
 					<span
-						class="rounded-lg border border-emerald-500/30 bg-emerald-950/80 p-1.5 text-emerald-400"
+						class="rounded-lg border border-inverse-brand-edge bg-inverse-brand-soft p-1.5 text-inverse-brand"
 					>
 						<Wallet class="h-4 w-4" />
 					</span>
@@ -130,16 +130,16 @@
 			{#snippet actions()}
 				<a
 					href={resolve('/dashboard/campaigns')}
-					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+					class="flex items-center gap-1.5 rounded-2xl border-2 border-edge bg-brand px-4 py-2.5 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 				>
 					<Plus class="h-4 w-4" />
 					{m.dashb_post_brief()}
 				</a>
 				<a
 					href={resolve('/discover')}
-					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-white px-4 py-2.5 text-xs font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50"
+					class="flex items-center gap-1.5 rounded-2xl border-2 border-edge bg-surface px-4 py-2.5 text-xs font-black text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel"
 				>
-					<Users class="h-4 w-4 text-emerald-600" />
+					<Users class="h-4 w-4 text-brand-fg" />
 					{m.dashb_find_creators()}
 				</a>
 			{/snippet}
@@ -154,7 +154,7 @@
 			>
 				{#snippet icon()}
 					<span
-						class="rounded-lg border border-emerald-500/30 bg-emerald-950/80 p-1.5 text-emerald-400"
+						class="rounded-lg border border-inverse-brand-edge bg-inverse-brand-soft p-1.5 text-inverse-brand"
 					>
 						<TrendingUp class="h-4 w-4" />
 					</span>
@@ -183,10 +183,10 @@
 		{#if data.spend.length}
 			<div class="bento-card bento-card-static space-y-4">
 				<div>
-					<span class="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+					<span class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
 						{m.dashb_chart_eyebrow()}
 					</span>
-					<h3 class="text-base font-black text-slate-900">{m.dashb_chart_title()}</h3>
+					<h3 class="text-base font-black text-ink">{m.dashb_chart_title()}</h3>
 				</div>
 				<SpendChart data={data.spend} />
 			</div>
@@ -211,7 +211,7 @@
 			{#snippet actions()}
 				<a
 					href={resolve('/dashboard/admin/verification')}
-					class="flex items-center gap-1.5 rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+					class="flex items-center gap-1.5 rounded-2xl border-2 border-edge bg-brand px-4 py-2.5 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 				>
 					<ShieldCheck class="h-4 w-4" />
 					{m.dasha_verification_queue({ count: data.pendingVerifications })}
@@ -231,7 +231,7 @@
 			>
 				{#snippet icon()}
 					<span
-						class="rounded-lg border border-emerald-500/30 bg-emerald-950/80 p-1.5 text-emerald-400"
+						class="rounded-lg border border-inverse-brand-edge bg-inverse-brand-soft p-1.5 text-inverse-brand"
 					>
 						<TrendingUp class="h-4 w-4" />
 					</span>
@@ -260,10 +260,10 @@
 		{#if data.spend.length}
 			<div class="bento-card bento-card-static space-y-4">
 				<div>
-					<span class="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+					<span class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
 						{m.dasha_chart_eyebrow()}
 					</span>
-					<h3 class="text-base font-black text-slate-900">{m.dasha_chart_title()}</h3>
+					<h3 class="text-base font-black text-ink">{m.dasha_chart_title()}</h3>
 				</div>
 				<SpendChart data={data.spend} />
 			</div>
@@ -277,11 +277,11 @@
 			)}
 
 			<div class="bento-card bento-card-static space-y-3">
-				<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
-					<h3 class="text-sm font-black text-slate-900">{m.dasha_recent_activity()}</h3>
+				<div class="flex items-center justify-between border-b-2 border-edge pb-3">
+					<h3 class="text-sm font-black text-ink">{m.dasha_recent_activity()}</h3>
 					<a
 						href={resolve('/dashboard/admin/audit')}
-						class="flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline"
+						class="flex items-center gap-1 text-xs font-black text-brand-soft-fg hover:underline"
 					>
 						{m.dasha_full_log()}
 						<ArrowRight class="h-3 w-3" />
@@ -291,21 +291,21 @@
 				{#if data.recentAudit.length}
 					<ul class="space-y-2">
 						{#each data.recentAudit as entry (entry.id)}
-							<li class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+							<li class="flex items-start gap-3 rounded-xl border border-edge-soft bg-panel p-3">
 								<span
-									class="mt-0.5 rounded-md border border-slate-900 bg-white px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase"
+									class="mt-0.5 rounded-md border border-edge bg-surface px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase"
 								>
 									{entry.entity}
 								</span>
 								<div class="min-w-0 flex-1">
-									<p class="text-xs font-bold text-slate-900">
+									<p class="text-xs font-bold text-ink">
 										{entry.action}{entry.toState ? ` → ${entry.toState}` : ''}
 									</p>
 									{#if entry.reason}
-										<p class="truncate text-[11px] font-medium text-slate-500">{entry.reason}</p>
+										<p class="truncate text-[11px] font-medium text-ink-dim">{entry.reason}</p>
 									{/if}
 								</div>
-								<span class="shrink-0 text-[10px] font-bold text-slate-400">
+								<span class="shrink-0 text-[10px] font-bold text-ink-faint">
 									{new Date(entry.createdAt).toLocaleDateString(dateLocale, {
 										day: 'numeric',
 										month: 'short'
@@ -315,7 +315,7 @@
 						{/each}
 					</ul>
 				{:else}
-					<p class="py-6 text-center text-xs font-medium text-slate-500">
+					<p class="py-6 text-center text-xs font-medium text-ink-dim">
 						{m.dasha_no_activity()}
 					</p>
 				{/if}
@@ -328,12 +328,15 @@
 
 {#snippet bookingList(bookings: BookingRow[], title: string, href: ResolvedPathname)}
 	<div class="bento-card bento-card-static space-y-3">
-		<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
-			<h3 class="flex items-center gap-1.5 text-sm font-black text-slate-900">
-				<Handshake class="h-4 w-4 text-emerald-600" />
+		<div class="flex items-center justify-between border-b-2 border-edge pb-3">
+			<h3 class="flex items-center gap-1.5 text-sm font-black text-ink">
+				<Handshake class="h-4 w-4 text-brand-fg" />
 				{title}
 			</h3>
-			<a {href} class="flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline">
+			<a
+				{href}
+				class="flex items-center gap-1 text-xs font-black text-brand-soft-fg hover:underline"
+			>
 				{m.dash_view_all()}
 				<ArrowRight class="h-3 w-3" />
 			</a>
@@ -345,7 +348,7 @@
 					<li>
 						<a
 							href={resolve(`/dashboard/bookings/${booking.id}`)}
-							class="flex items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-3 transition-colors hover:border-slate-900"
+							class="flex items-center gap-3 rounded-xl border-2 border-edge-soft bg-surface p-3 transition-colors hover:border-edge"
 						>
 							<AppImage
 								src={booking.creatorAvatar ?? booking.organizationLogo}
@@ -353,21 +356,21 @@
 								kind="avatar"
 								seed={booking.reference ?? booking.title}
 								label={booking.creatorName ?? booking.organizationName}
-								class="h-9 w-9 shrink-0 rounded-xl border border-slate-900 object-cover"
+								class="h-9 w-9 shrink-0 rounded-xl border border-edge object-cover"
 								loading="lazy"
 								decoding="async"
 								width="36"
 								height="36"
 							/>
 							<div class="min-w-0 flex-1">
-								<p class="truncate text-xs font-black text-slate-900">{booking.title}</p>
-								<p class="truncate text-[11px] font-bold text-slate-500">
+								<p class="truncate text-xs font-black text-ink">{booking.title}</p>
+								<p class="truncate text-[11px] font-bold text-ink-dim">
 									{booking.creatorName} · {booking.organizationName}
 								</p>
 							</div>
 							<div class="flex shrink-0 flex-col items-end gap-1">
 								<BookingStatusBadge status={booking.status} />
-								<span class="text-[11px] font-black text-slate-900">
+								<span class="text-[11px] font-black text-ink">
 									{booking.price.toLocaleString()}
 									{booking.currencyCode}
 								</span>
@@ -377,19 +380,22 @@
 				{/each}
 			</ul>
 		{:else}
-			<p class="py-6 text-center text-xs font-medium text-slate-500">{m.dash_no_bookings()}</p>
+			<p class="py-6 text-center text-xs font-medium text-ink-dim">{m.dash_no_bookings()}</p>
 		{/if}
 	</div>
 {/snippet}
 
 {#snippet applicationList(applications: ApplicationRow[], href: ResolvedPathname)}
 	<div class="bento-card bento-card-static space-y-3">
-		<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
-			<h3 class="flex items-center gap-1.5 text-sm font-black text-slate-900">
-				<Send class="h-4 w-4 text-emerald-600" />
+		<div class="flex items-center justify-between border-b-2 border-edge pb-3">
+			<h3 class="flex items-center gap-1.5 text-sm font-black text-ink">
+				<Send class="h-4 w-4 text-brand-fg" />
 				{m.dash_applications()}
 			</h3>
-			<a {href} class="flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline">
+			<a
+				{href}
+				class="flex items-center gap-1 text-xs font-black text-brand-soft-fg hover:underline"
+			>
 				{m.dash_view_all()}
 				<ArrowRight class="h-3 w-3" />
 			</a>
@@ -398,24 +404,24 @@
 		{#if applications.length}
 			<ul class="space-y-2">
 				{#each applications as application (application.id)}
-					<li class="flex items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-3">
+					<li class="flex items-center gap-3 rounded-xl border-2 border-edge-soft bg-surface p-3">
 						<AppImage
 							src={application.creatorAvatar}
 							alt=""
 							kind="avatar"
 							seed={application.creatorName ?? application.campaignTitle}
 							label={application.creatorName}
-							class="h-9 w-9 shrink-0 rounded-xl border border-slate-900 object-cover"
+							class="h-9 w-9 shrink-0 rounded-xl border border-edge object-cover"
 							loading="lazy"
 							decoding="async"
 							width="36"
 							height="36"
 						/>
 						<div class="min-w-0 flex-1">
-							<p class="truncate text-xs font-black text-slate-900">
+							<p class="truncate text-xs font-black text-ink">
 								{application.campaignTitle}
 							</p>
-							<p class="truncate text-[11px] font-bold text-slate-500">
+							<p class="truncate text-[11px] font-bold text-ink-dim">
 								{application.creatorName}
 							</p>
 						</div>
@@ -424,7 +430,7 @@
 				{/each}
 			</ul>
 		{:else}
-			<p class="py-6 text-center text-xs font-medium text-slate-500">{m.dash_no_applications()}</p>
+			<p class="py-6 text-center text-xs font-medium text-ink-dim">{m.dash_no_applications()}</p>
 		{/if}
 	</div>
 {/snippet}

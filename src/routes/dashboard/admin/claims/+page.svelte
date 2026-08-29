@@ -53,10 +53,10 @@
 	]);
 
 	const statusTone: Record<string, string> = {
-		pending: 'border-amber-500 bg-amber-100 text-amber-900',
-		approved: 'border-emerald-600 bg-emerald-100 text-emerald-900',
-		rejected: 'border-red-500 bg-red-100 text-red-900',
-		withdrawn: 'border-slate-400 bg-slate-100 text-slate-700'
+		pending: 'border-warn-edge bg-warn-soft text-warn-fg',
+		approved: 'border-brand-edge bg-brand-soft text-brand-soft-fg',
+		rejected: 'border-danger-edge bg-danger-soft text-danger-fg',
+		withdrawn: 'border-edge-mid bg-well text-ink-soft'
 	};
 </script>
 
@@ -75,10 +75,10 @@
 				<a
 					href={statusLink(tab.key)}
 					data-sveltekit-noscroll
-					class="cursor-pointer rounded-xl border-2 border-slate-900 px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all {statusFilter ===
+					class="cursor-pointer rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {statusFilter ===
 					tab.key
-						? 'bg-slate-900 text-white'
-						: 'bg-white text-slate-800 hover:bg-slate-100'}"
+						? 'bg-inverse text-inverse-ink'
+						: 'bg-surface text-ink hover:bg-well'}"
 				>
 					{m.bl_tab_count({ label: tab.label, count: countFor(tab.key) })}
 				</a>
@@ -90,9 +90,9 @@
 
 	{#if data.claims.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
-			<Inbox class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">{m.acl_empty_title()}</h3>
-			<p class="text-xs font-medium text-slate-600">{m.acl_empty_body()}</p>
+			<Inbox class="mx-auto h-10 w-10 text-ink-faint" />
+			<h3 class="text-base font-black text-ink">{m.acl_empty_title()}</h3>
+			<p class="text-xs font-medium text-ink-soft">{m.acl_empty_body()}</p>
 		</div>
 	{:else}
 		<div class="space-y-4">
@@ -107,7 +107,7 @@
 								kind="avatar"
 								seed={row.creatorUsername}
 								label={row.creatorName}
-								class="h-11 w-11 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+								class="h-11 w-11 shrink-0 rounded-2xl border-2 border-edge object-cover"
 								loading="lazy"
 								decoding="async"
 								width="44"
@@ -126,24 +126,24 @@
 										<!-- The profile went to somebody else while this one waited.
 										     Approving it now is not a decision that exists. -->
 										<span
-											class="rounded-md border border-red-400 bg-red-50 px-2 py-0.5 text-[10px] font-black tracking-wider text-red-800 uppercase"
+											class="rounded-md border border-danger-edge bg-danger-soft px-2 py-0.5 text-[10px] font-black tracking-wider text-danger-fg uppercase"
 										>
 											{m.acl_taken()}
 										</span>
 									{/if}
 								</div>
 
-								<p class="text-[11px] font-bold text-slate-600">
+								<p class="text-[11px] font-bold text-ink-soft">
 									{m.acl_asking_for({ claimant: `${row.claimantName} · ${row.claimantEmail}` })}
 								</p>
 								<a
 									href={resolve(`/creators/${row.creatorUsername}`)}
 									target="_blank"
-									class="text-sm font-black text-slate-900 hover:text-emerald-600"
+									class="text-sm font-black text-ink hover:text-brand-fg"
 								>
 									{row.creatorName}
 								</a>
-								<p class="text-[11px] font-bold text-slate-500">
+								<p class="text-[11px] font-bold text-ink-dim">
 									@{row.creatorUsername}
 									{#if row.countryName}
 										· {row.countryFlag ?? '🌍'}
@@ -158,27 +158,27 @@
 						</div>
 
 						<div class="shrink-0 text-right">
-							<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+							<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 								{m.acl_waiting_since()}
 							</span>
-							<span class="mt-1 block text-xs font-black text-slate-900">
+							<span class="mt-1 block text-xs font-black text-ink">
 								{formatDate(row.createdAt)}
 							</span>
 						</div>
 					</div>
 
 					<!-- What the claimant offered. Read by an operator, trusted by nothing. -->
-					<div class="space-y-2 rounded-2xl border-2 border-slate-200 bg-slate-50 p-3">
-						<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+					<div class="space-y-2 rounded-2xl border-2 border-edge-soft bg-panel p-3">
+						<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 							{m.acl_evidence()}
 						</span>
-						<p class="text-xs font-medium whitespace-pre-line text-slate-800">{row.evidence}</p>
+						<p class="text-xs font-medium whitespace-pre-line text-ink">{row.evidence}</p>
 						{#if row.proofUrl}
 							<a
 								href={row.proofUrl}
 								target="_blank"
 								rel="noopener noreferrer nofollow"
-								class="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 hover:underline"
+								class="inline-flex items-center gap-1 text-[11px] font-black text-brand-soft-fg hover:underline"
 							>
 								<Link2 class="h-3.5 w-3.5" />
 								{m.acl_proof()}
@@ -188,17 +188,17 @@
 					</div>
 
 					{#if row.adminNotes}
-						<p class="rounded-xl bg-slate-100 p-2 text-[11px] font-medium text-slate-700">
+						<p class="rounded-xl bg-well p-2 text-[11px] font-medium text-ink-soft">
 							<strong class="font-black">{m.av_note()}</strong>
 							{row.adminNotes}
 						</p>
 					{/if}
 
 					{#if open}
-						<div class="space-y-2 border-t-2 border-slate-200 pt-3">
+						<div class="space-y-2 border-t-2 border-edge-soft pt-3">
 							{#if row.creatorIsClaimed}
 								<p
-									class="rounded-xl border-2 border-red-300 bg-red-50 p-2 text-[11px] font-medium text-slate-800"
+									class="rounded-xl border-2 border-danger-edge bg-danger-soft p-2 text-[11px] font-medium text-ink"
 								>
 									{m.acl_taken_help()}
 								</p>
@@ -222,7 +222,7 @@
 									<input type="hidden" name="adminNotes" value={notes[row.id] ?? ''} />
 									<button
 										type="submit"
-										class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-red-700 hover:bg-red-50"
+										class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-danger-fg hover:bg-danger-soft"
 									>
 										<X class="h-3.5 w-3.5" />
 										{m.acl_reject()}
@@ -240,7 +240,7 @@
 										<input type="hidden" name="adminNotes" value={notes[row.id] ?? ''} />
 										<button
 											type="submit"
-											class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+											class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-brand px-3 py-1.5 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 										>
 											<Check class="h-3.5 w-3.5" />
 											{m.acl_approve()}

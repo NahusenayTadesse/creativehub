@@ -31,7 +31,7 @@
 		{#snippet actions()}
 			<a
 				href={resolve('/discover')}
-				class="rounded-2xl border-2 border-slate-900 bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+				class="rounded-2xl border-2 border-edge bg-brand px-4 py-2.5 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 			>
 				{m.sl_find_more()}
 			</a>
@@ -46,9 +46,9 @@
 		<NoResults search={data.saved.state.search} />
 	{:else if data.saved.rows.length === 0}
 		<div class="bento-card bento-card-static space-y-3 py-16 text-center">
-			<Bookmark class="mx-auto h-10 w-10 text-slate-400" />
-			<h3 class="text-base font-black text-slate-900">{m.sl_empty_title()}</h3>
-			<p class="mx-auto max-w-sm text-xs font-medium text-slate-600">
+			<Bookmark class="mx-auto h-10 w-10 text-ink-faint" />
+			<h3 class="text-base font-black text-ink">{m.sl_empty_title()}</h3>
+			<p class="mx-auto max-w-sm text-xs font-medium text-ink-soft">
 				{m.sl_empty_body()}
 			</p>
 		</div>
@@ -65,7 +65,7 @@
 									kind="avatar"
 									seed={entry.username}
 									label={entry.fullName}
-									class="h-11 w-11 rounded-2xl border-2 border-slate-900 object-cover"
+									class="h-11 w-11 rounded-2xl border-2 border-edge object-cover"
 									loading="lazy"
 									decoding="async"
 									width="44"
@@ -74,11 +74,11 @@
 								<div class="min-w-0">
 									<a
 										href={resolve(`/creators/${entry.username}`)}
-										class="block truncate text-sm font-black text-slate-900 hover:text-emerald-600"
+										class="block truncate text-sm font-black text-ink hover:text-brand-fg"
 									>
 										{entry.fullName}
 									</a>
-									<p class="truncate text-[11px] font-bold text-slate-500">@{entry.username}</p>
+									<p class="truncate text-[11px] font-bold text-ink-dim">@{entry.username}</p>
 								</div>
 							</div>
 							<form method="POST" action="?/remove" use:enhance={removeHandler}>
@@ -86,7 +86,7 @@
 								<button
 									type="submit"
 									aria-label={m.sl_remove()}
-									class="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+									class="rounded-lg p-1.5 text-ink-faint hover:bg-danger-soft hover:text-danger"
 								>
 									<X class="h-4 w-4" />
 								</button>
@@ -97,64 +97,64 @@
 							<VerificationBadge level={entry.verificationLevel} />
 							<RepresentationBadge claimed={entry.isClaimed} />
 							<span
-								class="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-100 px-2 py-0.5 font-bold text-slate-800"
+								class="inline-flex items-center gap-1 rounded-lg border border-edge-mid bg-well px-2 py-0.5 font-bold text-ink"
 							>
 								<span>{entry.countryFlag ?? '🌍'}</span>
 								{entry.countryName}
 							</span>
 						</div>
 
-						<p class="line-clamp-2 text-xs font-medium text-slate-600">{entry.bio}</p>
+						<p class="line-clamp-2 text-xs font-medium text-ink-soft">{entry.bio}</p>
 
 						<div
-							class="grid grid-cols-3 gap-2 rounded-2xl border-2 border-slate-900 bg-[#fef9c3] p-2.5 text-center text-xs"
+							class="grid grid-cols-3 gap-2 rounded-2xl border-2 border-edge bg-tile-yellow p-2.5 text-center text-xs"
 						>
 							<div>
-								<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+								<div class="text-[9px] font-black tracking-wider text-ink-soft uppercase">
 									{m.card_reach()}
 								</div>
-								<div class="mt-0.5 text-sm font-black text-slate-900">
+								<div class="mt-0.5 text-sm font-black text-ink">
 									{formatReach(entry.totalReach)}
 								</div>
 							</div>
 							<div>
-								<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+								<div class="text-[9px] font-black tracking-wider text-ink-soft uppercase">
 									{m.home_score()}
 								</div>
 								<div
-									class="mt-0.5 flex items-center justify-center gap-0.5 text-sm font-black text-slate-900"
+									class="mt-0.5 flex items-center justify-center gap-0.5 text-sm font-black text-ink"
 								>
-									<Award class="h-3 w-3 text-emerald-700" />
+									<Award class="h-3 w-3 text-brand-soft-fg" />
 									{entry.score}
 								</div>
 							</div>
 							<div>
-								<div class="text-[9px] font-black tracking-wider text-slate-600 uppercase">
+								<div class="text-[9px] font-black tracking-wider text-ink-soft uppercase">
 									{m.card_rating()}
 								</div>
 								<div
-									class="mt-0.5 flex items-center justify-center gap-0.5 text-sm font-black text-slate-900"
+									class="mt-0.5 flex items-center justify-center gap-0.5 text-sm font-black text-ink"
 								>
-									<Star class="h-3 w-3 fill-amber-400 text-slate-900" />
+									<Star class="h-3 w-3 fill-warn text-ink" />
 									{entry.averageRating.toFixed(1)}
 								</div>
 							</div>
 						</div>
 					</div>
 
-					<div class="flex items-center justify-between border-t-2 border-slate-200 pt-3">
+					<div class="flex items-center justify-between border-t-2 border-edge-soft pt-3">
 						<div>
-							<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+							<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 								{m.sl_from()}
 							</span>
-							<span class="text-sm font-black text-slate-900">
+							<span class="text-sm font-black text-ink">
 								{entry.startingPrice.toLocaleString()}
-								<span class="text-xs text-emerald-600">{entry.currencyCode}</span>
+								<span class="text-xs text-brand-fg">{entry.currencyCode}</span>
 							</span>
 						</div>
 						<a
 							href={resolve(`/creators/${entry.username}`)}
-							class="rounded-xl border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+							class="rounded-xl border-2 border-edge bg-brand px-3 py-1.5 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 						>
 							{m.sl_book()}
 						</a>

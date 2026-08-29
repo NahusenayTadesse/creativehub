@@ -164,15 +164,15 @@
 <div class="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
 	<a
 		href={resolve('/discover')}
-		class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-2xs hover:text-gray-900"
+		class="inline-flex items-center gap-1.5 rounded-lg border border-edge-soft bg-surface px-3 py-1.5 text-xs font-semibold text-ink-soft shadow-2xs hover:text-ink"
 	>
 		<ArrowLeft class="h-3.5 w-3.5" />
 		{m.profile_back_to_discovery()}
 	</a>
 
 	<!-- ===== Header card ===== -->
-	<div class="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-		<div class="relative h-48 bg-gray-100 md:h-64">
+	<div class="overflow-hidden rounded-3xl border border-edge-soft bg-surface shadow-sm">
+		<div class="relative h-48 bg-well md:h-64">
 			<AppImage
 				src={creator.cover}
 				alt=""
@@ -217,17 +217,17 @@
 							kind="avatar"
 							seed={creator.username}
 							label={creator.fullName}
-							class="h-24 w-24 rounded-3xl border-4 border-white bg-white object-cover shadow-md md:h-32 md:w-32"
+							class="h-24 w-24 rounded-3xl border-4 border-surface bg-surface object-cover shadow-md md:h-32 md:w-32"
 							loading="lazy"
 							decoding="async"
 							width="96"
 							height="96"
 						/>
 						<span
-							class="absolute right-2 bottom-2 h-4 w-4 rounded-full border-2 border-white {creator.availability ===
+							class="absolute right-2 bottom-2 h-4 w-4 rounded-full border-2 border-surface {creator.availability ===
 							'available'
-								? 'bg-emerald-500'
-								: 'bg-amber-500'}"
+								? 'bg-brand'
+								: 'bg-warn'}"
 						></span>
 					</div>
 
@@ -239,28 +239,28 @@
 							<VerificationBadge level={creator.verificationLevel} />
 							<RepresentationBadge claimed={creator.isClaimed} />
 						</div>
-						<p class="text-xs font-medium text-gray-500">@{creator.username}</p>
+						<p class="text-xs font-medium text-ink-dim">@{creator.username}</p>
 						<!-- The way the person this page describes takes it over. Hidden from
 						     brands, who are the one audience it is certainly not for. -->
 						{#if !creator.isClaimed && !data.canBook}
 							<a
 								href={resolve(`/dashboard/profile/claim?username=${creator.username}`)}
-								class="mt-1 inline-flex items-center gap-1 rounded-lg border border-amber-500 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900 hover:bg-amber-100"
+								class="mt-1 inline-flex items-center gap-1 rounded-lg border border-warn-edge bg-warn-soft px-2 py-0.5 text-[11px] font-bold text-warn-fg hover:bg-warn-soft"
 							>
 								<Hand class="h-3 w-3" />
 								{m.profile_claim_cta()}
 							</a>
 						{/if}
-						<div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+						<div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-soft">
 							<span
-								class="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-800"
+								class="inline-flex items-center gap-1 rounded-lg border border-edge-mid bg-well px-2 py-0.5 text-xs font-bold text-ink"
 							>
 								<span class="text-sm">{creator.country?.flag ?? '🌍'}</span>
 								<span>{creator.country?.name ?? 'Ethiopia'}</span>
 							</span>
 							{#if creator.city}
-								<span class="flex items-center gap-1 font-medium text-slate-700">
-									<MapPin class="h-3.5 w-3.5 text-emerald-600" />
+								<span class="flex items-center gap-1 font-medium text-ink-soft">
+									<MapPin class="h-3.5 w-3.5 text-brand-fg" />
 									{creator.city}{creator.region ? `, ${creator.region.name}` : ''}
 								</span>
 							{/if}
@@ -281,18 +281,18 @@
 						<button
 							type="button"
 							onclick={() => openBooking(selectedPackage)}
-							class="flex-1 rounded-2xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-colors hover:bg-emerald-700 md:flex-none"
+							class="flex-1 rounded-2xl bg-brand px-6 py-3 text-xs font-bold text-brand-ink shadow-md shadow-brand/20 transition-colors hover:bg-brand-strong md:flex-none"
 						>
 							{m.profile_book_creator()}
 						</button>
 					{:else if data.user}
-						<span class="rounded-2xl bg-slate-100 px-4 py-3 text-xs font-bold text-slate-600">
+						<span class="rounded-2xl bg-well px-4 py-3 text-xs font-bold text-ink-soft">
 							{m.profile_brand_accounts_only()}
 						</span>
 					{:else}
 						<a
 							href={resolve(`/login?next=/creators/${creator.username}`)}
-							class="rounded-2xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-colors hover:bg-emerald-700"
+							class="rounded-2xl bg-brand px-6 py-3 text-xs font-bold text-brand-ink shadow-md shadow-brand/20 transition-colors hover:bg-brand-strong"
 						>
 							{m.profile_sign_in_to_book()}
 						</a>
@@ -300,49 +300,49 @@
 				</div>
 			</div>
 
-			<p class="mb-6 max-w-3xl text-sm leading-relaxed text-gray-700">{creator.bio}</p>
+			<p class="mb-6 max-w-3xl text-sm leading-relaxed text-ink-soft">{creator.bio}</p>
 
 			<div class="mb-8 flex flex-wrap gap-2">
 				{#each creator.categories as category (category.id)}
-					<span class="rounded-xl bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-800">
+					<span class="rounded-xl bg-well px-3 py-1 text-xs font-semibold text-ink">
 						{category.name}
 					</span>
 				{/each}
 			</div>
 
 			<div
-				class="grid grid-cols-2 gap-4 rounded-2xl border border-gray-100 bg-gray-50 p-4 md:grid-cols-4"
+				class="grid grid-cols-2 gap-4 rounded-2xl border border-edge-soft bg-panel p-4 md:grid-cols-4"
 			>
 				<div>
-					<span class="block text-[10px] font-bold tracking-wider text-gray-400 uppercase">
+					<span class="block text-[10px] font-bold tracking-wider text-ink-faint uppercase">
 						{m.profile_total_reach()}
 					</span>
-					<span class="text-lg font-extrabold text-gray-900">
+					<span class="text-lg font-extrabold text-ink">
 						{creator.totalReach.toLocaleString()}
 					</span>
 				</div>
 				<div>
-					<span class="block text-[10px] font-bold tracking-wider text-gray-400 uppercase">
+					<span class="block text-[10px] font-bold tracking-wider text-ink-faint uppercase">
 						{m.profile_primary_channel()}
 					</span>
-					<span class="text-lg font-extrabold text-emerald-700">
+					<span class="text-lg font-extrabold text-brand-soft-fg">
 						{creator.platform?.name ?? '—'}
 					</span>
 				</div>
 				<div>
-					<span class="block text-[10px] font-bold tracking-wider text-gray-400 uppercase">
+					<span class="block text-[10px] font-bold tracking-wider text-ink-faint uppercase">
 						{m.profile_average_rating()}
 					</span>
-					<span class="flex items-center gap-1 text-lg font-extrabold text-gray-900">
-						<Star class="h-4 w-4 fill-amber-400 text-amber-400" />
+					<span class="flex items-center gap-1 text-lg font-extrabold text-ink">
+						<Star class="h-4 w-4 fill-warn text-warn" />
 						{creator.averageRating.toFixed(1)} ({creator.reviewsCount})
 					</span>
 				</div>
 				<div>
-					<span class="block text-[10px] font-bold tracking-wider text-gray-400 uppercase">
+					<span class="block text-[10px] font-bold tracking-wider text-ink-faint uppercase">
 						{m.profile_completed_campaigns()}
 					</span>
-					<span class="text-lg font-extrabold text-gray-900">{creator.completedBookings}</span>
+					<span class="text-lg font-extrabold text-ink">{creator.completedBookings}</span>
 				</div>
 			</div>
 		</div>
@@ -351,38 +351,39 @@
 	<!-- ===== Channels ===== -->
 	{#if creator.socialAccounts.length}
 		<div class="space-y-3">
-			<h2 class="text-base font-black tracking-wider text-slate-900 uppercase">
+			<h2 class="text-base font-black tracking-wider text-ink uppercase">
 				{m.profile_channels()}
 			</h2>
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{#each creator.socialAccounts as account (account.id)}
 					<div class="bento-card bento-card-static p-4">
 						<div class="mb-2 flex items-center justify-between">
-							<span class="text-sm font-black text-slate-900">{account.platformName}</span>
+							<span class="text-sm font-black text-ink">{account.platformName}</span>
 							{#if account.isVerified}
 								<span
-									class="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800"
+									class="inline-flex items-center gap-1 rounded-md bg-brand-soft px-2 py-0.5 text-[10px] font-bold text-brand-soft-fg"
 								>
 									<CircleCheckBig class="h-3 w-3" />
 									{m.profile_ownership_confirmed()}
 								</span>
 							{/if}
 						</div>
-						<p class="text-xs font-bold text-slate-500">{account.handle}</p>
+						<p class="text-xs font-bold text-ink-dim">{account.handle}</p>
 						<div
-							class="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 text-xs"
+							class="mt-3 flex items-center justify-between border-t border-edge-soft pt-3 text-xs"
 						>
 							<div>
-								<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+								<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 									{m.profile_followers()}
 								</span>
-								<span class="font-black text-slate-900">{formatReach(account.followers)}</span>
+								<span class="font-black text-ink">{formatReach(account.followers)}</span>
 							</div>
 							<div class="text-right">
-								<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+								<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 									{m.profile_engagement()}
 								</span>
-								<span class="font-black text-emerald-700">{account.engagementRate.toFixed(1)}%</span
+								<span class="font-black text-brand-soft-fg"
+									>{account.engagementRate.toFixed(1)}%</span
 								>
 							</div>
 						</div>
@@ -395,10 +396,10 @@
 	<!-- ===== Packages + portfolio ===== -->
 	<div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
 		<div id="packages" class="space-y-4 lg:col-span-1">
-			<h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
+			<h2 class="flex items-center gap-2 text-base font-bold text-ink">
 				<span>{m.profile_packages_pricing()}</span>
 				<span
-					class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800"
+					class="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-semibold text-brand-soft-fg"
 				>
 					{m.profile_packages_available({ count: creator.packages.length })}
 				</span>
@@ -411,14 +412,14 @@
 						onclick={() => (selectedPackageId = pkg.id)}
 						class="w-full cursor-pointer rounded-2xl border p-5 text-left transition-all {selectedPackageId ===
 						pkg.id
-							? 'border-emerald-600 bg-emerald-50/40 shadow-xs ring-2 ring-emerald-600/20'
-							: 'border-gray-200 bg-white hover:border-gray-300'}"
+							? 'border-brand-edge bg-brand-soft/40 shadow-xs ring-2 ring-brand/20'
+							: 'border-edge-soft bg-surface hover:border-edge-mid'}"
 					>
 						<div class="mb-2 flex items-start justify-between gap-2">
-							<h3 class="text-sm font-bold text-gray-900">{pkg.title}</h3>
+							<h3 class="text-sm font-bold text-ink">{pkg.title}</h3>
 							{#if pkg.platformName}
 								<span
-									class="shrink-0 rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700"
+									class="shrink-0 rounded-md bg-brand-soft px-2 py-0.5 text-xs font-bold text-brand-soft-fg"
 								>
 									{pkg.platformName}
 								</span>
@@ -426,32 +427,32 @@
 						</div>
 
 						{#if pkg.description}
-							<p class="mb-3 text-xs text-gray-600">{pkg.description}</p>
+							<p class="mb-3 text-xs text-ink-soft">{pkg.description}</p>
 						{/if}
 
-						<div class="mb-4 space-y-1.5 text-xs text-gray-700">
+						<div class="mb-4 space-y-1.5 text-xs text-ink-soft">
 							{#each pkg.deliverables ?? [] as item (item)}
 								<div class="flex items-center gap-2">
-									<Check class="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+									<Check class="h-3.5 w-3.5 shrink-0 text-brand-fg" />
 									<span>{item}</span>
 								</div>
 							{/each}
 						</div>
 
-						<div class="flex items-center justify-between border-t border-gray-200/60 pt-3">
+						<div class="flex items-center justify-between border-t border-edge-soft pt-3">
 							<div>
-								<span class="block text-[10px] font-medium text-gray-400 uppercase"
+								<span class="block text-[10px] font-medium text-ink-faint uppercase"
 									>{m.profile_turnaround()}</span
 								>
-								<span class="text-xs font-semibold text-gray-800">
+								<span class="text-xs font-semibold text-ink">
 									{m.profile_turnaround_value({ days: pkg.deliveryDays, revisions: pkg.revisions })}
 								</span>
 							</div>
 							<div class="text-right">
-								<span class="block text-[10px] font-medium text-gray-400 uppercase"
+								<span class="block text-[10px] font-medium text-ink-faint uppercase"
 									>{m.profile_price()}</span
 								>
-								<span class="text-base font-extrabold text-gray-900">
+								<span class="text-base font-extrabold text-ink">
 									{pkg.price.toLocaleString()}
 									{pkg.currencyCode}
 								</span>
@@ -472,15 +473,15 @@
 								}}
 								role="button"
 								tabindex="0"
-								class="mt-4 block w-full cursor-pointer rounded-xl bg-gray-900 py-2 text-center text-xs font-bold text-white transition-colors hover:bg-emerald-600"
+								class="mt-4 block w-full cursor-pointer rounded-xl bg-inverse py-2 text-center text-xs font-bold text-inverse-ink transition-colors hover:bg-brand"
 							>
 								{m.profile_book_package()}
 							</span>
 						{/if}
 					</button>
 				{:else}
-					<div class="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
-						<p class="text-xs font-medium text-gray-500">
+					<div class="rounded-2xl border border-dashed border-edge-soft bg-panel p-6 text-center">
+						<p class="text-xs font-medium text-ink-dim">
 							{m.profile_no_packages()}
 						</p>
 					</div>
@@ -491,15 +492,15 @@
 		<div class="space-y-8 lg:col-span-2">
 			{#if creator.portfolio.length}
 				<div>
-					<h2 class="mb-4 text-base font-black tracking-wider text-slate-900 uppercase">
+					<h2 class="mb-4 text-base font-black tracking-wider text-ink uppercase">
 						{m.profile_recent_work()}
 					</h2>
 					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						{#each creator.portfolio as item (item.id)}
 							<div
-								class="group overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xs"
+								class="group overflow-hidden rounded-2xl border border-edge-soft bg-surface shadow-2xs"
 							>
-								<div class="relative h-44 bg-gray-100">
+								<div class="relative h-44 bg-well">
 									<AppImage
 										src={item.url}
 										alt={item.caption ?? ''}
@@ -518,8 +519,8 @@
 									{/if}
 								</div>
 								<div class="p-3">
-									<p class="line-clamp-1 text-xs font-semibold text-gray-900">{item.caption}</p>
-									<div class="mt-2 flex items-center justify-between text-[11px] text-gray-500">
+									<p class="line-clamp-1 text-xs font-semibold text-ink">{item.caption}</p>
+									<div class="mt-2 flex items-center justify-between text-[11px] text-ink-dim">
 										<span>👁 {item.views.toLocaleString()} {m.profile_views()}</span>
 										<span>❤️ {item.likes.toLocaleString()} {m.profile_likes()}</span>
 									</div>
@@ -533,27 +534,27 @@
 			<!-- Reviews -->
 			<div class="space-y-4">
 				<div class="flex items-center justify-between">
-					<h2 class="text-base font-black tracking-wider text-slate-900 uppercase">
+					<h2 class="text-base font-black tracking-wider text-ink uppercase">
 						{m.profile_client_reviews()}
 					</h2>
 					<span
-						class="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-extrabold text-amber-600"
+						class="flex items-center gap-1.5 rounded-xl border border-warn-edge bg-warn-soft px-3 py-1 text-xs font-extrabold text-warn"
 					>
-						<Star class="h-4 w-4 fill-amber-400 text-amber-400" />
+						<Star class="h-4 w-4 fill-warn text-warn" />
 						<span>{creator.averageRating.toFixed(1)} / 5.0 ({creator.reviewsCount})</span>
 					</span>
 				</div>
 
 				{#if reviews.length}
 					<div
-						class="space-y-3 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-4 text-white shadow-md"
+						class="space-y-3 rounded-2xl bg-gradient-to-br from-slab to-slab-raised p-4 text-slab-ink shadow-md"
 					>
-						<div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
-							<span class="text-xs font-bold text-slate-300"
+						<div class="flex items-center justify-between border-b border-slab-edge pb-2">
+							<span class="text-xs font-bold text-slab-ink-dim"
 								>{m.profile_verified_brand_ratings()}</span
 							>
 							<span
-								class="rounded-full border border-emerald-500/30 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300"
+								class="rounded-full border border-slab-brand/30 bg-slab-brand/20 px-2 py-0.5 text-[10px] font-bold text-slab-brand"
 							>
 								{m.profile_completed_bookings_only()}
 							</span>
@@ -562,13 +563,15 @@
 						<div class="grid grid-cols-2 gap-3 text-xs">
 							{#each ratingRows as row (row.label)}
 								<div>
-									<div class="mb-1 flex justify-between text-[11px] font-semibold text-slate-300">
+									<div
+										class="mb-1 flex justify-between text-[11px] font-semibold text-slab-ink-dim"
+									>
 										<span>{row.label}</span>
-										<span class="font-bold text-amber-400">{row.value.toFixed(1)} / 5.0</span>
+										<span class="font-bold text-warn">{row.value.toFixed(1)} / 5.0</span>
 									</div>
-									<div class="h-1.5 w-full overflow-hidden rounded-full bg-slate-700">
+									<div class="h-1.5 w-full overflow-hidden rounded-full bg-slab-edge">
 										<div
-											class="h-full rounded-full bg-amber-400"
+											class="h-full rounded-full bg-warn"
 											style="width: {(row.value / 5) * 100}%"
 										></div>
 									</div>
@@ -580,22 +583,22 @@
 					<div class="space-y-3">
 						{#each reviews as review (review.id)}
 							<div
-								class="space-y-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs transition-colors hover:border-gray-300"
+								class="space-y-3 rounded-2xl border border-edge-soft bg-surface p-4 shadow-xs transition-colors hover:border-edge-mid"
 							>
 								<div class="flex items-start justify-between gap-2">
 									<div>
 										<div class="flex items-center gap-2">
-											<span class="text-xs font-extrabold text-gray-900">
+											<span class="text-xs font-extrabold text-ink">
 												{review.organizationName}
 											</span>
 											<span
-												class="flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700"
+												class="flex items-center gap-1 rounded-md bg-brand-soft px-2 py-0.5 text-[10px] font-bold text-brand-soft-fg"
 											>
-												<CircleCheckBig class="h-3 w-3 text-emerald-600" />
+												<CircleCheckBig class="h-3 w-3 text-brand-fg" />
 												{m.profile_verified_client()}
 											</span>
 										</div>
-										<span class="mt-0.5 block text-[10px] font-medium text-gray-400">
+										<span class="mt-0.5 block text-[10px] font-medium text-ink-faint">
 											{new Date(review.createdAt).toLocaleDateString(dateLocale, {
 												day: 'numeric',
 												month: 'long',
@@ -605,29 +608,26 @@
 									</div>
 
 									<div
-										class="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-400"
+										class="flex items-center gap-1 rounded-lg border border-warn-edge bg-warn-soft px-2 py-1 text-xs text-warn"
 									>
 										{#each Array(review.rating) as _, i (i)}
-											<Star class="h-3.5 w-3.5 fill-amber-400" />
+											<Star class="h-3.5 w-3.5 fill-warn" />
 										{/each}
-										<span class="ml-1 font-extrabold text-slate-900">{review.rating}.0</span>
+										<span class="ml-1 font-extrabold text-ink">{review.rating}.0</span>
 									</div>
 								</div>
 
 								<p
-									class="rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs leading-relaxed font-medium text-gray-700"
+									class="rounded-xl border border-edge-soft bg-panel p-3 text-xs leading-relaxed font-medium text-ink-soft"
 								>
 									"{review.body}"
 								</p>
 
-								<div class="flex flex-wrap gap-2 pt-1 text-[10px] font-bold text-gray-600">
-									<span class="rounded-lg bg-gray-100 px-2.5 py-1">💬 {review.communication}/5</span
-									>
-									<span class="rounded-lg bg-gray-100 px-2.5 py-1">✨ {review.quality}/5</span>
-									<span class="rounded-lg bg-gray-100 px-2.5 py-1">⏱️ {review.timeliness}/5</span>
-									<span class="rounded-lg bg-gray-100 px-2.5 py-1"
-										>💼 {review.professionalism}/5</span
-									>
+								<div class="flex flex-wrap gap-2 pt-1 text-[10px] font-bold text-ink-soft">
+									<span class="rounded-lg bg-well px-2.5 py-1">💬 {review.communication}/5</span>
+									<span class="rounded-lg bg-well px-2.5 py-1">✨ {review.quality}/5</span>
+									<span class="rounded-lg bg-well px-2.5 py-1">⏱️ {review.timeliness}/5</span>
+									<span class="rounded-lg bg-well px-2.5 py-1">💼 {review.professionalism}/5</span>
 								</div>
 							</div>
 						{/each}
@@ -639,7 +639,7 @@
 								type="button"
 								onclick={loadMoreReviews}
 								disabled={loadingReviews}
-								class="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white py-3 text-xs font-bold text-slate-900 shadow-xs transition-colors hover:border-gray-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+								class="flex w-full items-center justify-center gap-2 rounded-2xl border border-edge-soft bg-surface py-3 text-xs font-bold text-ink shadow-xs transition-colors hover:border-edge-mid hover:bg-panel disabled:cursor-not-allowed disabled:opacity-60"
 							>
 								{#if loadingReviews}
 									<Loader class="h-4 w-4 animate-spin" />
@@ -648,7 +648,7 @@
 									{m.profile_load_more_reviews()}
 								{/if}
 							</button>
-							<p class="text-[10px] font-medium text-gray-400">
+							<p class="text-[10px] font-medium text-ink-faint">
 								{m.profile_reviews_showing({
 									shown: reviews.length,
 									total: creator.reviewsCount
@@ -658,10 +658,10 @@
 					{/if}
 				{:else}
 					<div
-						class="space-y-2 rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center"
+						class="space-y-2 rounded-2xl border border-dashed border-edge-soft bg-panel p-6 text-center"
 					>
-						<Star class="mx-auto h-8 w-8 text-gray-300" />
-						<p class="text-xs font-medium text-gray-500">
+						<Star class="mx-auto h-8 w-8 text-ink-faint" />
+						<p class="text-xs font-medium text-ink-dim">
 							{m.profile_no_reviews()}
 						</p>
 					</div>
@@ -676,23 +676,22 @@
 	<Dialog.Content class="w-lg! max-w-[95vw]!">
 		<Dialog.Header>
 			<Dialog.Title class="flex items-center gap-2 text-base font-bold">
-				<Award class="h-5 w-5 text-emerald-600" />
+				<Award class="h-5 w-5 text-brand-fg" />
 				{m.profile_score_dialog_title()}
 			</Dialog.Title>
 		</Dialog.Header>
 
-		<p class="text-xs leading-relaxed text-gray-600">
+		<p class="text-xs leading-relaxed text-ink-soft">
 			{m.profile_score_dialog_body()}
 		</p>
 
 		<div class="space-y-2.5 text-xs">
 			{#each scoreWeights() as weight (weight.label)}
 				<div
-					class="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 p-3"
+					class="flex items-center justify-between rounded-xl border border-edge-soft bg-panel p-3"
 				>
 					<span>{weight.label}</span>
-					<span class="font-bold text-gray-900"
-						>{m.profile_score_weight({ weight: weight.weight })}</span
+					<span class="font-bold text-ink">{m.profile_score_weight({ weight: weight.weight })}</span
 					>
 				</div>
 			{/each}
@@ -701,7 +700,7 @@
 		<button
 			type="button"
 			onclick={() => (scoreOpen = false)}
-			class="w-full rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white"
+			class="w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-brand-ink"
 		>
 			{m.profile_got_it()}
 		</button>
@@ -715,7 +714,7 @@
 			<Dialog.Title class="text-base font-black"
 				>{m.profile_book_dialog_title({ name: creator.fullName })}</Dialog.Title
 			>
-			<Dialog.Description class="text-xs font-medium text-slate-600">
+			<Dialog.Description class="text-xs font-medium text-ink-soft">
 				{m.profile_book_dialog_body({ firstName: creator.fullName.split(' ')[0] })}
 			</Dialog.Description>
 		</Dialog.Header>
@@ -724,7 +723,7 @@
 		     to open against an unclaimed profile is a lead, not a negotiation. -->
 		{#if !creator.isClaimed}
 			<p
-				class="rounded-xl border-2 border-amber-500 bg-amber-50 p-3 text-[11px] font-medium text-slate-800"
+				class="rounded-xl border-2 border-warn-edge bg-warn-soft p-3 text-[11px] font-medium text-ink"
 			>
 				{m.profile_book_intro_notice({ firstName: creator.fullName.split(' ')[0] })}
 			</p>
@@ -794,7 +793,7 @@
 			<button
 				type="submit"
 				disabled={$delayed}
-				class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+				class="w-full rounded-2xl border-2 border-edge bg-brand py-3 font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 			>
 				{#if $delayed}
 					<LoadingBtn name={m.profile_sending_proposal()} />

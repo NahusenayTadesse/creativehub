@@ -9,33 +9,33 @@
 	/** State is carried by colour and by wording, never by colour alone. */
 	const TONES: Record<string, string> = {
 		// booking lifecycle
-		proposed: 'bg-slate-100 text-slate-800 border-slate-400',
-		negotiating: 'bg-amber-100 text-amber-900 border-amber-500',
-		booked: 'bg-indigo-100 text-indigo-900 border-indigo-500',
-		in_production: 'bg-indigo-100 text-indigo-900 border-indigo-500',
-		submitted: 'bg-amber-100 text-amber-900 border-amber-500',
-		revision: 'bg-orange-100 text-orange-900 border-orange-500',
-		approved: 'bg-emerald-100 text-emerald-900 border-emerald-500',
-		awaiting_settlement: 'bg-amber-100 text-amber-900 border-amber-500',
-		completed: 'bg-emerald-100 text-emerald-900 border-emerald-600',
-		cancelled: 'bg-red-100 text-red-900 border-red-500',
-		disputed: 'bg-red-100 text-red-900 border-red-600',
+		proposed: 'bg-well text-ink border-edge-mid',
+		negotiating: 'bg-warn-soft text-warn-fg border-warn-edge',
+		booked: 'bg-info-soft text-info-fg border-info-edge',
+		in_production: 'bg-info-soft text-info-fg border-info-edge',
+		submitted: 'bg-warn-soft text-warn-fg border-warn-edge',
+		revision: 'bg-tint-orange text-tint-orange-fg border-tint-orange-edge',
+		approved: 'bg-brand-soft text-brand-soft-fg border-brand-edge',
+		awaiting_settlement: 'bg-warn-soft text-warn-fg border-warn-edge',
+		completed: 'bg-brand-soft text-brand-soft-fg border-brand-edge',
+		cancelled: 'bg-danger-soft text-danger-fg border-danger-edge',
+		disputed: 'bg-danger-soft text-danger-fg border-danger-edge',
 		// escrow
-		unfunded: 'bg-slate-100 text-slate-700 border-slate-400',
-		pending: 'bg-amber-100 text-amber-900 border-amber-500',
-		held: 'bg-emerald-100 text-emerald-900 border-emerald-500',
-		released: 'bg-blue-100 text-blue-900 border-blue-500',
-		refunded: 'bg-slate-100 text-slate-700 border-slate-400',
+		unfunded: 'bg-well text-ink-soft border-edge-mid',
+		pending: 'bg-warn-soft text-warn-fg border-warn-edge',
+		held: 'bg-brand-soft text-brand-soft-fg border-brand-edge',
+		released: 'bg-tint-blue text-tint-blue-fg border-tint-blue-edge',
+		refunded: 'bg-well text-ink-soft border-edge-mid',
 		// applications
-		applied: 'bg-slate-100 text-slate-800 border-slate-400',
-		shortlisted: 'bg-indigo-100 text-indigo-900 border-indigo-500',
-		selected: 'bg-emerald-100 text-emerald-900 border-emerald-600',
-		rejected: 'bg-red-100 text-red-900 border-red-500',
-		withdrawn: 'bg-slate-100 text-slate-600 border-slate-400',
+		applied: 'bg-well text-ink border-edge-mid',
+		shortlisted: 'bg-info-soft text-info-fg border-info-edge',
+		selected: 'bg-brand-soft text-brand-soft-fg border-brand-edge',
+		rejected: 'bg-danger-soft text-danger-fg border-danger-edge',
+		withdrawn: 'bg-well text-ink-soft border-edge-mid',
 		// campaigns
-		draft: 'bg-slate-100 text-slate-700 border-slate-400',
-		published: 'bg-emerald-100 text-emerald-900 border-emerald-600',
-		closed: 'bg-slate-200 text-slate-800 border-slate-500'
+		draft: 'bg-well text-ink-soft border-edge-mid',
+		published: 'bg-brand-soft text-brand-soft-fg border-brand-edge',
+		closed: 'bg-well text-ink border-edge-mid'
 	};
 
 	const label = $derived(
@@ -52,7 +52,7 @@
 <span
 	class="inline-flex items-center rounded-lg border-2 px-2 py-0.5 text-[10px] font-black tracking-wider whitespace-nowrap uppercase {TONES[
 		status
-	] ?? 'border-slate-400 bg-slate-100 text-slate-700'}"
+	] ?? 'border-edge-mid bg-well text-ink-soft'}"
 >
 	{label}
 </span>

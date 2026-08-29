@@ -57,7 +57,7 @@
 >
 	{#snippet row(item)}
 		<div class="space-y-3">
-			<div class="relative h-40 overflow-hidden rounded-2xl border-2 border-slate-900 bg-slate-100">
+			<div class="relative h-40 overflow-hidden rounded-2xl border-2 border-edge bg-well">
 				<AppImage
 					src={assetUrl(item.url)}
 					alt={item.caption ?? ''}
@@ -76,16 +76,16 @@
 				{/if}
 				{#if !item.isActive}
 					<span
-						class="absolute top-2 right-2 rounded-md border border-slate-900 bg-white px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-700 uppercase"
+						class="absolute top-2 right-2 rounded-md border border-edge bg-surface px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 					>
 						{m.common_hidden()}
 					</span>
 				{/if}
 			</div>
 
-			<p class="line-clamp-2 text-xs font-bold text-slate-900">{item.caption}</p>
+			<p class="line-clamp-2 text-xs font-bold text-ink">{item.caption}</p>
 
-			<div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
+			<div class="flex items-center justify-between text-[11px] font-bold text-ink-dim">
 				<span>👁 {item.views.toLocaleString()} {m.profile_views()}</span>
 				<span>❤️ {item.likes.toLocaleString()} {m.profile_likes()}</span>
 			</div>

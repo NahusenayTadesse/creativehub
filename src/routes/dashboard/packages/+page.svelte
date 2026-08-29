@@ -65,18 +65,18 @@
 	{#snippet row(pkg)}
 		<div class="space-y-3">
 			<div class="flex items-start justify-between gap-2">
-				<h3 class="text-sm font-black text-slate-900">{pkg.title}</h3>
+				<h3 class="text-sm font-black text-ink">{pkg.title}</h3>
 				<div class="flex shrink-0 items-center gap-1.5">
 					{#if platformName(pkg.platformId)}
 						<span
-							class="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800"
+							class="rounded-md bg-brand-soft px-2 py-0.5 text-[10px] font-black text-brand-soft-fg"
 						>
 							{platformName(pkg.platformId)}
 						</span>
 					{/if}
 					{#if !pkg.isActive}
 						<span
-							class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
+							class="rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 						>
 							{m.common_hidden()}
 						</span>
@@ -85,14 +85,14 @@
 			</div>
 
 			{#if pkg.description}
-				<p class="line-clamp-2 text-xs font-medium text-slate-600">{pkg.description}</p>
+				<p class="line-clamp-2 text-xs font-medium text-ink-soft">{pkg.description}</p>
 			{/if}
 
 			{#if pkg.deliverables?.length}
 				<ul class="space-y-1">
 					{#each pkg.deliverables as item (item)}
-						<li class="flex items-start gap-1.5 text-[11px] font-medium text-slate-700">
-							<Check class="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
+						<li class="flex items-start gap-1.5 text-[11px] font-medium text-ink-soft">
+							<Check class="mt-0.5 h-3 w-3 shrink-0 text-brand-fg" />
 							<span>{item}</span>
 						</li>
 					{/each}
@@ -100,14 +100,14 @@
 			{/if}
 
 			<div
-				class="flex items-center justify-between rounded-xl border-2 border-slate-900 bg-[#dcfce7] px-3 py-2"
+				class="flex items-center justify-between rounded-xl border-2 border-edge bg-tile-mint px-3 py-2"
 			>
-				<div class="text-[10px] font-black tracking-wider text-emerald-900 uppercase">
+				<div class="text-[10px] font-black tracking-wider text-brand-soft-fg uppercase">
 					{m.pk_summary({ days: pkg.deliveryDays, revisions: pkg.revisions })}
 				</div>
-				<div class="text-sm font-black text-slate-900">
+				<div class="text-sm font-black text-ink">
 					{pkg.price.toLocaleString()}
-					<span class="text-xs text-emerald-700">{pkg.currencyCode}</span>
+					<span class="text-xs text-brand-soft-fg">{pkg.currencyCode}</span>
 				</div>
 			</div>
 		</div>

@@ -95,7 +95,7 @@
 		<input type="hidden" name={key} value={carriedValue} />
 	{/each}
 	<div class="relative {className}">
-		<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-500" />
+		<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-ink-dim" />
 		<input
 			type="search"
 			name={PARAM.search}
@@ -104,14 +104,14 @@
 			onkeydown={onKeydown}
 			{placeholder}
 			aria-label={placeholder}
-			class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 pr-9 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] outline-none focus:ring-2 focus:ring-emerald-500"
+			class="w-full rounded-2xl border-2 border-edge bg-surface py-2.5 pr-9 pl-9 text-xs font-bold shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] outline-none focus:ring-2 focus:ring-brand-edge"
 		/>
 		{#if text}
 			<button
 				type="button"
 				onclick={clear}
 				aria-label={m.pg_clear_search()}
-				class="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-slate-500 hover:text-slate-900"
+				class="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-ink-dim hover:text-ink"
 			>
 				<X class="h-4 w-4" />
 			</button>

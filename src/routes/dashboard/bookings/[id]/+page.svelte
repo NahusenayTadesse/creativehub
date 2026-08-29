@@ -223,7 +223,7 @@
 <div class="space-y-6">
 	<a
 		href={resolve('/dashboard/bookings')}
-		class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
+		class="inline-flex items-center gap-1.5 rounded-lg border border-edge-soft bg-surface px-3 py-1.5 text-xs font-semibold text-ink-soft hover:text-ink"
 	>
 		<ArrowLeft class="h-3.5 w-3.5" />
 		{m.bk_all_bookings()}
@@ -239,20 +239,20 @@
 		{@const closed = settled || booking.introductionStatus === 'declined'}
 		<div
 			class="flex items-start gap-3 rounded-2xl border-2 p-4 {settled
-				? 'border-emerald-600 bg-emerald-50'
+				? 'border-brand-edge bg-brand-soft'
 				: booking.introductionStatus === 'declined'
-					? 'border-slate-400 bg-slate-100'
-					: 'border-amber-500 bg-amber-50'}"
+					? 'border-edge-mid bg-well'
+					: 'border-warn-edge bg-warn-soft'}"
 		>
 			<MailQuestion
 				class="mt-0.5 h-5 w-5 shrink-0 {settled
-					? 'text-emerald-700'
+					? 'text-brand-soft-fg'
 					: closed
-						? 'text-slate-600'
-						: 'text-amber-700'}"
+						? 'text-ink-soft'
+						: 'text-warn-fg'}"
 			/>
 			<div class="space-y-1">
-				<h2 class="text-xs font-black text-slate-900">
+				<h2 class="text-xs font-black text-ink">
 					{#if settled}
 						{m.bk_intro_connected_title()}
 					{:else if booking.introductionStatus === 'declined'}
@@ -261,7 +261,7 @@
 						{m.bk_intro_title()}
 					{/if}
 				</h2>
-				<p class="text-[11px] font-medium text-slate-700">
+				<p class="text-[11px] font-medium text-ink-soft">
 					{#if booking.introductionStatus === 'pending'}
 						{m.bk_intro_pending_body({ creator: booking.creatorName })}
 					{:else if booking.introductionStatus === 'contacted'}
@@ -281,14 +281,14 @@
 		<div class="flex flex-col justify-between gap-4 md:flex-row md:items-start">
 			<div class="min-w-0">
 				<div class="mb-1 flex flex-wrap items-center gap-2">
-					<span class="font-mono text-[10px] font-black tracking-widest text-slate-400">
+					<span class="font-mono text-[10px] font-black tracking-widest text-ink-faint">
 						{booking.reference}
 					</span>
 					<BookingStatusBadge status={booking.status} />
 					<CompensationBadge type={booking.compensationType} />
 				</div>
-				<h1 class="text-xl font-black text-slate-900 sm:text-2xl">{booking.title}</h1>
-				<p class="mt-1 text-xs font-bold text-slate-500">
+				<h1 class="text-xl font-black text-ink sm:text-2xl">{booking.title}</h1>
+				<p class="mt-1 text-xs font-bold text-ink-dim">
 					<a href={resolve(`/creators/${booking.creatorUsername}`)} class="hover:underline">
 						{booking.creatorName}
 					</a>
@@ -301,7 +301,7 @@
 					<button
 						type="button"
 						onclick={() => (counterOpen = true)}
-						class="rounded-xl border-2 border-slate-900 bg-white px-4 py-2 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-50"
+						class="rounded-xl border-2 border-edge bg-surface px-4 py-2 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel"
 					>
 						{m.bk_counter_offer()}
 					</button>
@@ -313,7 +313,7 @@
 						<input type="hidden" name="paymentMethod" value="telebirr" />
 						<button
 							type="submit"
-							class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+							class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 						>
 							<Wallet class="h-3.5 w-3.5" />
 							{m.bk_record_deposit()}
@@ -325,7 +325,7 @@
 					<button
 						type="button"
 						onclick={() => (submitOpen = true)}
-						class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+						class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 					>
 						<Upload class="h-3.5 w-3.5" />
 						{m.bk_submit_work()}
@@ -336,7 +336,7 @@
 					<button
 						type="button"
 						onclick={() => (reviewOpen = true)}
-						class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+						class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 					>
 						<CircleCheckBig class="h-3.5 w-3.5" />
 						{m.bk_review_submission()}
@@ -352,7 +352,7 @@
 						<input type="hidden" name="bookingId" value={booking.id} />
 						<button
 							type="submit"
-							class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+							class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 						>
 							<CircleCheckBig class="h-3.5 w-3.5" />
 							{m.bk_mark_fulfilled()}
@@ -364,9 +364,9 @@
 					<button
 						type="button"
 						onclick={() => (rateOpen = true)}
-						class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-amber-500 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-amber-600"
+						class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-warn px-4 py-2 text-xs font-black text-warn-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-warn"
 					>
-						<Star class="h-3.5 w-3.5 fill-white" />
+						<Star class="h-3.5 w-3.5 fill-current" />
 						{m.bk_write_review()}
 					</button>
 				{/if}
@@ -375,15 +375,15 @@
 
 		<!-- Stepper -->
 		{#if currentStep >= 0}
-			<div class="overflow-x-auto border-t-2 border-slate-200 py-6">
+			<div class="overflow-x-auto border-t-2 border-edge-soft py-6">
 				<div class="relative mx-auto flex max-w-2xl min-w-[560px] items-center justify-between">
 					{#each pipelineSteps() as step, index (step.status)}
 						{@const done = index <= currentStep}
 						<div class="relative z-10 flex flex-col items-center">
 							<div
 								class="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-colors {done
-									? 'bg-emerald-600 text-white ring-4 ring-emerald-50'
-									: 'border border-gray-200 bg-gray-100 text-gray-400'}"
+									? 'bg-brand text-brand-ink ring-4 ring-brand-soft'
+									: 'border border-edge-soft bg-well text-ink-faint'}"
 							>
 								{#if done}
 									<CircleCheckBig class="h-5 w-5" />
@@ -393,10 +393,10 @@
 							</div>
 							<span
 								class="mt-2 text-[11px] {index === currentStep
-									? 'font-bold text-gray-900'
+									? 'font-bold text-ink'
 									: done
-										? 'text-gray-700'
-										: 'text-gray-400'}"
+										? 'text-ink-soft'
+										: 'text-ink-faint'}"
 							>
 								{step.label}
 							</span>
@@ -411,14 +411,14 @@
 		<div class="space-y-6 lg:col-span-2">
 			<!-- ===== Negotiation ===== -->
 			<div class="bento-card bento-card-static space-y-4">
-				<div class="flex items-center justify-between border-b-2 border-slate-900 pb-3">
-					<h2 class="flex items-center gap-1.5 text-sm font-black text-slate-900">
-						<Handshake class="h-4 w-4 text-emerald-600" />
+				<div class="flex items-center justify-between border-b-2 border-edge pb-3">
+					<h2 class="flex items-center gap-1.5 text-sm font-black text-ink">
+						<Handshake class="h-4 w-4 text-brand-fg" />
 						{m.bk_negotiation()}
 					</h2>
 					{#if booking.termsFrozenAt}
 						<span
-							class="inline-flex items-center gap-1 rounded-lg border-2 border-emerald-600 bg-emerald-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-emerald-900 uppercase"
+							class="inline-flex items-center gap-1 rounded-lg border-2 border-brand-edge bg-brand-soft px-2 py-0.5 text-[10px] font-black tracking-wider text-brand-soft-fg uppercase"
 						>
 							<Lock class="h-3 w-3" />
 							{m.bk_terms_frozen({ date: formatDate(booking.termsFrozenAt) })}
@@ -430,49 +430,49 @@
 					{#each data.proposals as prop, index (prop.id)}
 						<li class="relative pl-6">
 							<span
-								class="absolute top-2 left-0 h-2.5 w-2.5 rounded-full border-2 border-slate-900 {prop.status ===
+								class="absolute top-2 left-0 h-2.5 w-2.5 rounded-full border-2 border-edge {prop.status ===
 								'accepted'
-									? 'bg-emerald-500'
+									? 'bg-brand'
 									: prop.status === 'declined'
-										? 'bg-red-500'
+										? 'bg-danger'
 										: prop.status === 'countered'
-											? 'bg-slate-300'
-											: 'bg-amber-400'}"
+											? 'bg-well'
+											: 'bg-warn'}"
 							></span>
 							{#if index < data.proposals.length - 1}
-								<span class="absolute top-5 left-[4px] h-full w-0.5 bg-slate-200"></span>
+								<span class="absolute top-5 left-[4px] h-full w-0.5 bg-well"></span>
 							{/if}
 
 							<div
 								class="rounded-2xl border-2 p-3 {prop.status === 'accepted'
-									? 'border-emerald-600 bg-emerald-50'
+									? 'border-brand-edge bg-brand-soft'
 									: prop.status === 'pending'
-										? 'border-slate-900 bg-white'
-										: 'border-slate-200 bg-slate-50'}"
+										? 'border-edge bg-surface'
+										: 'border-edge-soft bg-panel'}"
 							>
 								<div class="mb-1 flex flex-wrap items-center justify-between gap-2">
-									<span class="text-xs font-black text-slate-900">
+									<span class="text-xs font-black text-ink">
 										{prop.proposedBy === 'creator' ? booking.creatorName : booking.organizationName}
 										{m.bk_proposed()}
 									</span>
-									<span class="text-[10px] font-bold text-slate-400">
+									<span class="text-[10px] font-bold text-ink-faint">
 										{formatTime(prop.createdAt)}
 									</span>
 								</div>
 
 								<div class="flex flex-wrap items-center gap-3 text-xs">
-									<span class="font-black text-slate-900">
+									<span class="font-black text-ink">
 										{prop.price.toLocaleString()}
-										<span class="text-emerald-600">{prop.currencyCode}</span>
+										<span class="text-brand-fg">{prop.currencyCode}</span>
 									</span>
-									<span class="font-medium text-slate-600">
+									<span class="font-medium text-ink-soft">
 										{m.bk_revisions_due({
 											revisions: prop.revisionsAllowed,
 											date: formatDate(prop.deadline)
 										})}
 									</span>
 									<span
-										class="rounded-md border border-slate-400 bg-white px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase"
+										class="rounded-md border border-edge-mid bg-surface px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase"
 									>
 										{prop.status}
 									</span>
@@ -481,21 +481,21 @@
 								{#if prop.deliverables?.length}
 									<ul class="mt-2 space-y-0.5">
 										{#each prop.deliverables as item (item)}
-											<li class="text-[11px] font-medium text-slate-600">· {item}</li>
+											<li class="text-[11px] font-medium text-ink-soft">· {item}</li>
 										{/each}
 									</ul>
 								{/if}
 
 								{#if prop.note}
 									<p
-										class="mt-2 rounded-lg bg-white/70 p-2 text-[11px] font-medium text-slate-700 italic"
+										class="mt-2 rounded-lg bg-surface/70 p-2 text-[11px] font-medium text-ink-soft italic"
 									>
 										"{prop.note}"
 									</p>
 								{/if}
 
 								{#if prop.status === 'pending' && canRespond}
-									<div class="mt-3 flex gap-2 border-t border-slate-200 pt-3">
+									<div class="mt-3 flex gap-2 border-t border-edge-soft pt-3">
 										<form
 											method="POST"
 											action="?/respond"
@@ -505,7 +505,7 @@
 											<input type="hidden" name="decision" value="accept" />
 											<button
 												type="submit"
-												class="rounded-lg border-2 border-slate-900 bg-emerald-600 px-3 py-1.5 text-[11px] font-black text-white hover:bg-emerald-700"
+												class="rounded-lg border-2 border-edge bg-brand px-3 py-1.5 text-[11px] font-black text-brand-ink hover:bg-brand-strong"
 											>
 												{m.bk_accept_terms()}
 											</button>
@@ -519,21 +519,21 @@
 											<input type="hidden" name="decision" value="decline" />
 											<button
 												type="submit"
-												class="rounded-lg border-2 border-slate-900 bg-white px-3 py-1.5 text-[11px] font-black text-slate-900 hover:bg-slate-50"
+												class="rounded-lg border-2 border-edge bg-surface px-3 py-1.5 text-[11px] font-black text-ink hover:bg-panel"
 											>
 												{m.bk_decline()}
 											</button>
 										</form>
 									</div>
 								{:else if prop.status === 'pending' && !isOperator}
-									<p class="mt-2 text-[11px] font-bold text-slate-500">
+									<p class="mt-2 text-[11px] font-bold text-ink-dim">
 										{m.bk_waiting_other_side()}
 									</p>
 								{/if}
 							</div>
 						</li>
 					{:else}
-						<p class="py-4 text-center text-xs font-medium text-slate-500">
+						<p class="py-4 text-center text-xs font-medium text-ink-dim">
 							{m.bk_no_proposals()}
 						</p>
 					{/each}
@@ -544,36 +544,36 @@
 			{#if booking.termsSnapshot}
 				<div class="bento-card-mint space-y-3">
 					<div class="flex items-center gap-1.5">
-						<Lock class="h-4 w-4 text-emerald-800" />
-						<h2 class="text-sm font-black text-slate-900">{m.bk_agreed_terms()}</h2>
+						<Lock class="h-4 w-4 text-brand-soft-fg" />
+						<h2 class="text-sm font-black text-ink">{m.bk_agreed_terms()}</h2>
 					</div>
-					<p class="text-[11px] font-medium text-emerald-900">
+					<p class="text-[11px] font-medium text-brand-soft-fg">
 						{m.bk_agreed_terms_note()}
 					</p>
 
 					<div class="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
 						<div>
-							<span class="block text-[9px] font-black tracking-wider text-slate-600 uppercase">
+							<span class="block text-[9px] font-black tracking-wider text-ink-soft uppercase">
 								{m.bk_fee()}
 							</span>
-							<span class="font-black text-slate-900">
+							<span class="font-black text-ink">
 								{booking.termsSnapshot.price.toLocaleString()}
 								{booking.termsSnapshot.currencyCode}
 							</span>
 						</div>
 						<div>
-							<span class="block text-[9px] font-black tracking-wider text-slate-600 uppercase">
+							<span class="block text-[9px] font-black tracking-wider text-ink-soft uppercase">
 								{m.bk_creator_payout()}
 							</span>
-							<span class="font-black text-slate-900">
+							<span class="font-black text-ink">
 								{booking.termsSnapshot.creatorPayout.toLocaleString()}
 							</span>
 						</div>
 						<div>
-							<span class="block text-[9px] font-black tracking-wider text-slate-600 uppercase">
+							<span class="block text-[9px] font-black tracking-wider text-ink-soft uppercase">
 								{m.bk_revisions()}
 							</span>
-							<span class="font-black text-slate-900">
+							<span class="font-black text-ink">
 								{m.bk_revisions_used({
 									used: booking.revisionsUsed,
 									allowed: booking.termsSnapshot.revisionsAllowed
@@ -581,26 +581,24 @@
 							</span>
 						</div>
 						<div>
-							<span class="block text-[9px] font-black tracking-wider text-slate-600 uppercase">
+							<span class="block text-[9px] font-black tracking-wider text-ink-soft uppercase">
 								{m.bk_deadline()}
 							</span>
-							<span class="font-black text-slate-900">
+							<span class="font-black text-ink">
 								{formatDate(booking.termsSnapshot.deadline)}
 							</span>
 						</div>
 					</div>
 
 					{#if booking.termsSnapshot.deliverables?.length}
-						<div class="border-t border-emerald-300 pt-3">
-							<span
-								class="mb-1 block text-[9px] font-black tracking-wider text-slate-600 uppercase"
-							>
+						<div class="border-t border-brand-edge pt-3">
+							<span class="mb-1 block text-[9px] font-black tracking-wider text-ink-soft uppercase">
 								{m.bk_agreed_deliverables()}
 							</span>
 							<ul class="space-y-1">
 								{#each booking.termsSnapshot.deliverables as item (item)}
-									<li class="flex items-start gap-1.5 text-xs font-medium text-slate-800">
-										<CircleCheckBig class="mt-0.5 h-3 w-3 shrink-0 text-emerald-700" />
+									<li class="flex items-start gap-1.5 text-xs font-medium text-ink">
+										<CircleCheckBig class="mt-0.5 h-3 w-3 shrink-0 text-brand-soft-fg" />
 										<span>{item}</span>
 									</li>
 								{/each}
@@ -613,18 +611,18 @@
 			<!-- ===== Submissions ===== -->
 			{#if data.submissions.length}
 				<div class="bento-card bento-card-static space-y-3">
-					<h2 class="border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900">
+					<h2 class="border-b-2 border-edge pb-3 text-sm font-black text-ink">
 						{m.bk_delivery_history()}
 					</h2>
 
 					{#each data.submissions as sub (sub.id)}
-						<div class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-3">
+						<div class="rounded-2xl border-2 border-edge-soft bg-panel p-3">
 							<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
 								<a
 									href={sub.contentUrl}
 									target="_blank"
 									rel="noreferrer"
-									class="inline-flex items-center gap-1 text-xs font-black text-emerald-700 hover:underline"
+									class="inline-flex items-center gap-1 text-xs font-black text-brand-soft-fg hover:underline"
 								>
 									<ExternalLink class="h-3.5 w-3.5" />
 									{m.bk_view_submitted()}
@@ -633,31 +631,31 @@
 									<span
 										class="rounded-md border-2 px-2 py-0.5 text-[10px] font-black tracking-wider uppercase {sub.status ===
 										'approved'
-											? 'border-emerald-600 bg-emerald-100 text-emerald-900'
+											? 'border-brand-edge bg-brand-soft text-brand-soft-fg'
 											: sub.status === 'revision_requested'
-												? 'border-orange-500 bg-orange-100 text-orange-900'
-												: 'border-amber-500 bg-amber-100 text-amber-900'}"
+												? 'border-tint-orange-edge bg-tint-orange text-tint-orange-fg'
+												: 'border-warn-edge bg-warn-soft text-warn-fg'}"
 									>
 										{sub.status.replace('_', ' ')}
 									</span>
-									<span class="text-[10px] font-bold text-slate-400">
+									<span class="text-[10px] font-bold text-ink-faint">
 										{formatTime(sub.createdAt)}
 									</span>
 								</div>
 							</div>
 
 							{#if sub.notes}
-								<p class="text-[11px] font-medium text-slate-700 italic">"{sub.notes}"</p>
+								<p class="text-[11px] font-medium text-ink-soft italic">"{sub.notes}"</p>
 							{/if}
 
 							{#if sub.reviewNote}
-								<div class="mt-2 rounded-lg border border-orange-300 bg-orange-50 p-2">
+								<div class="mt-2 rounded-lg border border-tint-orange-edge bg-tint-orange p-2">
 									<span
-										class="block text-[9px] font-black tracking-wider text-orange-800 uppercase"
+										class="block text-[9px] font-black tracking-wider text-tint-orange-fg uppercase"
 									>
 										{m.bk_feedback()}
 									</span>
-									<p class="text-[11px] font-medium text-orange-900">{sub.reviewNote}</p>
+									<p class="text-[11px] font-medium text-tint-orange-fg">{sub.reviewNote}</p>
 								</div>
 							{/if}
 						</div>
@@ -668,30 +666,30 @@
 			<!-- ===== Reviews ===== -->
 			{#if data.reviews.length}
 				<div class="bento-card bento-card-static space-y-3">
-					<h2 class="border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900">
+					<h2 class="border-b-2 border-edge pb-3 text-sm font-black text-ink">
 						{m.bk_reviews()}
 					</h2>
 					{#each data.reviews as review (review.id)}
-						<div class="rounded-2xl border-2 border-amber-200 bg-amber-50/70 p-3">
+						<div class="rounded-2xl border-2 border-warn-edge bg-warn-soft p-3">
 							<div class="mb-1 flex items-center justify-between">
-								<span class="text-xs font-black text-slate-900">
+								<span class="text-xs font-black text-ink">
 									{review.direction === 'brand_to_creator'
 										? `${booking.organizationName} → ${booking.creatorName}`
 										: `${booking.creatorName} → ${booking.organizationName}`}
 								</span>
 								<div class="flex items-center gap-0.5">
 									{#each Array(review.rating) as _, i (i)}
-										<Star class="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+										<Star class="h-3.5 w-3.5 fill-warn text-warn" />
 									{/each}
-									<span class="ml-1 text-xs font-black text-slate-900">{review.rating}.0</span>
+									<span class="ml-1 text-xs font-black text-ink">{review.rating}.0</span>
 								</div>
 							</div>
-							<p class="text-[11px] font-medium text-slate-700 italic">"{review.body}"</p>
-							<div class="mt-2 flex flex-wrap gap-2 text-[10px] font-bold text-slate-600">
-								<span class="rounded bg-white px-2 py-0.5">💬 {review.communication}/5</span>
-								<span class="rounded bg-white px-2 py-0.5">✨ {review.quality}/5</span>
-								<span class="rounded bg-white px-2 py-0.5">⏱️ {review.timeliness}/5</span>
-								<span class="rounded bg-white px-2 py-0.5">💼 {review.professionalism}/5</span>
+							<p class="text-[11px] font-medium text-ink-soft italic">"{review.body}"</p>
+							<div class="mt-2 flex flex-wrap gap-2 text-[10px] font-bold text-ink-soft">
+								<span class="rounded bg-surface px-2 py-0.5">💬 {review.communication}/5</span>
+								<span class="rounded bg-surface px-2 py-0.5">✨ {review.quality}/5</span>
+								<span class="rounded bg-surface px-2 py-0.5">⏱️ {review.timeliness}/5</span>
+								<span class="rounded bg-surface px-2 py-0.5">💼 {review.professionalism}/5</span>
 							</div>
 						</div>
 					{/each}
@@ -702,32 +700,32 @@
 		<!-- ===== Sidebar ===== -->
 		<div class="space-y-6">
 			<div class="bento-card bento-card-static space-y-3">
-				<h2 class="border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900">
+				<h2 class="border-b-2 border-edge pb-3 text-sm font-black text-ink">
 					{m.bk_compensation()}
 				</h2>
 
 				<div class="flex items-center justify-between text-xs">
-					<span class="font-medium text-slate-600">{m.bk_status()}</span>
+					<span class="font-medium text-ink-soft">{m.bk_status()}</span>
 					<BookingStatusBadge status={booking.escrowStatus} kind="escrow" />
 				</div>
 				<div class="flex items-center justify-between text-xs">
-					<span class="font-medium text-slate-600">{m.bk_agreed_value()}</span>
-					<span class="font-black text-slate-900">
+					<span class="font-medium text-ink-soft">{m.bk_agreed_value()}</span>
+					<span class="font-black text-ink">
 						{booking.price.toLocaleString()}
 						{booking.currencyCode}
 					</span>
 				</div>
-				<div class="flex items-center justify-between border-t border-slate-200 pt-2 text-xs">
-					<span class="font-medium text-slate-500">{m.bk_creator_payout()}</span>
-					<span class="font-bold text-slate-800">{booking.creatorPayout.toLocaleString()}</span>
+				<div class="flex items-center justify-between border-t border-edge-soft pt-2 text-xs">
+					<span class="font-medium text-ink-dim">{m.bk_creator_payout()}</span>
+					<span class="font-bold text-ink">{booking.creatorPayout.toLocaleString()}</span>
 				</div>
 				<div class="flex items-center justify-between text-[11px]">
-					<span class="text-slate-400">{m.bk_marketplace_fee()}</span>
-					<span class="text-slate-400">{booking.platformFee.toLocaleString()}</span>
+					<span class="text-ink-faint">{m.bk_marketplace_fee()}</span>
+					<span class="text-ink-faint">{booking.platformFee.toLocaleString()}</span>
 				</div>
 
 				{#if booking.paymentRef}
-					<p class="pt-1 font-mono text-[10px] text-slate-500">
+					<p class="pt-1 font-mono text-[10px] text-ink-dim">
 						{m.bk_payment_ref({
 							ref: booking.paymentRef,
 							method: booking.paymentMethod?.toUpperCase() ?? ''
@@ -736,7 +734,7 @@
 				{/if}
 
 				<p
-					class="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-2 text-[10px] leading-relaxed font-medium text-amber-900"
+					class="mt-2 rounded-xl border border-warn-edge bg-warn-soft p-2 text-[10px] leading-relaxed font-medium text-warn-fg"
 				>
 					{m.bk_compensation_note()}
 				</p>
@@ -745,16 +743,16 @@
 			<!-- Messages -->
 			<div class="bento-card bento-card-static flex flex-col gap-3">
 				<h2
-					class="flex items-center gap-1.5 border-b-2 border-slate-900 pb-3 text-sm font-black text-slate-900"
+					class="flex items-center gap-1.5 border-b-2 border-edge pb-3 text-sm font-black text-ink"
 				>
-					<MessageSquare class="h-4 w-4 text-emerald-600" />
+					<MessageSquare class="h-4 w-4 text-brand-fg" />
 					{m.bk_conversation()}
 				</h2>
 
 				<div
-					class="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[10px] leading-tight text-amber-900"
+					class="flex items-start gap-2 rounded-xl border border-warn-edge bg-warn-soft p-2 text-[10px] leading-tight text-warn-fg"
 				>
-					<ShieldAlert class="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+					<ShieldAlert class="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />
 					<p>
 						{m.bk_masking_note()}
 					</p>
@@ -764,26 +762,26 @@
 					{#each data.messages as msg (msg.id)}
 						{@const mine = msg.senderId === data.user?.id}
 						<div class="flex flex-col {mine ? 'items-end' : 'items-start'}">
-							<span class="mb-1 text-[10px] font-semibold text-slate-400">{msg.senderName}</span>
+							<span class="mb-1 text-[10px] font-semibold text-ink-faint">{msg.senderName}</span>
 							<div
 								class="max-w-[85%] rounded-2xl p-2.5 text-xs leading-relaxed shadow-xs {mine
-									? 'rounded-br-none bg-emerald-600 text-white'
-									: 'rounded-bl-none bg-slate-100 text-slate-900'}"
+									? 'rounded-br-none bg-brand text-brand-ink'
+									: 'rounded-bl-none bg-well text-ink'}"
 							>
 								<p>{msg.body}</p>
 								{#if msg.isMasked}
 									<div
-										class="mt-1.5 flex items-center gap-1 border-t border-white/20 pt-1.5 text-[10px] font-semibold opacity-90"
+										class="mt-1.5 flex items-center gap-1 border-t border-current/20 pt-1.5 text-[10px] font-semibold opacity-90"
 									>
 										<ShieldAlert class="h-3 w-3" />
 										<span>{m.bk_contact_hidden()}</span>
 									</div>
 								{/if}
 							</div>
-							<span class="mt-1 text-[9px] text-slate-400">{formatTime(msg.createdAt)}</span>
+							<span class="mt-1 text-[9px] text-ink-faint">{formatTime(msg.createdAt)}</span>
 						</div>
 					{:else}
-						<p class="py-6 text-center text-xs font-medium text-slate-500">
+						<p class="py-6 text-center text-xs font-medium text-ink-dim">
 							{m.bk_no_messages()}
 						</p>
 					{/each}
@@ -793,7 +791,7 @@
 					method="POST"
 					action="?/message"
 					use:chatEnhance
-					class="flex items-center gap-2 border-t border-slate-200 pt-3"
+					class="flex items-center gap-2 border-t border-edge-soft pt-3"
 				>
 					<input type="hidden" name="bookingId" value={booking.id} />
 					<div class="flex-1">
@@ -808,7 +806,7 @@
 					</div>
 					<button
 						type="submit"
-						class="rounded-xl border-2 border-slate-900 bg-emerald-600 p-2 text-white hover:bg-emerald-700"
+						class="rounded-xl border-2 border-edge bg-brand p-2 text-brand-ink hover:bg-brand-strong"
 						aria-label={m.bk_send_message()}
 					>
 						<Send class="h-4 w-4" />
@@ -825,7 +823,7 @@
 	<Dialog.Content class="w-lg! max-w-[95vw]!">
 		<Dialog.Header>
 			<Dialog.Title class="text-base font-black">{m.bk_counter_dialog_title()}</Dialog.Title>
-			<Dialog.Description class="text-xs font-medium text-slate-600">
+			<Dialog.Description class="text-xs font-medium text-ink-soft">
 				{m.bk_counter_dialog_body()}
 			</Dialog.Description>
 		</Dialog.Header>
@@ -898,7 +896,7 @@
 			<button
 				type="submit"
 				disabled={$proposalDelayed}
-				class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+				class="w-full rounded-2xl border-2 border-edge bg-brand py-3 font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 			>
 				{#if $proposalDelayed}
 					<LoadingBtn name={m.campaign_sending()} />
@@ -943,7 +941,7 @@
 			<button
 				type="submit"
 				disabled={$submissionDelayed}
-				class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+				class="w-full rounded-2xl border-2 border-edge bg-brand py-3 font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 			>
 				{#if $submissionDelayed}
 					<LoadingBtn name={m.bk_submitting()} />
@@ -959,7 +957,7 @@
 	<Dialog.Content class="w-lg! max-w-[95vw]!">
 		<Dialog.Header>
 			<Dialog.Title class="text-base font-black">{m.bk_review_dialog_title()}</Dialog.Title>
-			<Dialog.Description class="text-xs font-medium text-slate-600">
+			<Dialog.Description class="text-xs font-medium text-ink-soft">
 				{m.bk_review_dialog_body({
 					used: booking.revisionsUsed,
 					allowed: booking.revisionsAllowed
@@ -973,7 +971,7 @@
 					href={openSubmission.contentUrl}
 					target="_blank"
 					rel="noreferrer"
-					class="inline-flex items-center gap-1 font-black text-emerald-700 hover:underline"
+					class="inline-flex items-center gap-1 font-black text-brand-soft-fg hover:underline"
 				>
 					<ExternalLink class="h-3.5 w-3.5" />
 					{m.bk_open_submitted()}
@@ -988,13 +986,13 @@
 					<input type="hidden" name="decision" value="approve" />
 					<button
 						type="submit"
-						class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+						class="w-full rounded-2xl border-2 border-edge bg-brand py-3 font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 					>
 						{m.bk_approve()}
 					</button>
 				</form>
 
-				<div class="border-t-2 border-slate-200 pt-3">
+				<div class="border-t-2 border-edge-soft pt-3">
 					<form
 						method="POST"
 						action="?/review"
@@ -1016,7 +1014,7 @@
 
 						<button
 							type="submit"
-							class="w-full rounded-2xl border-2 border-slate-900 bg-white py-2.5 font-black text-slate-900 hover:bg-slate-50"
+							class="w-full rounded-2xl border-2 border-edge bg-surface py-2.5 font-black text-ink hover:bg-panel"
 						>
 							{m.bk_request_revision()}
 						</button>
@@ -1041,8 +1039,8 @@
 			<Errors allErrors={$ratingAllErrors} />
 			<input type="hidden" name="bookingId" value={booking.id} />
 
-			<div class="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-center">
-				<span class="block text-xs font-black tracking-wider text-slate-700 uppercase">
+			<div class="space-y-2 rounded-2xl border border-warn-edge bg-warn-soft p-4 text-center">
+				<span class="block text-xs font-black tracking-wider text-ink-soft uppercase">
 					{m.bk_overall_rating()}
 				</span>
 				<StarRating
@@ -1057,14 +1055,14 @@
 				/>
 			</div>
 
-			<div class="space-y-2.5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-				<span class="mb-1 block text-[11px] font-black tracking-wider text-slate-500 uppercase">
+			<div class="space-y-2.5 rounded-2xl border border-edge-soft bg-panel p-4">
+				<span class="mb-1 block text-[11px] font-black tracking-wider text-ink-dim uppercase">
 					{m.bk_detailed_breakdown()}
 				</span>
 
 				{#each SUB_RATINGS as row (row.key)}
 					<div class="flex items-center justify-between">
-						<span class="font-bold text-slate-700">{row.label}</span>
+						<span class="font-bold text-ink-soft">{row.label}</span>
 						<StarRating
 							form={ratingForm}
 							errors={ratingErrors}
@@ -1090,7 +1088,7 @@
 			<button
 				type="submit"
 				disabled={$ratingDelayed}
-				class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+				class="w-full rounded-2xl border-2 border-edge bg-brand py-3 font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 			>
 				{#if $ratingDelayed}
 					<LoadingBtn name={m.bk_publishing()} />

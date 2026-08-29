@@ -26,16 +26,16 @@
 			title: m.register_as_creator(),
 			description: m.register_as_creator_note(),
 			icon: UserCheck,
-			selectedClass: 'bg-[#dcfce7]',
-			iconClass: 'text-emerald-700'
+			selectedClass: 'bg-tile-mint',
+			iconClass: 'text-brand-soft-fg'
 		},
 		{
 			value: 'business',
 			title: m.register_as_brand(),
 			description: m.register_as_brand_note(),
 			icon: Briefcase,
-			selectedClass: 'bg-[#e0e7ff]',
-			iconClass: 'text-indigo-700'
+			selectedClass: 'bg-tile-indigo',
+			iconClass: 'text-info-fg'
 		}
 	]);
 </script>
@@ -46,19 +46,19 @@
 	<div class="w-full max-w-md space-y-6">
 		<a href={resolve('/')} class="flex items-center justify-center gap-3">
 			<div
-				class="flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-slate-900 bg-slate-900 text-xl font-black text-white shadow-[3px_3px_0px_0px_rgba(16,185,129,1)]"
+				class="flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-edge bg-inverse text-xl font-black text-inverse-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow-accent))]"
 			>
 				ET
 			</div>
-			<span class="text-xl font-black tracking-tight text-slate-900">{m.brand_name()}</span>
+			<span class="text-xl font-black tracking-tight text-ink">{m.brand_name()}</span>
 		</a>
 
 		<div class="bento-card bento-card-static space-y-5">
-			<div class="border-b-2 border-slate-900 pb-4">
-				<span class="text-xs font-black tracking-widest text-slate-500 uppercase"
+			<div class="border-b-2 border-edge pb-4">
+				<span class="text-xs font-black tracking-widest text-ink-dim uppercase"
 					>{m.register_eyebrow()}</span
 				>
-				<h1 class="text-2xl font-black text-slate-900">{m.register_title()}</h1>
+				<h1 class="text-2xl font-black text-ink">{m.register_title()}</h1>
 			</div>
 
 			<form method="POST" action="?/register" use:enhance class="space-y-4">
@@ -116,7 +116,7 @@
 				<button
 					type="submit"
 					disabled={$delayed}
-					class="w-full rounded-2xl border-2 border-slate-900 bg-emerald-600 py-3 text-xs font-black text-white shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] transition-colors hover:bg-emerald-700 disabled:opacity-60"
+					class="w-full rounded-2xl border-2 border-edge bg-brand py-3 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-brand-strong disabled:opacity-60"
 				>
 					{#if $delayed}
 						<LoadingBtn name={m.register_creating()} />
@@ -126,9 +126,9 @@
 				</button>
 			</form>
 
-			<p class="text-center text-xs font-medium text-slate-600">
+			<p class="text-center text-xs font-medium text-ink-soft">
 				{m.register_already()}
-				<a href={resolve('/login')} class="font-black text-emerald-700 hover:underline"
+				<a href={resolve('/login')} class="font-black text-brand-soft-fg hover:underline"
 					>{m.login_title()}</a
 				>
 			</p>

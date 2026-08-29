@@ -7,6 +7,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
+	import ThemeChoice from '$lib/components/theme-choice.svelte';
 	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
@@ -17,6 +18,7 @@
 		Laptop,
 		LogOut,
 		Mail,
+		Palette,
 		TriangleAlert,
 		UserRound
 	} from '@lucide/svelte';
@@ -177,33 +179,33 @@
 	<!-- ---------- account details ---------- -->
 	<div class="bento-card bento-card-static space-y-4">
 		<div class="flex items-center gap-2">
-			<UserRound class="h-4 w-4 text-emerald-600" />
-			<h2 class="text-sm font-black text-slate-900">{m.set_details_title()}</h2>
+			<UserRound class="h-4 w-4 text-brand-fg" />
+			<h2 class="text-sm font-black text-ink">{m.set_details_title()}</h2>
 		</div>
 
-		<div class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-3">
-			<span class="block text-[9px] font-black tracking-wider text-slate-500 uppercase">
+		<div class="rounded-2xl border-2 border-edge-soft bg-panel p-3">
+			<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 				{m.set_email_label()}
 			</span>
 			<div class="mt-1 flex flex-wrap items-center gap-2">
-				<span class="text-sm font-black text-slate-900">{data.email}</span>
+				<span class="text-sm font-black text-ink">{data.email}</span>
 				{#if data.emailVerified}
 					<span
-						class="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-900"
+						class="inline-flex items-center gap-1 rounded-md bg-brand-soft px-2 py-0.5 text-[10px] font-black text-brand-soft-fg"
 					>
 						<BadgeCheck class="h-3 w-3" />
 						{m.set_email_verified()}
 					</span>
 				{:else}
 					<span
-						class="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900"
+						class="inline-flex items-center gap-1 rounded-md bg-warn-soft px-2 py-0.5 text-[10px] font-black text-warn-fg"
 					>
 						<Mail class="h-3 w-3" />
 						{m.set_email_unverified()}
 					</span>
 				{/if}
 			</div>
-			<p class="mt-1 text-[11px] font-medium text-slate-500">{m.set_email_change_note()}</p>
+			<p class="mt-1 text-[11px] font-medium text-ink-dim">{m.set_email_change_note()}</p>
 		</div>
 
 		<form method="POST" action="?/details" use:detailsEnhance class="space-y-3">
@@ -230,7 +232,7 @@
 				<button
 					type="submit"
 					disabled={$detailsDelayed}
-					class="rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+					class="rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 				>
 					{#if $detailsDelayed}
 						<LoadingBtn name={m.set_save()} />
@@ -245,14 +247,14 @@
 	<!-- ---------- password ---------- -->
 	<div class="bento-card bento-card-static space-y-4">
 		<div class="flex items-center gap-2">
-			<KeyRound class="h-4 w-4 text-emerald-600" />
-			<h2 class="text-sm font-black text-slate-900">{m.set_pw_title()}</h2>
+			<KeyRound class="h-4 w-4 text-brand-fg" />
+			<h2 class="text-sm font-black text-ink">{m.set_pw_title()}</h2>
 		</div>
 
 		{#if !data.hasPassword}
 			<!-- Nothing to change: this account signs in through Google. -->
 			<p
-				class="rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-xs font-medium text-slate-700"
+				class="rounded-xl border-2 border-edge-soft bg-panel p-3 text-xs font-medium text-ink-soft"
 			>
 				{m.set_pw_google_only()}
 			</p>
@@ -300,7 +302,7 @@
 					<button
 						type="submit"
 						disabled={$pwDelayed}
-						class="rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700 disabled:opacity-60"
+						class="rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 					>
 						{#if $pwDelayed}
 							<LoadingBtn name={m.set_pw_submit()} />
@@ -313,28 +315,44 @@
 		{/if}
 	</div>
 
+	<!-- ---------- appearance ---------- -->
+	<div class="bento-card bento-card-static space-y-4">
+		<div class="flex items-center gap-2">
+			<Palette class="h-4 w-4 text-brand-fg" />
+			<h2 class="text-sm font-black text-ink">{m.theme_appearance()}</h2>
+		</div>
+		<p class="text-[11px] font-medium text-ink-dim">{m.theme_appearance_note()}</p>
+
+		<!--
+			This one saves nothing to the server. The choice lives in the browser,
+			which is what makes it apply before the first paint on the next visit —
+			a round trip would mean a flash of the wrong theme on every page.
+		-->
+		<ThemeChoice />
+	</div>
+
 	<!-- ---------- notifications ---------- -->
 	<div class="bento-card bento-card-static space-y-4">
 		<div class="flex items-center gap-2">
-			<Bell class="h-4 w-4 text-emerald-600" />
-			<h2 class="text-sm font-black text-slate-900">{m.set_notify_title()}</h2>
+			<Bell class="h-4 w-4 text-brand-fg" />
+			<h2 class="text-sm font-black text-ink">{m.set_notify_title()}</h2>
 		</div>
-		<p class="text-[11px] font-medium text-slate-500">{m.set_notify_mail_pending()}</p>
+		<p class="text-[11px] font-medium text-ink-dim">{m.set_notify_mail_pending()}</p>
 
 		<form method="POST" action="?/notifications" use:notifyEnhance class="space-y-3">
 			<div class="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 gap-y-3">
 				<span></span>
-				<span class="text-[9px] font-black tracking-wider text-slate-500 uppercase"
+				<span class="text-[9px] font-black tracking-wider text-ink-dim uppercase"
 					>{m.set_notify_email()}</span
 				>
-				<span class="text-[9px] font-black tracking-wider text-slate-500 uppercase"
+				<span class="text-[9px] font-black tracking-wider text-ink-dim uppercase"
 					>{m.set_notify_inapp()}</span
 				>
 
 				{#each notifyRows as row (row.email)}
 					<div>
-						<p class="text-xs font-black text-slate-900">{row.label}</p>
-						<p class="text-[11px] font-medium text-slate-500">{row.help}</p>
+						<p class="text-xs font-black text-ink">{row.label}</p>
+						<p class="text-[11px] font-medium text-ink-dim">{row.help}</p>
 					</div>
 					<!-- The grid header names the column; the checkbox itself still needs
 					     an accessible name of its own, so it carries a hidden one. -->
@@ -356,19 +374,19 @@
 							labelHidden
 						/>
 					{:else}
-						<span class="text-center text-[11px] font-bold text-slate-400">—</span>
+						<span class="text-center text-[11px] font-bold text-ink-faint">—</span>
 					{/if}
 				{/each}
 			</div>
 
-			<p class="rounded-xl bg-slate-100 p-2 text-[11px] font-medium text-slate-600">
+			<p class="rounded-xl bg-well p-2 text-[11px] font-medium text-ink-soft">
 				{m.set_notify_security_note()}
 			</p>
 
 			<div class="flex justify-end">
 				<button
 					type="submit"
-					class="rounded-xl border-2 border-slate-900 bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-emerald-700"
+					class="rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 				>
 					{m.set_save()}
 				</button>
@@ -379,28 +397,28 @@
 	<!-- ---------- sessions ---------- -->
 	<div class="bento-card bento-card-static space-y-4">
 		<div class="flex items-center gap-2">
-			<Laptop class="h-4 w-4 text-emerald-600" />
-			<h2 class="text-sm font-black text-slate-900">{m.set_sessions_title()}</h2>
+			<Laptop class="h-4 w-4 text-brand-fg" />
+			<h2 class="text-sm font-black text-ink">{m.set_sessions_title()}</h2>
 		</div>
-		<p class="text-[11px] font-medium text-slate-500">{m.set_sessions_help()}</p>
+		<p class="text-[11px] font-medium text-ink-dim">{m.set_sessions_help()}</p>
 
 		<ul class="space-y-2">
 			{#each data.sessions as s (s.id)}
 				<li
-					class="flex flex-wrap items-center justify-between gap-2 rounded-2xl border-2 border-slate-200 bg-slate-50 p-3"
+					class="flex flex-wrap items-center justify-between gap-2 rounded-2xl border-2 border-edge-soft bg-panel p-3"
 				>
 					<div>
-						<p class="text-xs font-black text-slate-900">
+						<p class="text-xs font-black text-ink">
 							{describeAgent(s.userAgent)}
 							{#if s.id === data.currentSessionId}
 								<span
-									class="ml-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-900"
+									class="ml-1 rounded-md bg-brand-soft px-2 py-0.5 text-[10px] font-black text-brand-soft-fg"
 								>
 									{m.set_sessions_this_one()}
 								</span>
 							{/if}
 						</p>
-						<p class="text-[11px] font-medium text-slate-500">
+						<p class="text-[11px] font-medium text-ink-dim">
 							{s.ipAddress ?? m.set_sessions_unknown()} · {m.set_sessions_last_used({
 								when: formatDate(s.updatedAt)
 							})}
@@ -419,7 +437,7 @@
 			>
 				<button
 					type="submit"
-					class="flex items-center gap-1.5 rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-slate-900 hover:bg-slate-100"
+					class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-well"
 				>
 					<LogOut class="h-3.5 w-3.5" />
 					{m.set_sessions_revoke_others()}
@@ -429,16 +447,14 @@
 	</div>
 
 	<!-- ---------- danger zone ---------- -->
-	<div class="bento-card bento-card-static space-y-4 border-red-300!">
+	<div class="bento-card bento-card-static space-y-4 border-danger-edge!">
 		<div class="flex items-center gap-2">
-			<TriangleAlert class="h-4 w-4 text-red-600" />
-			<h2 class="text-sm font-black text-slate-900">{m.set_close_title()}</h2>
+			<TriangleAlert class="h-4 w-4 text-danger" />
+			<h2 class="text-sm font-black text-ink">{m.set_close_title()}</h2>
 		</div>
 
 		{#if data.closureRequestedAt}
-			<p
-				class="rounded-xl border-2 border-amber-400 bg-amber-50 p-3 text-xs font-medium text-slate-800"
-			>
+			<p class="rounded-xl border-2 border-warn-edge bg-warn-soft p-3 text-xs font-medium text-ink">
 				{m.set_close_pending({ when: formatDate(data.closureRequestedAt) })}
 			</p>
 			<form
@@ -449,14 +465,14 @@
 			>
 				<button
 					type="submit"
-					class="rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-xs font-black text-slate-900 hover:bg-slate-100"
+					class="rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-well"
 				>
 					{m.set_close_cancel()}
 				</button>
 			</form>
 		{:else}
-			<p class="text-xs font-medium text-slate-700">{m.set_close_body()}</p>
-			<p class="rounded-xl bg-slate-100 p-2 text-[11px] font-medium text-slate-600">
+			<p class="text-xs font-medium text-ink-soft">{m.set_close_body()}</p>
+			<p class="rounded-xl bg-well p-2 text-[11px] font-medium text-ink-soft">
 				{m.set_close_records_note()}
 			</p>
 
@@ -483,7 +499,7 @@
 					<button
 						type="submit"
 						disabled={$closeDelayed}
-						class="rounded-xl border-2 border-slate-900 bg-red-600 px-4 py-2 text-xs font-black text-white shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:bg-red-700 disabled:opacity-60"
+						class="rounded-xl border-2 border-edge bg-danger px-4 py-2 text-xs font-black text-danger-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-danger disabled:opacity-60"
 					>
 						{#if $closeDelayed}
 							<LoadingBtn name={m.set_close_submit()} />

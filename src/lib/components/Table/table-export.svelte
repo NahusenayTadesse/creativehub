@@ -159,7 +159,7 @@
 		<DropdownMenu.Item class="capitalize">
 			{#snippet child({ props })}
 				<Button {...props} variant="default" onclick={printTable}>
-					<Printer class="size-4 text-white dark:text-black" />
+					<Printer class="size-4" />
 					{m.tbl_print()}
 				</Button>
 			{/snippet}
@@ -167,7 +167,7 @@
 		<DropdownMenu.Item class="capitalize">
 			{#snippet child({ props })}
 				<Button {...props} variant="default" onclick={exportCsv}>
-					<Grid3x3 class="size-4 text-white dark:text-black" />
+					<Grid3x3 class="size-4" />
 					{m.tbl_export_csv()}
 				</Button>
 			{/snippet}

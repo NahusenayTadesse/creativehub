@@ -52,15 +52,15 @@
 		<div class="space-y-2">
 			<div class="flex items-start justify-between gap-2">
 				<div>
-					<h3 class="text-sm font-black text-slate-900">{region.name}</h3>
-					<p class="text-[11px] font-bold text-slate-500">
+					<h3 class="text-sm font-black text-ink">{region.name}</h3>
+					<p class="text-[11px] font-bold text-ink-dim">
 						{country?.flag}
 						{country?.name ?? m.re_unknown_country()}
 					</p>
 				</div>
 				{#if !region.isActive}
 					<span
-						class="rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-slate-600 uppercase"
+						class="rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-soft uppercase"
 					>
 						{m.common_hidden()}
 					</span>
@@ -71,7 +71,7 @@
 				<div class="flex flex-wrap gap-1">
 					{#each region.majorCities as city (city)}
 						<span
-							class="rounded-md border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-700"
+							class="rounded-md border border-edge-mid bg-panel px-2 py-0.5 text-[10px] font-bold text-ink-soft"
 						>
 							{city}
 						</span>

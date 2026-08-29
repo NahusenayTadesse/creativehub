@@ -80,15 +80,15 @@
 					kind="logo"
 					seed={org.slug ?? org.name}
 					label={org.name}
-					class="h-10 w-10 shrink-0 rounded-2xl border-2 border-slate-900 object-cover"
+					class="h-10 w-10 shrink-0 rounded-2xl border-2 border-edge object-cover"
 					loading="lazy"
 					decoding="async"
 					width="40"
 					height="40"
 				/>
 				<div class="min-w-0">
-					<h3 class="truncate text-sm font-black text-slate-900">{org.name}</h3>
-					<p class="truncate text-[11px] font-bold text-slate-500">
+					<h3 class="truncate text-sm font-black text-ink">{org.name}</h3>
+					<p class="truncate text-[11px] font-bold text-ink-dim">
 						{org.orgType?.replace('_', ' ')}{org.city ? ` · ${org.city}` : ''}
 					</p>
 				</div>
@@ -101,7 +101,7 @@
 						href={org.website}
 						target="_blank"
 						rel="noreferrer"
-						class="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 hover:underline"
+						class="inline-flex items-center gap-1 text-[10px] font-black text-brand-soft-fg hover:underline"
 					>
 						<ExternalLink class="h-3 w-3" />
 						{m.ao_website_link()}
@@ -110,7 +110,7 @@
 			</div>
 
 			{#if org.bio}
-				<p class="line-clamp-2 text-xs font-medium text-slate-600">{org.bio}</p>
+				<p class="line-clamp-2 text-xs font-medium text-ink-soft">{org.bio}</p>
 			{/if}
 		</div>
 	{/snippet}

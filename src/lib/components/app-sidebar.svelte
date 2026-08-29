@@ -235,17 +235,19 @@
 </script>
 
 <Sidebar.Root collapsible="offcanvas" {...restProps}>
-	<Sidebar.Content class="thin-scroll z-[9999] flex h-full flex-col overflow-y-auto bg-white pt-0">
-		<div class="sticky top-0 z-10 border-b-2 border-slate-900 bg-white px-4 py-4">
+	<Sidebar.Content
+		class="thin-scroll z-[9999] flex h-full flex-col overflow-y-auto bg-surface pt-0"
+	>
+		<div class="sticky top-0 z-10 border-b-2 border-edge bg-surface px-4 py-4">
 			<a href={resolve('/')} title={m.sb_go_public_site()} class="flex flex-row items-center gap-2">
 				<div
-					class="flex h-8 w-8 items-center justify-center rounded-xl border-2 border-slate-900 bg-slate-900 text-sm font-black text-white shadow-[2px_2px_0px_0px_rgba(16,185,129,1)]"
+					class="flex h-8 w-8 items-center justify-center rounded-xl border-2 border-edge bg-inverse text-sm font-black text-inverse-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow-accent))]"
 				>
 					ET
 				</div>
 				<div>
-					<div class="text-[13px] font-black tracking-tight text-slate-900">{m.brand_name()}</div>
-					<div class="text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+					<div class="text-[13px] font-black tracking-tight text-ink">{m.brand_name()}</div>
+					<div class="text-[10px] font-bold tracking-widest text-ink-dim uppercase">
 						{m.sb_role_dashboard({ role: roleLabel })}
 					</div>
 				</div>
