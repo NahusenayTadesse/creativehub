@@ -79,7 +79,7 @@
 				id={name}
 				role="combobox"
 				aria-expanded={open}
-				class="flex h-10 w-full items-center justify-between gap-1.5 rounded-none border border-transparent border-b-input bg-transparent px-0 py-2 text-left text-sm capitalize transition-[color,border-color] outline-none focus-visible:border-b-ring disabled:cursor-not-allowed disabled:opacity-50 aria-expanded:border-b-ring"
+				class="flex h-11 w-full items-center justify-between gap-1.5 rounded-none border border-transparent border-b-input bg-transparent py-2 pr-0 pl-3 text-left text-sm capitalize transition-[color,border-color] outline-none focus-visible:border-b-ring disabled:cursor-not-allowed disabled:opacity-50 aria-expanded:border-b-ring"
 			>
 				<span class={cn('line-clamp-1', !selected && 'text-muted-foreground')}>
 					{triggerContent}

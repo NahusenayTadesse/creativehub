@@ -200,8 +200,8 @@
 	);
 </script>
 
-<div class="flex w-full max-w-full flex-col justify-start gap-2 p-1">
-	<Label for={name} class={labelHidden ? 'sr-only' : 'capitalize'}>{label}</Label>
+<div class="flex w-full max-w-full flex-col justify-start gap-2 px-1 py-2">
+	<Label for={name} class={labelHidden ? 'sr-only' : 'pl-3 capitalize'}>{label}</Label>
 
 	{#if type === 'textarea'}
 		<Textarea
@@ -232,7 +232,7 @@
 		<CheckboxComp {items} bind:checkedValues={asList, write} />
 		<input type="hidden" {name} value={asText()} />
 	{:else if type === 'range'}
-		<div class="flex items-center justify-between text-xs">
+		<div class="flex items-center justify-between pl-3 text-xs">
 			<span class="sr-only">{label}</span>
 			<span
 				class="ml-auto rounded border border-edge bg-tile-mint px-2 py-0.5 text-xs font-black text-brand-soft-fg"
@@ -282,7 +282,7 @@
 				<span id="{name}-note" class="text-xs font-medium text-ink-soft">{placeholder}</span>
 			{/if}
 		{/snippet}
-		<div class="flex items-center gap-2 {align === 'between' ? 'justify-between' : ''}">
+		<div class="flex items-center gap-2 pl-3 {align === 'between' ? 'justify-between' : ''}">
 			{#if align === 'between'}
 				{@render note()}{@render box()}
 			{:else}
@@ -335,12 +335,12 @@
 	{/if}
 
 	{#if fieldErrors.length}
-		<div id="{name}-error" aria-live="polite">
+		<div id="{name}-error" class="pl-3" aria-live="polite">
 			{#each fieldErrors as message (message)}
 				<p class="flex items-center gap-2 text-danger"><CircleAlert /> {message}</p>
 			{/each}
 		</div>
 	{:else if hint}
-		<p id="{name}-hint" class="text-xs font-medium text-ink-dim">{hint}</p>
+		<p id="{name}-hint" class="pl-3 text-xs font-medium text-ink-dim">{hint}</p>
 	{/if}
 </div>
