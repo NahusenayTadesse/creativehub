@@ -1659,5 +1659,19 @@
 	"mail_pwreset_done_subject": "Your password was changed",
 	"mail_pwreset_done_body": "The password on your account has just been reset, and every device that was signed in has been signed out.",
 	"mail_pwreset_done_footnote": "If this was not you, ask for a new reset link straight away — whoever did it is signed out too, and the address on the account is still yours.",
-	"login_reset_done": "Your password has been changed. Sign in with the new one."
+	"login_reset_done": "Your password has been changed. Sign in with the new one.",
+	"srv_manual_deposit_operator": "Recording a deposit by hand is an operator action. Pay the deposit online instead.",
+	"srv_payments_unavailable": "Online payment is not available right now.",
+	"srv_payment_start_failed": "We could not reach the payment provider. Try again in a moment.",
+	"srv_currency_unsupported": "Online payment is only available for bookings priced in ETB. This one is in {code}, so an operator has to record the deposit.",
+	"bk_pay_deposit": "Pay deposit",
+	"bk_pay_deposit_hint": "You will be taken to Chapa to pay. The deposit is held until the work is approved.",
+	"bk_pay_opening": "Opening Chapa",
+	"bk_pay_succeeded": "Deposit received. The booking is funded.",
+	"bk_pay_already": "This deposit was already recorded.",
+	"bk_pay_pending": "Your payment has not completed yet. If you have paid, it will appear here shortly.",
+	"bk_pay_failed": "That payment did not go through. Nothing has been charged — you can try again.",
+	"bk_pay_unavailable": "Online payment is not configured, so an operator records this deposit.",
+	"bk_pay_currency": "Online payment is only available in ETB. An operator will record this deposit.",
+	"bk_record_deposit_manual": "Record deposit by hand"
 }

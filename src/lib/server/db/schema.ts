@@ -468,6 +468,16 @@ export const introductionStatusEnum = [
 ] as const;
 export const paymentMethodEnum = ['telebirr', 'chapa', 'cbe_birr', 'bank_transfer'] as const;
 
+/**
+ * Where a single attempt to pay stands.
+ *
+ * Deliberately not the same vocabulary as `escrowStatusEnum`: a booking has one
+ * escrow state, but it may collect several payment attempts on the way there —
+ * an abandoned checkout, a card that was declined, then one that worked. Only
+ * the last of those changes the booking.
+ */
+export const paymentStatusEnum = ['pending', 'success', 'failed', 'cancelled'] as const;
+
 /** The frozen copy of agreed terms. Written once, never edited (PRD FR-061). */
 export type TermsSnapshot = {
 	title: string;
@@ -552,6 +562,57 @@ export const bookings = mysqlTable(
 /** One negotiation round. The chain of these is the negotiation timeline. */
 export const proposalPartyEnum = ['organization', 'creator'] as const;
 export const proposalStatusEnum = ['pending', 'accepted', 'countered', 'declined'] as const;
+
+/**
+ * One attempt to pay for a booking, as the provider saw it.
+ *
+ * The booking carries the *outcome* — `escrow_status`, and the reference of the
+ * attempt that succeeded. This carries the attempts, including the ones that
+ * did not: a brand who abandons a checkout and retries leaves two rows, and the
+ * difference between "never tried" and "tried twice and gave up" is the sort of
+ * thing that only ever matters once, in a support conversation, after the fact.
+ *
+ * `txRef` is ours and unique. It is the idempotency key for the whole
+ * integration: the return page and the webhook both resolve the same payment,
+ * usually within a second of each other, and the unique index is what makes
+ * "settle this reference" safe to run twice.
+ */
+export const payments = mysqlTable(
+	'payments',
+	{
+		id: id(),
+		bookingId: int('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		/** Our reference, sent to the provider and quoted back by it. */
+		txRef: varchar('tx_ref', { length: 100 }).notNull(),
+		provider: varchar('provider', { length: 30 }).default('chapa').notNull(),
+		status: mysqlEnum('status', paymentStatusEnum).default('pending').notNull(),
+		/** Minor-unit-free, like every other amount here — see domain/money.ts. */
+		amount: int('amount').default(0).notNull(),
+		currencyCode: varchar('currency_code', { length: 8 }).default('ETB').notNull(),
+		/**
+		 * How they actually paid, in the provider's vocabulary — telebirr,
+		 * cbebirr, card. Free text rather than an enum: this is the provider's
+		 * list to extend, and a payment method we have never seen is not a
+		 * reason to fail a verification.
+		 */
+		method: varchar('method', { length: 40 }),
+		/** The provider's own reference for the movement of money. */
+		providerRef: varchar('provider_ref', { length: 120 }),
+		/** `test` or `live`. A test payment must never read as money received. */
+		mode: varchar('mode', { length: 10 }),
+		/** Why it failed, when it did — for the operator, not the payer. */
+		failureReason: varchar('failure_reason', { length: 300 }),
+		/** When the provider was asked, and answered, about this attempt. */
+		verifiedAt: timestamp('verified_at', { fsp: 3 }),
+		...audit()
+	},
+	(t) => [
+		uniqueIndex('payments_tx_ref_idx').on(t.txRef),
+		index('payments_booking_idx').on(t.bookingId)
+	]
+);
 
 export const termProposals = mysqlTable(
 	'term_proposals',

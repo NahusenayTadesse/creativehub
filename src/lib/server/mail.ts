@@ -1,6 +1,7 @@
 import { env } from '$env/dynamic/private';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { absoluteUrl } from '$lib/server/urls';
 
 /**
  * Getting a message out of the building.
@@ -90,6 +91,8 @@ function getTransport(): Transporter | null {
  * could style its own would eventually be the one that renders an unescaped
  * campaign title into somebody's inbox.
  */
+export { absoluteUrl };
+
 export type MailContent = {
 	/** The subject line, reused as the heading unless `heading` overrides it. */
 	subject: string;
@@ -104,20 +107,6 @@ export type MailContent = {
 
 const escape = (value: string) =>
 	value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-/**
- * Turns a site-relative path into something clickable from an inbox.
- *
- * Every link we send has to be absolute, and `ORIGIN` is the value the rest of
- * the app already trusts for this — better-auth signs cookies against it and
- * adapter-node checks form posts against it, so a wrong one is visible long
- * before it reaches a mail template.
- */
-export function absoluteUrl(path: string): string {
-	if (/^https?:\/\//i.test(path)) return path;
-	const origin = (env.ORIGIN || '').replace(/\/$/, '');
-	return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
-}
 
 /**
  * The wrapper.

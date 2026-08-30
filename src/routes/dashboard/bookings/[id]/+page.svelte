@@ -57,6 +57,31 @@
 
 	const negotiating = $derived(['proposed', 'negotiating'].includes(booking.status));
 
+	/*
+	 * The outcome of a return from Chapa, reported once.
+	 *
+	 * The server resolved `?payment=` during load, so by the time this runs the
+	 * booking on the page already reflects it — this only says which of the five
+	 * things happened. `untrack` for the same reason as the OAuth error on the
+	 * login page: `data` is reactive, and re-toasting on every update would
+	 * stack duplicates.
+	 */
+	$effect(() => {
+		const state = data.payment?.state;
+		if (!state) return;
+		untrack(() => {
+			if (state === 'funded') toast.success(m.bk_pay_succeeded());
+			else if (state === 'already') toast.info(m.bk_pay_already());
+			else if (state === 'failed') toast.error(m.bk_pay_failed());
+			/* `pending` is a checkout still open; `unreachable` is Chapa not
+			   answering us; `not_found` is a reference we never issued. None of
+			   the three means the payment failed, and saying so to somebody who
+			   has just paid would be the worst of the available lies — the
+			   webhook is still coming, and it decides. */
+			else toast.info(m.bk_pay_pending());
+		});
+	});
+
 	let counterOpen = $state(false);
 	let submitOpen = $state(false);
 	let reviewOpen = $state(false);
@@ -307,16 +332,35 @@
 					</button>
 				{/if}
 
-				{#if booking.status === 'booked' && (isBrand || isOperator) && booking.escrowStatus === 'unfunded'}
-					<form method="POST" action="?/fund" use:enhance={actionEnhance(m.bk_deposit_recorded())}>
+				{#if booking.status === 'booked' && isBrand && data.canPayOnline}
+					<!-- Ends in a redirect to Chapa, so this posts for real rather than
+					     through `enhance`: an enhanced submit would have to follow the
+					     303 itself, and a cross-origin one at that. -->
+					<form method="POST" action="?/payDeposit">
 						<input type="hidden" name="bookingId" value={booking.id} />
-						<input type="hidden" name="paymentMethod" value="telebirr" />
 						<button
 							type="submit"
 							class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
 						>
 							<Wallet class="h-3.5 w-3.5" />
-							{m.bk_record_deposit()}
+							{m.bk_pay_deposit()}
+						</button>
+					</form>
+				{/if}
+
+				<!-- The manual path is what remains for money that moved outside the
+				     platform — a bank transfer, telebirr paid directly. Operators only;
+				     the server refuses it from anyone else. -->
+				{#if booking.status === 'booked' && isOperator && booking.escrowStatus !== 'held'}
+					<form method="POST" action="?/fund" use:enhance={actionEnhance(m.bk_deposit_recorded())}>
+						<input type="hidden" name="bookingId" value={booking.id} />
+						<input type="hidden" name="paymentMethod" value="bank_transfer" />
+						<button
+							type="submit"
+							class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-4 py-2 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel"
+						>
+							<Wallet class="h-3.5 w-3.5" />
+							{m.bk_record_deposit_manual()}
 						</button>
 					</form>
 				{/if}

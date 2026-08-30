@@ -1,5 +1,5 @@
 import * as m from '$lib/paraglide/messages';
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { and, eq, sql } from 'drizzle-orm';
@@ -8,6 +8,8 @@ import { db, rowsAffected } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { getBookingDetail, getSettings } from '$lib/server/queries';
 import { notify } from '$lib/server/notify';
+import { chapaEnabled } from '$lib/server/chapa';
+import * as payments from '$lib/server/payments';
 import { requireBookingAccess, recordAudit } from '$lib/server/guards';
 import { refreshCreatorCompletedBookings, refreshCreatorRating } from '$lib/server/score-service';
 import { canTransition, splitFee, type BookingStatus } from '$lib/domain/booking';
@@ -62,7 +64,36 @@ export const load: PageServerLoad = async (event) => {
 	reviewForm.data.bookingId = id;
 	messageForm.data.bookingId = id;
 
-	return { ...detail, side, proposalForm, submitForm, reviewForm, messageForm };
+	/*
+	 * Coming back from Chapa's hosted page.
+	 *
+	 * The webhook is the reliable half of the round trip, but it lands
+	 * server-to-server and may be seconds behind the browser — or blocked
+	 * entirely on a host that cannot receive it. Resolving the reference here
+	 * too means the reader sees the outcome on the page they were returned to,
+	 * and `settle` is written so that whichever arrives second changes nothing.
+	 */
+	const returned = event.url.searchParams.get('payment');
+	const payment = returned ? await payments.settle(returned) : null;
+
+	/* Re-read only when this request is the one that changed something, so the
+	   page does not show `pending` for a deposit it just took. */
+	const current = payment?.state === 'funded' ? ((await getBookingDetail(id)) ?? detail) : detail;
+
+	return {
+		...current,
+		side,
+		proposalForm,
+		submitForm,
+		reviewForm,
+		messageForm,
+		payment: payment ? { state: payment.state } : null,
+		/* What the pay button needs to know, decided on the server: whether the
+		   provider is configured at all, and whether this booking is one it can
+		   take money for. */
+		canPayOnline: chapaEnabled && payments.payableProblem(current.booking) === null,
+		payProblem: payments.payableProblem(current.booking)
+	};
 };
 
 /** Applies a state change only when the transition is legal, and records it. */
@@ -303,12 +334,65 @@ export const actions: Actions = {
 
 	/* ---------------- compensation ---------------- */
 
+	/**
+	 * Sends the brand to Chapa to pay the deposit.
+	 *
+	 * Ends in a redirect to the provider rather than a message, so it sits
+	 * outside the `try`: `redirect()` throws, and catching it would turn a
+	 * successful hand-off into a 500 — the same shape as the Google button on
+	 * the login page.
+	 *
+	 * Nothing here decides that money arrived. That is `settle`, and it only
+	 * ever concludes anything from an answer Chapa gave to a question we asked.
+	 */
+	payDeposit: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side, user } = await requireBookingAccess(event, id);
+
+		if (side === 'creator') return fail(403, { message: m.srv_only_brand_funds() });
+		if (!chapaEnabled) return fail(503, { message: m.srv_payments_unavailable() });
+
+		/* The same test the button is drawn from, re-run here: a page held open
+		   while the deal moved on would otherwise post against a stale view. */
+		const problem = payments.payableProblem(booking);
+		if (problem === 'not_paid') return fail(400, { message: m.srv_only_paid_funded() });
+		if (problem === 'settled') return fail(409, { message: m.srv_already_funded() });
+		if (problem === 'currency') {
+			return fail(400, { message: m.srv_currency_unsupported({ code: booking.currencyCode }) });
+		}
+
+		const started = await payments.start(booking, {
+			id: user.id,
+			email: user.email,
+			name: user.name
+		});
+
+		if (!started.ok) {
+			/* The provider's own words are logged, not shown: they are English,
+			   often about our request rather than their payment, and none of it
+			   is something a brand can act on. */
+			console.error(`Chapa checkout failed for booking ${id}:`, started.error);
+			return fail(502, { message: m.srv_payment_start_failed() });
+		}
+
+		redirect(303, started.checkoutUrl);
+	},
+
 	fund: async (event) => {
 		const id = Number(event.params.id);
 		const { booking, side } = await requireBookingAccess(event, id);
 		const form = await superValidate(event.request, zod4(fundEscrowSchema));
 
-		if (side === 'creator') return fail(403, { message: m.srv_only_brand_funds() });
+		/*
+		 * Operators only, now that brands pay through Chapa.
+		 *
+		 * This marks a deposit held without any money moving, which is exactly
+		 * what is needed for a bank transfer or a telebirr payment made outside
+		 * the platform — and exactly what a brand must not be able to do for
+		 * itself. The audit entry and the `MANUAL-` reference are what keep the
+		 * two kinds of deposit apart afterwards.
+		 */
+		if (side !== 'admin') return fail(403, { message: m.srv_manual_deposit_operator() });
 		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 		/* There is no deposit to record against barter or an event pass, and
 		   `settle` only requires one for a paid booking. */

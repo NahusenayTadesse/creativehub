@@ -554,6 +554,13 @@ export const proposalRespond = z.object({
 	decision: z.enum(['accept', 'decline'])
 });
 
+/**
+ * Starting a Chapa checkout. Only the booking — the amount is the booking's
+ * own price, read on the server: a form that carried it would be a form that
+ * could change it.
+ */
+export const payDepositSchema = z.object({ bookingId: refId });
+
 export const fundEscrowSchema = z.object({
 	bookingId: refId,
 	paymentMethod: z.enum(['telebirr', 'chapa', 'cbe_birr', 'bank_transfer']).default('telebirr')

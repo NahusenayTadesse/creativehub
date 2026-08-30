@@ -488,11 +488,59 @@ the file's magic number against the type it claims to be. The `accept`
 attribute is a hint to a browser, and a direct multipart POST ignores all three
 until they are enforced here.
 
+## Taking payment
+
+Chapa collects the brand's deposit. `server/chapa.ts` is the API client and
+knows nothing about deals; `server/payments.ts` decides what a payment _means_
+for a booking. Keeping the seam there is what makes the rules about money
+readable without a network in the way.
+
+The integration's security rests on one inversion: **the webhook body is never
+believed**. `/api/chapa/webhook` is public and unauthenticated by necessity —
+Chapa's servers call it and hold no session — so anyone can post to it. It reads
+the payload for a transaction reference, throws the rest away, and asks Chapa
+what happened using our secret key over a connection we opened. A forged request
+can therefore make the app ask a question, never assert an answer. A signature is
+checked when `CHAPA_WEBHOOK_SECRET` is set, but that is defence in depth rather
+than the thing holding the door.
+
+Verification re-checks the amount and currency against what was asked for. Chapa's
+hosted page does not let a payer change either, so a mismatch means the price
+moved after checkout opened, or a reference is being replayed against another
+deal. Neither funds anything: the payment is marked failed, an audit line records
+the discrepancy, and an operator looks at it.
+
+The browser coming back and the webhook arriving both land on the same `settle`,
+usually within a second of each other and in no guaranteed order. It is written
+to be safe to run twice — a `status = 'pending'` predicate on the payment and an
+`escrow_status <> 'held'` predicate on the booking mean whichever arrives second
+changes nothing. Resolving it on the return page as well as the webhook is what
+makes the outcome visible immediately, including on a host where the webhook
+cannot be delivered at all.
+
+Payment _starts the work_: funding moves a booking from `booked` to
+`in_production`, because `submit` accepts nothing earlier. A deposit that funded
+the deal but left the creator unable to hand anything over would be a dead end
+that looked like success from both sides.
+
+Only ETB, and only the brand's deposit. A booking priced in anything else says
+so and falls back to the operator path rather than being converted at a rate an
+operator last touched months ago. The `payments` table keeps every attempt,
+including abandoned ones — the difference between "never tried" and "tried twice
+and gave up" only ever matters once, in a support conversation, after the fact.
+
 ## What is not connected
 
-No payment provider is integrated. Deposits and payouts are **recorded** by an
-operator and the interface says so rather than implying money has moved. The
-`escrowStatus` column and its UI reflect that record, not a bank transfer.
+**Payouts.** Money comes in through Chapa; it goes out by hand. `settle` releases
+escrow as a record, not a transfer, and the interface says so rather than
+implying a creator has been paid. Wiring the other direction needs Chapa
+Transfers, a funded balance, and bank details on creator profiles — none of
+which exist yet.
+
+**Recording a deposit by hand** remains, for money that genuinely moved outside
+the platform: a bank transfer, telebirr paid directly. It is operator-only now,
+and the `MANUAL-` payment reference is what tells the two kinds of deposit apart
+afterwards.
 
 ## Scripts
 
