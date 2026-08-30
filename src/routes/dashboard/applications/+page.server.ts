@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
+import { notify } from '$lib/server/notify';
 import { listApplications, applicationFacet, getSettings } from '$lib/server/queries';
 import { requireUser, getCreatorFor, getOrganizationFor, recordAudit } from '$lib/server/guards';
 import { applicationDecision } from '$lib/schemas';
@@ -89,18 +90,19 @@ export const actions: Actions = {
 		});
 
 		if (form.data.status !== 'selected') {
-			if (row.creator.userId) {
-				await db.insert(t.notifications).values({
-					userId: row.creator.userId,
-					title:
-						form.data.status === 'shortlisted'
-							? m.notif_shortlisted_title({ campaign: row.campaign.title })
-							: m.notif_not_taken_forward_title({ campaign: row.campaign.title }),
-					body: form.data.decisionNote || '',
-					link: '/dashboard/applications',
-					kind: 'application'
-				});
-			}
+			await notify(row.creator.userId, {
+				category: 'deals',
+				kind: 'application',
+				title:
+					form.data.status === 'shortlisted'
+						? m.notif_shortlisted_title({ campaign: row.campaign.title })
+						: m.notif_not_taken_forward_title({ campaign: row.campaign.title }),
+				body: form.data.decisionNote || '',
+				link: '/dashboard/applications',
+				actionLabel: m.mail_open_applications(),
+				footnote: m.mail_prefs_footnote(),
+				actorId: user.id
+			});
 			return { decided: form.data.status };
 		}
 
@@ -155,15 +157,16 @@ export const actions: Actions = {
 			createdBy: user.id
 		});
 
-		if (row.creator.userId) {
-			await db.insert(t.notifications).values({
-				userId: row.creator.userId,
-				title: m.notif_selected_title({ campaign: row.campaign.title }),
-				body: m.notif_selected_body(),
-				link: `/dashboard/bookings/${bookingId}`,
-				kind: 'booking'
-			});
-		}
+		await notify(row.creator.userId, {
+			category: 'deals',
+			kind: 'booking',
+			title: m.notif_selected_title({ campaign: row.campaign.title }),
+			body: m.notif_selected_body(),
+			link: `/dashboard/bookings/${bookingId}`,
+			actionLabel: m.mail_open_booking(),
+			footnote: m.mail_prefs_footnote(),
+			actorId: user.id
+		});
 
 		await recordAudit({
 			actorId: user.id,

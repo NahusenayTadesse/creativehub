@@ -124,7 +124,17 @@ export default defineConfig({
 	 * so the next one cannot reach production the same quiet way.
 	 */
 	ssr: {
-		noExternal: ['@internationalized/date', 'browser-image-compression']
+		noExternal: ['@internationalized/date', 'browser-image-compression', 'nodemailer'],
+		/**
+		 * `nodemailer` is CommonJS, and `noExternal` above means "inline it".
+		 *
+		 * The production build converts it on the way in, but the dev SSR runner
+		 * evaluates an inlined module as ESM, so the first line reaching `require`
+		 * throws `require is not defined` — surfacing as a 500 on whichever route
+		 * touched mail first, and only that one. Pre-bundling it to ESM gives dev
+		 * the same module the build produces.
+		 */
+		optimizeDeps: { include: ['nodemailer'] }
 	},
 
 	/**

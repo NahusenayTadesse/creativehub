@@ -38,6 +38,35 @@ git-ignored and deliberately not referenced anywhere in the interface.
 `npm run db:seed` is idempotent — rows are matched on their natural key, so
 re-running it after correcting the seed updates in place rather than duplicating.
 
+### Passwords, confirmations and mail
+
+Outgoing mail is four environment variables — `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`, `SMTP_PASSWORD` — plus two that are usually blank. `SMTP_FROM` sets
+the From line when it should differ from the mailbox. `SMTP_TLS_SERVERNAME` is
+for the shared-hosting case where `mail.<yourdomain>` answers with a certificate
+issued for the provider's own domain: set it to a name the certificate covers
+and verification stays fully on, rather than reaching for the usual advice of
+switching verification off.
+
+`npm run mail:check` connects and authenticates; give it an address and it sends
+one message there as well. The two fail differently, which is the point — a
+server can take your password and still refuse the From address you asked for.
+
+With mail configured, sign-up sends a confirmation link, `/forgot-password`
+sends a reset link, and `/reset-password` is where that link lands. A reset
+revokes every session the account had and opens none: whoever prompted it is
+signed out too, and the owner types the new password once at `/login`.
+
+Confirming an address is not a gate — an unverified account signs in normally,
+and the settings page offers the link again rather than blocking. What it buys
+is account linking: better-auth attaches a Google identity to an existing local
+account only when that account's address is already confirmed, and without a
+confirmation step that condition could never be met by anyone.
+
+Without SMTP configured the app runs and sends nothing, warning once per
+process. In-app notifications are unaffected; password resets and confirmations,
+which have no in-app equivalent, cannot complete.
+
 ### Uploads
 
 `FILES_DIR` is where avatars, portfolio images and verification evidence are
@@ -299,13 +328,26 @@ cannot be switched off. Security mail is sent whatever anyone has chosen —
 consenting in advance to not being warned is not something a person can
 meaningfully do — and an account decision always appears in the interface,
 because that is how the interface explains itself. Neither is rendered as a
-toggle, which is what keeps the page truthful about what it controls. Email is
-not connected yet; the preferences are stored and the page says so.
+toggle, which is what keeps the page truthful about what it controls.
+
+`server/notify.ts` is where that policy meets delivery. Both channels go through
+one call: it reads the recipient's preferences, writes the in-app row if they
+want one, and hands the words to `server/mail.ts` if they want mail. Call sites
+say what happened and nothing about how it travels — which is what stopped the
+preferences page describing rules that nothing consulted.
+
+Mail is never awaited. The action that raised it has already succeeded and the
+in-app notification is the durable record, so a mail server having a bad
+afternoon costs nobody their form submission. Security mail is the exception in
+both directions: it consults no preference, writes no in-app row — the recipient
+may be locked out of the interface that would show it — and it _is_ awaited,
+because there the send is the action.
 
 Closing an account is a request, not a switch. `user` cascades to
 `organizations`, which cascades to `bookings`, so deleting the row would take
 every deal that organisation ever made with it. An operator unpicks it by hand,
-and until there is mail the request reaches them as a notification.
+and the request reaches every admin — in the dashboard always, and by email
+unless they have turned that off.
 
 ### Terms and privacy
 
@@ -392,6 +434,29 @@ signed-in form page returned 500 while the public pages, which had no
 `InputComp`, served fine — a green build, a healthy homepage, and half the app
 down. Run `verify:build` before shipping; CI runs it too.
 
+`npm run deploy` is the whole procedure: build, verify, hardlink the running
+build as `build.bak.<timestamp>`, prune to the newest two, rsync, SIGTERM, and
+poll `/health` until it answers. `--dry-run` says what it would do and touches
+nothing; `--skip-build` ships the tree already in `build/`, and still verifies
+it. `DEPLOY_KEEP` changes how many backups survive, and refuses to go below one.
+
+The backups are hardlink copies, so a build that changes little costs little —
+two backups plus the live build came to 30M against 26M for the build alone.
+They are pruned by name, which is why the timestamp format is fixed: `-` sorts
+before `.`, so a stray `build.bak-deploy-...` would read as newest forever while
+real backups aged out around it. Anything not named `build.bak.<timestamp>` is
+reported and left alone rather than guessed at.
+
+SIGTERM rather than `systemctl restart`, which would ask for a password the
+deploying user does not have: the unit is `Restart=always` with `RestartSec=3`
+and `server.js` closes cleanly, so systemd brings it back in about three
+seconds. Rollback is the reverse and takes about ten — the script prints the
+exact command, with the timestamp of the backup it just made.
+
+The script never touches the server's `.env`. Environment variables are managed
+by hand there, and a deploy that rewrites secrets is a deploy that can take the
+site down with a typo.
+
 ## Operations
 
 | Route          | For                                                                                                         |
@@ -436,6 +501,7 @@ operator and the interface says so rather than implying money has moved. The
 | `npm run dev`           | Dev server                                                   |
 | `npm run build`         | Production build (node adapter)                              |
 | `npm run verify:build`  | Fail if `build/` imports anything absent on the server       |
+| `npm run deploy`        | Build, verify, back up, ship, restart, check (`--dry-run`)   |
 | `npm run check`         | svelte-check                                                 |
 | `npm run lint`          | prettier + eslint                                            |
 | `npm run format`        | prettier --write                                             |
@@ -447,6 +513,7 @@ operator and the interface says so rather than implying money has moved. The
 | `npm run db:baseline`   | Record migrations as applied — for a database `push` created |
 | `npm run db:push`       | Rewrite the schema in place. Not the deploy path; see above. |
 | `npm run db:seed`       | Seed reference data and demonstration rows                   |
+| `npm run mail:check`    | Connect and authenticate; `-- you@host.tld` also sends one   |
 | `npm run db:studio`     | Drizzle Studio                                               |
 | `npm run uploads:prune` | Find files no row points at (`-- --apply` to remove them)    |
 

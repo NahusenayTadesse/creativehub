@@ -134,6 +134,14 @@
 			await update();
 		};
 
+	const verifySent: SubmitFunction =
+		() =>
+		async ({ result, update }) => {
+			if (result.type === 'failure') toast.error(result.data?.message ?? m.set_verify_failed());
+			else if (result.type === 'success') toast.success(m.set_verify_sent());
+			await update();
+		};
+
 	const closureCancelled: SubmitFunction =
 		() =>
 		async ({ result, update }) => {
@@ -203,6 +211,17 @@
 						<Mail class="h-3 w-3" />
 						{m.set_email_unverified()}
 					</span>
+
+					<!-- A plain post, like every other control on this page. The reply
+					     is the same whether or not the send worked, so the toast is
+					     raised on success and says only that it was sent. -->
+					<form method="POST" action="?/resendVerification" use:plainEnhance={verifySent}>
+						<button
+							type="submit"
+							class="text-[10px] font-black text-brand-soft-fg underline hover:no-underline"
+							>{m.set_verify_send()}</button
+						>
+					</form>
 				{/if}
 			</div>
 			<p class="mt-1 text-[11px] font-medium text-ink-dim">{m.set_email_change_note()}</p>
@@ -337,7 +356,9 @@
 			<Bell class="h-4 w-4 text-brand-fg" />
 			<h2 class="text-sm font-black text-ink">{m.set_notify_title()}</h2>
 		</div>
-		<p class="text-[11px] font-medium text-ink-dim">{m.set_notify_mail_pending()}</p>
+		<p class="text-[11px] font-medium text-ink-dim">
+			{m.set_notify_mail_note({ email: data.email })}
+		</p>
 
 		<form method="POST" action="?/notifications" use:notifyEnhance class="space-y-3">
 			<div class="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 gap-y-3">

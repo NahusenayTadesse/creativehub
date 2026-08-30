@@ -147,6 +147,30 @@ export const registerSchema = z
 		path: ['confirm']
 	});
 
+/** Asking for a reset link. Only the address — the account may not exist. */
+export const forgotPassword = z.object({
+	email: z.email({ error: () => m.val_valid_email() })
+});
+
+/**
+ * Setting the new password from a link.
+ *
+ * The token travels in a hidden field rather than being re-read from the URL at
+ * submit time: the page is reachable with the token in the query string, and a
+ * form that carries it explicitly is one that still works if the reader lands
+ * here through a restored tab.
+ */
+export const resetPassword = z
+	.object({
+		token: z.string().min(1),
+		password: z.string().min(8, { error: () => m.val_min_8() }),
+		confirm: z.string()
+	})
+	.refine((data) => data.password === data.confirm, {
+		error: () => m.val_passwords_mismatch(),
+		path: ['confirm']
+	});
+
 export type LoginSchema = typeof loginSchema;
 export type RegisterSchema = typeof registerSchema;
 

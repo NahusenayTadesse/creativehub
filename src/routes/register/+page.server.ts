@@ -32,7 +32,11 @@ export const actions: Actions = {
 					password: form.data.password,
 					// The schema only permits creator or business; admin is assigned by an
 					// existing operator, never claimed at sign-up (PRD FR-004).
-					role: form.data.role
+					role: form.data.role,
+					/* Where the confirmation link lands. Without this better-auth
+					   sends them to `/`, which verifies the address and then says
+					   nothing about having done so. */
+					callbackURL: '/verify-email'
 				},
 				headers: event.request.headers
 			});

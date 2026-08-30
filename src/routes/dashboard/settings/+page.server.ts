@@ -15,6 +15,7 @@ import {
 	listSessionsFor
 } from '$lib/server/queries';
 import { DEFAULT_PREFERENCES } from '$lib/domain/notify';
+import { notify } from '$lib/server/notify';
 import {
 	accountDetails,
 	closureRequest,
@@ -183,23 +184,24 @@ export const actions: Actions = {
 			});
 
 		/*
-		 * There is no mail yet, so the request has to reach an operator through
-		 * the one channel that exists. Every admin is told rather than one, since
-		 * "assigned to nobody" and "assigned to whoever is away" look identical
-		 * from here.
+		 * Every admin is told rather than one, since "assigned to nobody" and
+		 * "assigned to whoever is away" look identical from here.
+		 *
+		 * The category is `account`, whose in-app rule is `always`: an operator
+		 * cannot opt out of the queue they are the queue for. The email half is
+		 * a preference, so an operator who reads the dashboard daily can turn
+		 * the mail off without the request going missing.
 		 */
-		const admins = await listAdminIds();
-		if (admins.length) {
-			await db.insert(t.notifications).values(
-				admins.map((id) => ({
-					userId: id,
-					title: m.set_close_notify_title(),
-					body: m.set_close_notify_body({ name: user.name, email: user.email }),
-					link: '/dashboard/admin/users',
-					kind: 'account'
-				}))
-			);
-		}
+		await notify(await listAdminIds(), {
+			category: 'account',
+			kind: 'account',
+			title: m.set_close_notify_title(),
+			body: m.set_close_notify_body({ name: user.name, email: user.email }),
+			link: '/dashboard/admin/users',
+			actionLabel: m.mail_open_admin_users(),
+			footnote: m.mail_prefs_footnote(),
+			actorId: user.id
+		});
 
 		await recordAudit({
 			actorId: user.id,
@@ -210,6 +212,31 @@ export const actions: Actions = {
 		});
 
 		return message(form, { type: 'success', text: m.set_close_sent() });
+	},
+
+	/**
+	 * Sends the confirmation link again.
+	 *
+	 * Reachable only while the address is unconfirmed — better-auth refuses an
+	 * already-verified one with EMAIL_ALREADY_VERIFIED, and the button is not
+	 * drawn in that case either. The reply is the same whether the send worked,
+	 * so the page can say "check your inbox" without claiming more than it knows.
+	 */
+	resendVerification: async (event) => {
+		const user = requireUser(event);
+		if (user.emailVerified) return fail(400, { message: m.srv_invalid_request() });
+
+		try {
+			await auth.api.sendVerificationEmail({
+				body: { email: user.email, callbackURL: '/verify-email' },
+				headers: event.request.headers
+			});
+		} catch (err) {
+			console.error('Verification resend failed:', err);
+			return fail(500, { message: m.set_verify_failed() });
+		}
+
+		return { verificationSent: true };
 	},
 
 	cancelClosure: async (event) => {

@@ -19,6 +19,12 @@
 		if ($message?.type === 'error') toast.error($message.text);
 	});
 
+	/* `?reset=1` is set by the reset page, which signs nobody in on purpose.
+	   Read once per navigation for the same reason as the OAuth error below. */
+	$effect(() => {
+		if (page.url.searchParams.get('reset')) untrack(() => toast.success(m.login_reset_done()));
+	});
+
 	/* A failed Google handshake comes back as `?error=`, which the server has
 	   already turned into a sentence. Read once per navigation, not per render:
 	   `data` is reactive and re-toasting on every update would stack duplicates. */
@@ -80,6 +86,13 @@
 					autocomplete="current-password"
 					required
 				/>
+
+				<p class="text-right">
+					<a
+						href={resolve('/forgot-password')}
+						class="text-[11px] font-black text-brand-soft-fg hover:underline">{m.login_forgot()}</a
+					>
+				</p>
 
 				<button
 					type="submit"

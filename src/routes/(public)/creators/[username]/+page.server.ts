@@ -6,6 +6,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
+import { notify } from '$lib/server/notify';
 import { getCreatorByUsername, getSettings } from '$lib/server/queries';
 import { getOrganizationFor, recordAudit } from '$lib/server/guards';
 import { bookingCreate } from '$lib/schemas';
@@ -129,16 +130,18 @@ export const actions: Actions = {
 				createdBy: event.locals.user.id
 			});
 
-			if (creator.userId) {
-				await db.insert(t.notifications).values({
-					userId: creator.userId,
-					title: m.notif_booking_request_title({ organisation: organization.name }),
-					body: form.data.title,
-					link: `/dashboard/bookings/${bookingId}`,
-					kind: 'booking',
-					createdBy: event.locals.user.id
-				});
-			}
+			/* An unclaimed profile has no account behind it — `notify` drops a
+			   missing id rather than making every caller check for one. */
+			await notify(creator.userId, {
+				category: 'deals',
+				kind: 'booking',
+				title: m.notif_booking_request_title({ organisation: organization.name }),
+				body: form.data.title,
+				link: `/dashboard/bookings/${bookingId}`,
+				actionLabel: m.mail_open_booking(),
+				footnote: m.mail_prefs_footnote(),
+				actorId: event.locals.user.id
+			});
 
 			await recordAudit({
 				actorId: event.locals.user.id,

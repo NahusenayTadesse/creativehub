@@ -7,6 +7,7 @@ import type { PageServerLoad, Actions, RequestEvent } from './$types';
 import { db, rowsAffected } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { getBookingDetail, getSettings } from '$lib/server/queries';
+import { notify } from '$lib/server/notify';
 import { requireBookingAccess, recordAudit } from '$lib/server/guards';
 import { refreshCreatorCompletedBookings, refreshCreatorRating } from '$lib/server/score-service';
 import { canTransition, splitFee, type BookingStatus } from '$lib/domain/booking';
@@ -96,14 +97,41 @@ async function transition(
 	return { ok: true as const };
 }
 
-async function notify(
-	userId: string | null | undefined,
-	title: string,
-	body: string,
-	link: string
-) {
-	if (!userId) return;
-	await db.insert(t.notifications).values({ userId, title, body, link, kind: 'booking' });
+/**
+ * Both channels, for the one category everything on this page belongs to.
+ *
+ * Every notification raised from a booking action is the deal itself moving —
+ * proposed, agreed, funded, submitted, revised, settled — so the category and
+ * the button are fixed here and the call sites say only what happened. Whether
+ * it also becomes an email is `domain/notify.ts`'s decision, not this file's.
+ */
+const notifyDeal = (userId: string | null | undefined, title: string, body: string, link: string) =>
+	notify(userId, {
+		category: 'deals',
+		kind: 'booking',
+		title,
+		body,
+		link,
+		actionLabel: m.mail_open_booking(),
+		footnote: m.mail_prefs_footnote()
+	});
+
+/** The account on each side of a booking, either of which may be absent. */
+async function bookingParties(organizationId: number, creatorId: number) {
+	const [orgRows, creatorRows] = await Promise.all([
+		db
+			.select({ ownerId: t.organizations.ownerId })
+			.from(t.organizations)
+			.where(eq(t.organizations.id, organizationId))
+			.limit(1),
+		db
+			.select({ userId: t.creators.userId })
+			.from(t.creators)
+			.where(eq(t.creators.id, creatorId))
+			.limit(1)
+	]);
+
+	return { organizationOwnerId: orgRows.at(0)?.ownerId, creatorUserId: creatorRows.at(0)?.userId };
 }
 
 export const actions: Actions = {
@@ -263,7 +291,7 @@ export const actions: Actions = {
 		);
 		if (!result.ok) return fail(409, { message: result.text });
 
-		await notify(
+		await notifyDeal(
 			side === 'creator' ? orgRows.at(0)?.ownerId : creatorRows.at(0)?.userId,
 			m.notif_terms_agreed_title(),
 			m.notif_terms_agreed_body({ title: booking.title }),
@@ -364,7 +392,7 @@ export const actions: Actions = {
 			.where(eq(t.creators.id, booking.creatorId))
 			.limit(1);
 
-		await notify(
+		await notifyDeal(
 			creatorRows.at(0)?.userId,
 			m.notif_booking_completed_title(),
 			m.notif_booking_completed_body({ title: booking.title }),
@@ -421,7 +449,7 @@ export const actions: Actions = {
 			.where(eq(t.organizations.id, booking.organizationId))
 			.limit(1);
 
-		await notify(
+		await notifyDeal(
 			orgRows.at(0)?.ownerId,
 			m.notif_work_submitted_title(),
 			booking.title,
@@ -528,7 +556,7 @@ export const actions: Actions = {
 			.where(eq(t.creators.id, booking.creatorId))
 			.limit(1);
 
-		await notify(
+		await notifyDeal(
 			creatorRows.at(0)?.userId,
 			m.notif_revision_requested_title(),
 			form.data.reviewNote,
@@ -600,7 +628,7 @@ export const actions: Actions = {
 
 	message: async (event) => {
 		const id = Number(event.params.id);
-		await requireBookingAccess(event, id);
+		const { booking, side } = await requireBookingAccess(event, id);
 		const form = await superValidate(event.request, zod4(messageSchema), { id: 'message' });
 
 		if (!form.valid) {
@@ -617,6 +645,38 @@ export const actions: Actions = {
 			isMasked: masked,
 			createdBy: event.locals.user?.id
 		});
+
+		/*
+		 * The other end of the thread.
+		 *
+		 * An operator writing on a booking is talking to both sides at once, so
+		 * both are told; a creator or a brand is talking to their counterpart.
+		 * Either way the sender is never in the list — a notification about your
+		 * own message is noise, and by email it is worse than noise.
+		 *
+		 * What goes out is the masked text, the same as what was stored. The
+		 * point of stripping a phone number before it reaches the thread would be
+		 * lost if the notification carried the unmasked original into an inbox.
+		 */
+		const parties = await bookingParties(booking.organizationId, booking.creatorId);
+		const recipients =
+			side === 'admin'
+				? [parties.organizationOwnerId, parties.creatorUserId]
+				: [side === 'creator' ? parties.organizationOwnerId : parties.creatorUserId];
+
+		await notify(
+			recipients.filter((uid) => uid !== event.locals.user?.id),
+			{
+				category: 'messages',
+				kind: 'message',
+				title: m.notif_new_message_title({ sender: event.locals.user?.name ?? '' }),
+				body: text,
+				link: `/dashboard/bookings/${id}`,
+				actionLabel: m.mail_open_booking(),
+				footnote: m.mail_prefs_footnote(),
+				actorId: event.locals.user?.id
+			}
+		);
 
 		return message(
 			form,

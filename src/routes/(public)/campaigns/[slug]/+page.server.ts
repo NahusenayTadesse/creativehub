@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
+import { notify } from '$lib/server/notify';
 import { getCampaignBySlug } from '$lib/server/queries';
 import { getCreatorFor, recordAudit } from '$lib/server/guards';
 import { applicationSchema } from '$lib/schemas';
@@ -113,16 +114,16 @@ export const actions: Actions = {
 				.where(eq(t.organizations.id, campaign.organizationId))
 				.limit(1);
 
-			if (orgRows.length) {
-				await db.insert(t.notifications).values({
-					userId: orgRows[0].ownerId,
-					title: m.notif_new_application_title({ creator: creator.fullName }),
-					body: campaign.title,
-					link: `/dashboard/applications`,
-					kind: 'application',
-					createdBy: event.locals.user.id
-				});
-			}
+			await notify(orgRows.at(0)?.ownerId, {
+				category: 'deals',
+				kind: 'application',
+				title: m.notif_new_application_title({ creator: creator.fullName }),
+				body: campaign.title,
+				link: '/dashboard/applications',
+				actionLabel: m.mail_open_applications(),
+				footnote: m.mail_prefs_footnote(),
+				actorId: event.locals.user.id
+			});
 
 			await recordAudit({
 				actorId: event.locals.user.id,
