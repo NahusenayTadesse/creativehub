@@ -20,9 +20,9 @@
 		if (!next) onClose();
 	}}
 >
-	<Dialog.Content
-		class="max-h-[88dvh] w-lg! max-w-[95vw]! overflow-x-hidden overflow-y-auto overscroll-contain p-0!"
-	>
+	<!-- The cap and the scrolling are the dialog's own now; this one only asks to
+	     be wider, and to keep its cover image flush to the edges. -->
+	<Dialog.Content class="max-h-[88dvh] w-lg! max-w-[95vw]! overflow-x-hidden p-0!">
 		{#if creator}
 			<div class="relative h-28 border-b-2 border-edge bg-well">
 				<AppImage

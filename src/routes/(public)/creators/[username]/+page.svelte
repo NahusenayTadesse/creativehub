@@ -733,13 +733,7 @@
 
 <!-- ===== Score explainer ===== -->
 <Dialog.Root bind:open={scoreOpen}>
-	<!--
-		Capped and scrollable. Centred at its natural height, this dialog stood
-		1014px tall in an 844px viewport and overflowed off both ends — and
-		being `fixed`, nothing could scroll to what was cut off. On a phone the
-		submit button was simply not reachable.
-	-->
-	<Dialog.Content class="max-h-[90dvh] w-lg! max-w-[95vw]! overflow-y-auto">
+	<Dialog.Content class="w-lg! max-w-[95vw]!">
 		<Dialog.Header>
 			<Dialog.Title class="flex items-center gap-2 text-base font-bold">
 				<Award class="h-5 w-5 text-brand-fg" />
@@ -775,7 +769,7 @@
 
 <!-- ===== Booking dialog ===== -->
 <Dialog.Root bind:open={bookingOpen}>
-	<Dialog.Content class="max-h-[90dvh] w-lg! max-w-[95vw]! overflow-y-auto">
+	<Dialog.Content class="w-lg! max-w-[95vw]!">
 		<Dialog.Header>
 			<Dialog.Title class="text-base font-black"
 				>{m.profile_book_dialog_title({ name: creator.fullName })}</Dialog.Title
