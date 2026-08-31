@@ -54,14 +54,21 @@
 	<meta name="description" content={m.home_meta_description()} />
 </svelte:head>
 
-<div id="landing-page-view" class="space-y-16 pb-16">
+<!-- Sections sit closer together on a phone: at 16 units the gaps read as the
+     page having ended rather than as one section giving way to the next. -->
+<div id="landing-page-view" class="space-y-10 pb-10 sm:space-y-16 sm:pb-16">
 	<!-- ================= HERO ================= -->
-	<section class="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
+	<section class="mx-auto max-w-7xl px-4 pt-5 sm:px-6 sm:pt-6 lg:px-8">
+		<div class="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-12">
+			<!--
+				`min-h` only from `sm`. On a 390px phone the content is taller than
+				460px anyway, so the floor did nothing but risk dead space on the
+				short viewports where it would have bitten.
+			-->
 			<div
-				class="relative flex min-h-[460px] flex-col justify-between overflow-hidden rounded-3xl border-2 border-edge bg-inverse p-8 text-inverse-ink shadow-[6px_6px_0px_0px_rgb(var(--bento-shadow))] sm:p-10 lg:col-span-8"
+				class="relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-edge bg-inverse p-5 text-inverse-ink shadow-[6px_6px_0px_0px_rgb(var(--bento-shadow))] sm:min-h-[460px] sm:p-10 lg:col-span-8"
 			>
-				<div class="relative z-10 space-y-6">
+				<div class="relative z-10 space-y-5 sm:space-y-6">
 					<div
 						class="inline-flex items-center gap-2 rounded-full border-2 border-edge bg-tile-mint px-4 py-1.5 text-xs font-black tracking-wider text-ink uppercase shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 					>
@@ -104,17 +111,22 @@
 						</button>
 					</form>
 
-					<div class="flex flex-wrap items-center gap-3 pt-2">
+					<!--
+						Stacked to one width on a phone. Wrapped, the two sat on separate
+						lines at whatever width their own labels happened to be, which
+						read as a mistake rather than as a pair of choices.
+					-->
+					<div class="grid grid-cols-1 gap-2 pt-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
 						<a
 							href={resolve('/campaigns')}
-							class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-5 py-2.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:bg-well"
+							class="flex items-center justify-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-5 py-3 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:bg-well sm:py-2.5"
 						>
 							<span>{m.home_cta_view_briefs()}</span>
 							<ArrowRight class="h-4 w-4" />
 						</a>
 						<a
 							href={resolve('/register')}
-							class="flex items-center gap-2 rounded-xl border-2 border-edge bg-tile-yellow px-5 py-2.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))]"
+							class="flex items-center justify-center gap-2 rounded-xl border-2 border-edge bg-tile-yellow px-5 py-3 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] sm:py-2.5"
 						>
 							<span>{m.home_cta_create_account()}</span>
 						</a>
@@ -122,7 +134,9 @@
 				</div>
 
 				<!-- Live figures, read from the database rather than written into the page -->
-				<div class="relative z-10 mt-6 grid grid-cols-3 gap-4 border-t-2 border-edge pt-6 text-xs">
+				<div
+					class="relative z-10 mt-6 grid grid-cols-3 gap-2 border-t-2 border-edge pt-5 text-xs sm:gap-4 sm:pt-6"
+				>
 					<div>
 						<div class="text-xl font-black text-inverse-ink sm:text-2xl">{data.stats.creators}</div>
 						<div class="text-[10px] font-bold tracking-wider text-inverse-ink-dim uppercase">
@@ -269,7 +283,9 @@
 							<ArrowRight class="h-3.5 w-3.5" />
 						</a>
 
-						<div class="flex items-center gap-2">
+						<!-- Arrows from `sm` up. A phone swipes the carousel, and the two
+						     buttons only crowded the row they shared with "view all". -->
+						<div class="hidden items-center gap-2 sm:flex">
 							<Carousel.Previous
 								aria-label={m.tbl_previous()}
 								class="static inset-auto my-0 size-9 rounded-xl border-2 border-edge bg-surface text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-brand-soft disabled:opacity-40 disabled:shadow-none"
@@ -330,8 +346,8 @@
 	</section>
 
 	<!-- ================= COMPENSATION MODELS ================= -->
-	<section class="py-12">
-		<div class="mx-auto max-w-7xl space-y-8 px-4 sm:px-6 lg:px-8">
+	<section class="py-4 sm:py-12">
+		<div class="mx-auto max-w-7xl space-y-6 px-4 sm:space-y-8 sm:px-6 lg:px-8">
 			<div class="mx-auto max-w-2xl space-y-2 text-center">
 				<span
 					class="inline-block rounded-full border border-edge bg-tile-mint px-3 py-1 text-xs font-black tracking-widest text-brand-soft-fg uppercase"

@@ -205,11 +205,18 @@
 			</button>
 		</div>
 
-		<div class="relative px-6 pt-0 pb-8 md:px-8">
+		<div class="relative px-4 pt-0 pb-6 sm:px-6 md:px-8 md:pb-8">
 			<div
-				class="-mt-12 mb-6 flex flex-col justify-between gap-6 md:-mt-16 md:flex-row md:items-end"
+				class="-mt-12 mb-6 flex flex-col justify-between gap-4 lg:-mt-16 lg:flex-row lg:items-end lg:gap-6"
 			>
-				<div class="flex items-end gap-4">
+				<!--
+					Stacked until `lg`, side by side above it.
+					Sharing a row at 390px left the name about 150px to live in, and
+					pushed it up onto the cover image — which is the only reason white
+					type on it was ever legible. A creator with less to say under their
+					name would have had it land on the card instead, white on white.
+				-->
+				<div class="flex flex-col items-start gap-3 lg:flex-row lg:items-end lg:gap-4">
 					<div class="relative">
 						<AppImage
 							src={creator.avatar}
@@ -217,7 +224,7 @@
 							kind="avatar"
 							seed={creator.username}
 							label={creator.fullName}
-							class="h-24 w-24 rounded-3xl border-4 border-surface bg-surface object-cover shadow-md md:h-32 md:w-32"
+							class="h-24 w-24 rounded-3xl border-4 border-surface bg-surface object-cover shadow-md lg:h-32 lg:w-32"
 							loading="lazy"
 							decoding="async"
 							width="96"
@@ -231,9 +238,11 @@
 						></span>
 					</div>
 
-					<div class="mb-2">
-						<div class="mb-4 flex flex-wrap items-center gap-2">
-							<h1 class="text-xl font-extrabold text-white shadow-2xl md:text-2xl">
+					<div class="min-w-0 lg:mb-2">
+						<div class="mb-2 flex flex-wrap items-center gap-2 lg:mb-4">
+							<!-- White only where it sits on the cover: from `lg` the row rides
+							     up onto the image, below it does not. -->
+							<h1 class="text-xl font-extrabold text-ink lg:text-2xl lg:text-white">
 								{creator.fullName}
 							</h1>
 							<VerificationBadge level={creator.verificationLevel} />
@@ -276,23 +285,26 @@
 					</div>
 				</div>
 
-				<div class="flex items-center gap-3">
+				<!-- One full-width action on a phone, whichever of the three it is. -->
+				<div class="flex w-full items-center gap-3 lg:w-auto">
 					{#if data.canBook}
 						<button
 							type="button"
 							onclick={() => openBooking(selectedPackage)}
-							class="flex-1 rounded-2xl bg-brand px-6 py-3 text-xs font-bold text-brand-ink shadow-md shadow-brand/20 transition-colors hover:bg-brand-strong md:flex-none"
+							class="flex-1 rounded-2xl bg-brand px-6 py-3.5 text-xs font-bold text-brand-ink shadow-md shadow-brand/20 transition-colors hover:bg-brand-strong lg:flex-none lg:py-3"
 						>
 							{m.profile_book_creator()}
 						</button>
 					{:else if data.user}
-						<span class="rounded-2xl bg-well px-4 py-3 text-xs font-bold text-ink-soft">
+						<span
+							class="flex-1 rounded-2xl bg-well px-4 py-3.5 text-center text-xs font-bold text-ink-soft lg:flex-none lg:py-3"
+						>
 							{m.profile_brand_accounts_only()}
 						</span>
 					{:else}
 						<a
 							href={resolve(`/login?next=/creators/${creator.username}`)}
-							class="rounded-2xl bg-brand px-6 py-3 text-xs font-bold text-brand-ink shadow-md shadow-brand/20 transition-colors hover:bg-brand-strong"
+							class="flex-1 rounded-2xl bg-brand px-6 py-3.5 text-center text-xs font-bold text-brand-ink shadow-md shadow-brand/20 transition-colors hover:bg-brand-strong lg:flex-none lg:py-3"
 						>
 							{m.profile_sign_in_to_book()}
 						</a>
@@ -407,78 +419,81 @@
 
 			<div class="space-y-4">
 				{#each creator.packages as pkg (pkg.id)}
-					<button
-						type="button"
-						onclick={() => (selectedPackageId = pkg.id)}
-						class="w-full cursor-pointer rounded-2xl border p-5 text-left transition-all {selectedPackageId ===
-						pkg.id
+					<!--
+						Two controls, not one inside the other. Choosing a package and
+						booking it used to be a `role="button"` span nested in a real
+						`<button>` — invalid, and only kept apart by `stopPropagation`
+						on a tap that a finger can land on either of.
+					-->
+					<div
+						class="rounded-2xl border p-5 transition-all {selectedPackageId === pkg.id
 							? 'border-brand-edge bg-brand-soft/40 shadow-xs ring-2 ring-brand/20'
 							: 'border-edge-soft bg-surface hover:border-edge-mid'}"
 					>
-						<div class="mb-2 flex items-start justify-between gap-2">
-							<h3 class="text-sm font-bold text-ink">{pkg.title}</h3>
-							{#if pkg.platformName}
-								<span
-									class="shrink-0 rounded-md bg-brand-soft px-2 py-0.5 text-xs font-bold text-brand-soft-fg"
-								>
-									{pkg.platformName}
-								</span>
+						<button
+							type="button"
+							onclick={() => (selectedPackageId = pkg.id)}
+							aria-pressed={selectedPackageId === pkg.id}
+							class="w-full cursor-pointer text-left"
+						>
+							<div class="mb-2 flex items-start justify-between gap-2">
+								<h3 class="text-sm font-bold text-ink">{pkg.title}</h3>
+								{#if pkg.platformName}
+									<span
+										class="shrink-0 rounded-md bg-brand-soft px-2 py-0.5 text-xs font-bold text-brand-soft-fg"
+									>
+										{pkg.platformName}
+									</span>
+								{/if}
+							</div>
+
+							{#if pkg.description}
+								<p class="mb-3 text-xs text-ink-soft">{pkg.description}</p>
 							{/if}
-						</div>
 
-						{#if pkg.description}
-							<p class="mb-3 text-xs text-ink-soft">{pkg.description}</p>
-						{/if}
+							<div class="mb-4 space-y-1.5 text-xs text-ink-soft">
+								{#each pkg.deliverables ?? [] as item (item)}
+									<div class="flex items-center gap-2">
+										<Check class="h-3.5 w-3.5 shrink-0 text-brand-fg" />
+										<span>{item}</span>
+									</div>
+								{/each}
+							</div>
 
-						<div class="mb-4 space-y-1.5 text-xs text-ink-soft">
-							{#each pkg.deliverables ?? [] as item (item)}
-								<div class="flex items-center gap-2">
-									<Check class="h-3.5 w-3.5 shrink-0 text-brand-fg" />
-									<span>{item}</span>
+							<div class="flex items-center justify-between border-t border-edge-soft pt-3">
+								<div>
+									<span class="block text-[10px] font-medium text-ink-faint uppercase"
+										>{m.profile_turnaround()}</span
+									>
+									<span class="text-xs font-semibold text-ink">
+										{m.profile_turnaround_value({
+											days: pkg.deliveryDays,
+											revisions: pkg.revisions
+										})}
+									</span>
 								</div>
-							{/each}
-						</div>
-
-						<div class="flex items-center justify-between border-t border-edge-soft pt-3">
-							<div>
-								<span class="block text-[10px] font-medium text-ink-faint uppercase"
-									>{m.profile_turnaround()}</span
-								>
-								<span class="text-xs font-semibold text-ink">
-									{m.profile_turnaround_value({ days: pkg.deliveryDays, revisions: pkg.revisions })}
-								</span>
+								<div class="text-right">
+									<span class="block text-[10px] font-medium text-ink-faint uppercase"
+										>{m.profile_price()}</span
+									>
+									<span class="text-base font-extrabold text-ink">
+										{pkg.price.toLocaleString()}
+										{pkg.currencyCode}
+									</span>
+								</div>
 							</div>
-							<div class="text-right">
-								<span class="block text-[10px] font-medium text-ink-faint uppercase"
-									>{m.profile_price()}</span
-								>
-								<span class="text-base font-extrabold text-ink">
-									{pkg.price.toLocaleString()}
-									{pkg.currencyCode}
-								</span>
-							</div>
-						</div>
+						</button>
 
 						{#if data.canBook}
-							<span
-								onclick={(e) => {
-									e.stopPropagation();
-									openBooking(pkg);
-								}}
-								onkeydown={(e) => {
-									if (e.key === 'Enter') {
-										e.stopPropagation();
-										openBooking(pkg);
-									}
-								}}
-								role="button"
-								tabindex="0"
-								class="mt-4 block w-full cursor-pointer rounded-xl bg-inverse py-2 text-center text-xs font-bold text-inverse-ink transition-colors hover:bg-brand"
+							<button
+								type="button"
+								onclick={() => openBooking(pkg)}
+								class="mt-4 block w-full cursor-pointer rounded-xl bg-inverse py-3 text-center text-xs font-bold text-inverse-ink transition-colors hover:bg-brand"
 							>
 								{m.profile_book_package()}
-							</span>
+							</button>
 						{/if}
-					</button>
+					</div>
 				{:else}
 					<div class="rounded-2xl border border-dashed border-edge-soft bg-panel p-6 text-center">
 						<p class="text-xs font-medium text-ink-dim">
@@ -560,7 +575,8 @@
 							</span>
 						</div>
 
-						<div class="grid grid-cols-2 gap-3 text-xs">
+						<!-- One column on a phone: at two, the label and its score each wrapped. -->
+						<div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
 							{#each ratingRows as row (row.label)}
 								<div>
 									<div
@@ -585,9 +601,9 @@
 							<div
 								class="space-y-3 rounded-2xl border border-edge-soft bg-surface p-4 shadow-xs transition-colors hover:border-edge-mid"
 							>
-								<div class="flex items-start justify-between gap-2">
+								<div class="flex flex-wrap items-start justify-between gap-2">
 									<div>
-										<div class="flex items-center gap-2">
+										<div class="flex flex-wrap items-center gap-2">
 											<span class="text-xs font-extrabold text-ink">
 												{review.organizationName}
 											</span>
@@ -671,9 +687,59 @@
 	</div>
 </div>
 
+<!--
+	The booking action, kept within reach.
+
+	This page runs to about five thousand pixels on a phone, and every reason to
+	book — the packages, the recent work, fifteen reviews — is below the one
+	button that does it. Scrolling back to the top to act on what you have just
+	read is the whole friction this removes. Desktop keeps the header button:
+	there the page is shorter and the header is closer.
+-->
+{#if data.canBook || !data.user}
+	<div
+		class="sticky bottom-0 z-30 border-t-2 border-edge bg-surface/95 px-4 py-3 shadow-[0_-4px_12px_-6px_rgb(var(--bento-shadow)/0.4)] backdrop-blur-sm lg:hidden"
+	>
+		<div class="flex items-center gap-3">
+			<div class="min-w-0">
+				<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
+					{m.starting_from()}
+				</span>
+				<span class="text-sm font-black whitespace-nowrap text-ink">
+					{creator.startingPrice.toLocaleString()}
+					<span class="text-xs text-brand-fg">{creator.currencyCode}</span>
+				</span>
+			</div>
+
+			{#if data.canBook}
+				<button
+					type="button"
+					onclick={() => openBooking(selectedPackage)}
+					class="flex-1 rounded-2xl border-2 border-edge bg-brand px-4 py-3 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
+				>
+					{m.profile_book_creator()}
+				</button>
+			{:else}
+				<a
+					href={resolve(`/login?next=/creators/${creator.username}`)}
+					class="flex-1 rounded-2xl border-2 border-edge bg-brand px-4 py-3 text-center text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
+				>
+					{m.profile_sign_in_to_book()}
+				</a>
+			{/if}
+		</div>
+	</div>
+{/if}
+
 <!-- ===== Score explainer ===== -->
 <Dialog.Root bind:open={scoreOpen}>
-	<Dialog.Content class="w-lg! max-w-[95vw]!">
+	<!--
+		Capped and scrollable. Centred at its natural height, this dialog stood
+		1014px tall in an 844px viewport and overflowed off both ends — and
+		being `fixed`, nothing could scroll to what was cut off. On a phone the
+		submit button was simply not reachable.
+	-->
+	<Dialog.Content class="max-h-[90dvh] w-lg! max-w-[95vw]! overflow-y-auto">
 		<Dialog.Header>
 			<Dialog.Title class="flex items-center gap-2 text-base font-bold">
 				<Award class="h-5 w-5 text-brand-fg" />
@@ -709,7 +775,7 @@
 
 <!-- ===== Booking dialog ===== -->
 <Dialog.Root bind:open={bookingOpen}>
-	<Dialog.Content class="w-lg! max-w-[95vw]!">
+	<Dialog.Content class="max-h-[90dvh] w-lg! max-w-[95vw]! overflow-y-auto">
 		<Dialog.Header>
 			<Dialog.Title class="text-base font-black"
 				>{m.profile_book_dialog_title({ name: creator.fullName })}</Dialog.Title
@@ -738,7 +804,7 @@
 
 			<InputComp {form} {errors} name="title" label={m.profile_booking_title()} required />
 
-			<div class="grid grid-cols-2 gap-3">
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				<InputComp {form} {errors} name="price" type="number" min="0" label={m.profile_offer()} />
 				<InputComp
 					{form}
@@ -760,7 +826,7 @@
 				hint={m.profile_one_per_line()}
 			/>
 
-			<div class="grid grid-cols-2 gap-3">
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				<InputComp
 					{form}
 					{errors}

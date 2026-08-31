@@ -50,6 +50,7 @@
 		label,
 		labelHidden = false,
 		name,
+		id = undefined,
 		type = 'text',
 		form = NO_FORM,
 		errors = NO_ERRORS,
@@ -84,6 +85,17 @@
 		 */
 		labelHidden?: boolean;
 		name: string;
+		/**
+		 * What the label, the error and the hint point at, when that cannot be
+		 * `name`.
+		 *
+		 * `name` is what the server reads, and two controls may legitimately
+		 * share one — the same filter rendered into a phone's drawer and into a
+		 * desktop sidebar is one field appearing twice. An `id` is a promise of
+		 * uniqueness in the document, which `name` is not, so the two part ways
+		 * exactly there. Defaults to `name`, which is right everywhere else.
+		 */
+		id?: string;
 		type?: string;
 		form?: FormStore;
 		errors?: ErrorStore;
@@ -191,21 +203,22 @@
 		...(error ? [error] : []),
 		...flattenErrors(bound ? $errors[name] : undefined)
 	]);
+	const fieldId = $derived(id ?? name);
 	/* A checkbox's sentence beside the box is a description, not a second name. */
-	const noteId = $derived(type === 'checkboxSingle' && placeholder ? `${name}-note` : undefined);
+	const noteId = $derived(type === 'checkboxSingle' && placeholder ? `${fieldId}-note` : undefined);
 	const describedBy = $derived(
-		[noteId, fieldErrors.length ? `${name}-error` : hint ? `${name}-hint` : undefined]
+		[noteId, fieldErrors.length ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined]
 			.filter(Boolean)
 			.join(' ') || undefined
 	);
 </script>
 
 <div class="flex w-full max-w-full flex-col justify-start gap-2 px-1 py-2">
-	<Label for={name} class={labelHidden ? 'sr-only' : 'pl-3 capitalize'}>{label}</Label>
+	<Label for={fieldId} class={labelHidden ? 'sr-only' : 'pl-3 capitalize'}>{label}</Label>
 
 	{#if type === 'textarea'}
 		<Textarea
-			id={name}
+			id={fieldId}
 			class={className}
 			{name}
 			bind:value={asText, write}
@@ -219,7 +232,7 @@
 	{:else if type === 'file'}
 		<FileUpload {name} {form} {image} {placeholder} />
 	{:else if type === 'select'}
-		<ComboboxComp {name} bind:value={asScalar, write} {items} {disabled} {required} />
+		<ComboboxComp {name} id={fieldId} bind:value={asScalar, write} {items} {disabled} {required} />
 	{:else if type === 'date'}
 		<DatePicker2 bind:data={asText, write} {oldDays} {year} {futureDays} />
 		<input type="hidden" {name} value={asText()} />
@@ -227,7 +240,7 @@
 		<DatePicker bind:data={asText, write} {oldDays} {year} {futureDays} />
 		<input type="hidden" {name} value={asText()} />
 	{:else if type === 'combo'}
-		<ComboboxComp {name} bind:value={asScalar, write} {items} {required} />
+		<ComboboxComp {name} id={fieldId} bind:value={asScalar, write} {items} {required} />
 	{:else if type === 'checkbox'}
 		<CheckboxComp {items} bind:checkedValues={asList, write} />
 		<input type="hidden" {name} value={asText()} />
@@ -248,7 +261,7 @@
 			the handle passed through.
 		-->
 		<input
-			id={name}
+			id={fieldId}
 			{name}
 			type="range"
 			{min}
@@ -270,7 +283,7 @@
 		-->
 		{#snippet box()}
 			<Checkbox
-				id={name}
+				id={fieldId}
 				class={className}
 				bind:checked={asBool, write}
 				{disabled}
@@ -279,7 +292,7 @@
 		{/snippet}
 		{#snippet note()}
 			{#if placeholder}
-				<span id="{name}-note" class="text-xs font-medium text-ink-soft">{placeholder}</span>
+				<span id="{fieldId}-note" class="text-xs font-medium text-ink-soft">{placeholder}</span>
 			{/if}
 		{/snippet}
 		<div class="flex items-center gap-2 pl-3 {align === 'between' ? 'justify-between' : ''}">
@@ -293,7 +306,7 @@
 	{:else if type === 'password'}
 		<div class="relative">
 			<Input
-				id={name}
+				id={fieldId}
 				class="pr-10 {className}"
 				type={inputType}
 				{name}
@@ -317,7 +330,7 @@
 		</div>
 	{:else}
 		<Input
-			id={name}
+			id={fieldId}
 			class={className}
 			{type}
 			{name}
@@ -335,12 +348,12 @@
 	{/if}
 
 	{#if fieldErrors.length}
-		<div id="{name}-error" class="pl-3" aria-live="polite">
+		<div id="{fieldId}-error" class="pl-3" aria-live="polite">
 			{#each fieldErrors as message (message)}
 				<p class="flex items-center gap-2 text-danger"><CircleAlert /> {message}</p>
 			{/each}
 		</div>
 	{:else if hint}
-		<p id="{name}-hint" class="pl-3 text-xs font-medium text-ink-dim">{hint}</p>
+		<p id="{fieldId}-hint" class="pl-3 text-xs font-medium text-ink-dim">{hint}</p>
 	{/if}
 </div>

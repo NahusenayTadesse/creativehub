@@ -14,6 +14,7 @@
 	import SearchInput from '$lib/components/search-input.svelte';
 	import { withParams, toggleValue } from '$lib/query';
 	import * as Select from '$lib/components/ui/select/index.js';
+	import * as Sheet from '$lib/components/ui/sheet/index.js';
 
 	let { data } = $props();
 
@@ -144,7 +145,98 @@
 	 * re-seeds it, so the handle can never sit somewhere the results are not.
 	 */
 	let priceDraft = $derived(maxPrice);
+
+	/*
+	 * On a phone the filters live behind a button rather than above the results.
+	 * Rendered in the page, the sidebar put roughly two screens of controls
+	 * between the reader and the first creator — on the page whose whole job is
+	 * showing creators. The same snippet fills both the drawer and the desktop
+	 * sidebar, so the two can never drift apart.
+	 */
+	let filtersOpen = $state(false);
+
+	/** How many filters are narrowing the list, for the button's badge. */
+	const activeFilterCount = $derived(
+		selectedCountryIds.length +
+			(categorySlug !== 'all' ? 1 : 0) +
+			(regionId !== 'all' ? 1 : 0) +
+			(platformId !== 'all' ? 1 : 0) +
+			(verification !== 'all' ? 1 : 0) +
+			(maxPrice < MAX_PRICE ? 1 : 0) +
+			(availableOnly ? 1 : 0)
+	);
 </script>
+
+{#snippet filterControls(scope: string)}
+	<InputComp
+		name="category"
+		id="{scope}-category"
+		type="select"
+		label={m.discover_category()}
+		items={categoryFilterItems}
+		value={categorySlug}
+		onChange={(next) => go({ category: next === 'all' ? null : String(next) })}
+	/>
+
+	{#if ethiopiaActive && visibleRegions.length}
+		<InputComp
+			name="region"
+			id="{scope}-region"
+			type="select"
+			label={m.discover_ethiopian_region()}
+			items={regionFilterItems}
+			value={regionId}
+			onChange={(next) => go({ region: next === 'all' ? null : String(next) })}
+		/>
+	{/if}
+
+	<InputComp
+		name="platform"
+		id="{scope}-platform"
+		type="select"
+		label={m.discover_primary_platform()}
+		items={platformFilterItems}
+		value={platformId}
+		onChange={(next) => go({ platform: next === 'all' ? null : String(next) })}
+	/>
+
+	<InputComp
+		name="maxPrice"
+		id="{scope}-maxPrice"
+		type="range"
+		label={m.discover_max_starting_price()}
+		min={1000}
+		max={MAX_PRICE}
+		step={1000}
+		hint={m.discover_own_currency_note()}
+		bind:value={priceDraft}
+		onChange={(next) => go({ maxPrice: Number(next) >= MAX_PRICE ? null : Number(next) })}
+	/>
+
+	<InputComp
+		name="verification"
+		id="{scope}-verification"
+		type="select"
+		label={m.discover_verification_level()}
+		items={verificationFilterItems}
+		value={verification}
+		onChange={(next) => go({ verification: next === 'all' ? null : String(next) })}
+	/>
+
+	<div class="border-t-2 border-edge pt-3">
+		<InputComp
+			name="availability"
+			id="{scope}-availability"
+			type="checkboxSingle"
+			align="between"
+			label={m.discover_only_available()}
+			labelHidden
+			placeholder={m.discover_only_available()}
+			value={availableOnly}
+			onChange={(next) => go({ availability: next ? 'available' : null })}
+		/>
+	</div>
+{/snippet}
 
 <svelte:head>
 	<title>{m.discover_meta_title()}</title>
@@ -188,23 +280,45 @@
 				class="w-full sm:flex-1 md:w-72"
 			/>
 
-			<Select.Root
-				type="single"
-				value={sortChoice}
-				onValueChange={(value) =>
-					go({ sort: value === 'score' ? null : SORTS[value].sort, dir: SORTS[value].dir ?? null })}
-			>
-				<Select.Trigger
-					class="w-full cursor-pointer rounded-2xl border-2 border-edge bg-surface px-3 py-2.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] sm:w-auto"
+			<div class="flex items-center gap-2">
+				<!-- Filters, on every screen too narrow for the sidebar. -->
+				<button
+					type="button"
+					onclick={() => (filtersOpen = true)}
+					class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-2xl border-2 border-edge bg-surface px-3 py-2.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] sm:flex-none lg:hidden"
 				>
-					{sortLabels[sortChoice] ?? sortLabels.score}
-				</Select.Trigger>
-				<Select.Content>
-					{#each Object.entries(sortLabels) as [value, label] (value)}
-						<Select.Item {value} class="text-xs font-bold">{label}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
+					<SlidersHorizontal class="h-3.5 w-3.5 text-brand-fg" />
+					<span>{m.discover_filters()}</span>
+					{#if activeFilterCount}
+						<span
+							class="rounded-full border border-edge bg-inverse px-1.5 py-0.5 text-[10px] leading-none font-black text-inverse-ink"
+						>
+							{activeFilterCount}
+						</span>
+					{/if}
+				</button>
+
+				<Select.Root
+					type="single"
+					value={sortChoice}
+					onValueChange={(value) =>
+						go({
+							sort: value === 'score' ? null : SORTS[value].sort,
+							dir: SORTS[value].dir ?? null
+						})}
+				>
+					<Select.Trigger
+						class="flex-1 cursor-pointer rounded-2xl border-2 border-edge bg-surface px-3 py-2.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] sm:w-auto sm:flex-none"
+					>
+						{sortLabels[sortChoice] ?? sortLabels.score}
+					</Select.Trigger>
+					<Select.Content>
+						{#each Object.entries(sortLabels) as [value, label] (value)}
+							<Select.Item {value} class="text-xs font-bold">{label}</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
+			</div>
 		</div>
 	</div>
 
@@ -296,13 +410,21 @@
 				</button>
 			{/if}
 		</div>
-		<div class="flex flex-wrap gap-2">
+		<!--
+			Sixteen markets wrap to eight rows on a phone — about 300px of chips
+			above results that are the point of the page. One swipeable row keeps
+			them all reachable in a fraction of the height; from `sm` there is
+			room to wrap and show the lot at once.
+		-->
+		<div
+			class="thin-scroll -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-2 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0"
+		>
 			{#each data.reference.countries as country (country.id)}
 				{@const active = selectedCountryIds.includes(String(country.id))}
 				<a
 					href={countryLink(String(country.id))}
 					data-sveltekit-noscroll
-					class="flex cursor-pointer items-center gap-1.5 rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {active
+					class="flex shrink-0 cursor-pointer snap-start items-center gap-1.5 rounded-xl border-2 border-edge px-3 py-2 text-xs font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {active
 						? 'bg-inverse text-inverse-ink'
 						: 'bg-surface text-ink hover:bg-well'}"
 				>
@@ -312,13 +434,17 @@
 				</a>
 			{/each}
 		</div>
+
+		<p class="mt-1 text-[10px] font-bold text-ink-dim sm:hidden">
+			{m.discover_more_markets()}
+		</p>
 	</div>
 
 	<!-- Grid + sidebar -->
 	<div class="grid grid-cols-1 gap-8 lg:grid-cols-4">
-		<!-- Sidebar -->
+		<!-- Sidebar. Below `lg` these same controls are in the drawer instead. -->
 		<aside
-			class="bento-card bento-card-static h-fit space-y-6 p-5 lg:sticky lg:top-24 lg:col-span-1"
+			class="bento-card bento-card-static hidden h-fit space-y-6 p-5 lg:sticky lg:top-24 lg:col-span-1 lg:block"
 		>
 			<div class="flex items-center justify-between border-b-2 border-edge pb-3">
 				<span
@@ -336,68 +462,7 @@
 				</a>
 			</div>
 
-			<InputComp
-				name="category"
-				type="select"
-				label={m.discover_category()}
-				items={categoryFilterItems}
-				value={categorySlug}
-				onChange={(next) => go({ category: next === 'all' ? null : String(next) })}
-			/>
-
-			{#if ethiopiaActive && visibleRegions.length}
-				<InputComp
-					name="region"
-					type="select"
-					label={m.discover_ethiopian_region()}
-					items={regionFilterItems}
-					value={regionId}
-					onChange={(next) => go({ region: next === 'all' ? null : String(next) })}
-				/>
-			{/if}
-
-			<InputComp
-				name="platform"
-				type="select"
-				label={m.discover_primary_platform()}
-				items={platformFilterItems}
-				value={platformId}
-				onChange={(next) => go({ platform: next === 'all' ? null : String(next) })}
-			/>
-
-			<InputComp
-				name="maxPrice"
-				type="range"
-				label={m.discover_max_starting_price()}
-				min={1000}
-				max={MAX_PRICE}
-				step={1000}
-				hint={m.discover_own_currency_note()}
-				bind:value={priceDraft}
-				onChange={(next) => go({ maxPrice: Number(next) >= MAX_PRICE ? null : Number(next) })}
-			/>
-
-			<InputComp
-				name="verification"
-				type="select"
-				label={m.discover_verification_level()}
-				items={verificationFilterItems}
-				value={verification}
-				onChange={(next) => go({ verification: next === 'all' ? null : String(next) })}
-			/>
-
-			<div class="border-t-2 border-edge pt-3">
-				<InputComp
-					name="availability"
-					type="checkboxSingle"
-					align="between"
-					label={m.discover_only_available()}
-					labelHidden
-					placeholder={m.discover_only_available()}
-					value={availableOnly}
-					onChange={(next) => go({ availability: next ? 'available' : null })}
-				/>
-			</div>
+			{@render filterControls('sidebar')}
 		</aside>
 
 		<!-- Results -->
@@ -512,6 +577,56 @@
 			<input type="hidden" name="creatorId" value="" />
 		</form>
 	{/if}
+
+	<!--
+		The filter drawer, for every screen narrower than the sidebar's. It opens
+		over the results rather than pushing them down the page, and the footer
+		says how many creators are left before you dismiss it, so narrowing to
+		nothing is visible while the controls are still in reach.
+	-->
+	<Sheet.Root bind:open={filtersOpen}>
+		<Sheet.Content
+			side="bottom"
+			class="max-h-[85dvh] rounded-t-3xl border-t-2 border-edge bg-surface p-0 lg:hidden"
+		>
+			<Sheet.Header class="border-b-2 border-edge px-5 py-4">
+				<Sheet.Title
+					class="flex items-center gap-2 text-sm font-black tracking-wider text-ink uppercase"
+				>
+					<SlidersHorizontal class="h-4 w-4 text-brand-fg" />
+					{m.discover_filters()}
+					{#if activeFilterCount}
+						<span
+							class="rounded-full border border-edge bg-inverse px-2 py-0.5 text-[10px] font-black text-inverse-ink normal-case"
+						>
+							{m.discover_filters_active({ count: activeFilterCount })}
+						</span>
+					{/if}
+				</Sheet.Title>
+			</Sheet.Header>
+
+			<div class="thin-scroll flex-1 space-y-6 overflow-y-auto px-5 py-5">
+				{@render filterControls('drawer')}
+			</div>
+
+			<div class="flex items-center gap-3 border-t-2 border-edge bg-panel px-5 py-4">
+				<a
+					href={page.url.pathname}
+					class="flex shrink-0 cursor-pointer items-center gap-1 rounded-xl border-2 border-edge bg-surface px-3 py-3 text-xs font-black text-ink-dim"
+				>
+					<RotateCcw class="h-3.5 w-3.5" />
+					<span>{m.discover_reset()}</span>
+				</a>
+				<button
+					type="button"
+					onclick={() => (filtersOpen = false)}
+					class="flex-1 cursor-pointer rounded-xl border-2 border-edge bg-brand px-4 py-3 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
+				>
+					{m.discover_apply_filters({ count: data.creators.total })}
+				</button>
+			</div>
+		</Sheet.Content>
+	</Sheet.Root>
 
 	<CreatorQuickView creator={quickView} onClose={() => (quickView = null)} />
 </div>

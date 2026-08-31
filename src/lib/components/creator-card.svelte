@@ -190,26 +190,35 @@
 		</div>
 	</div>
 
-	<!-- Footer -->
+	<!--
+		Footer. The price sits above the actions on a phone and beside them from
+		`sm`: sharing one row at 358px, the button cluster squeezed "starting from
+		11,000 ETB" into three wrapped lines.
+	-->
 	<div
-		class="flex items-center justify-between gap-2 border-t-2 border-edge bg-panel px-4 pt-3 pb-4"
+		class="flex flex-col gap-3 border-t-2 border-edge bg-panel px-4 pt-3 pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2"
 	>
 		<div>
 			<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
 				{m.starting_from()}
 			</span>
-			<span class="text-sm font-black text-ink">
+			<span class="text-sm font-black whitespace-nowrap text-ink">
 				{creator.startingPrice.toLocaleString()}
 				<span class="text-xs font-black text-brand-fg">{creator.currencyCode}</span>
 			</span>
 		</div>
 
-		<div class="flex flex-wrap items-center justify-end gap-1.5">
+		<div class="flex flex-wrap items-center gap-1.5 sm:justify-end">
 			{#if onQuickView}
+				<!--
+					Hidden on a phone, where the cover carries the same control: three
+					buttons wrapped two-and-one and left "book" — the action the card
+					exists for — stranded on its own line.
+				-->
 				<button
 					type="button"
 					onclick={() => onQuickView?.(creator)}
-					class="flex cursor-pointer items-center gap-1 rounded-xl border-2 border-edge bg-warn-soft px-2.5 py-1.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-warn-soft"
+					class="hidden cursor-pointer items-center gap-1 rounded-xl border-2 border-edge bg-warn-soft px-2.5 py-1.5 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-warn-soft sm:flex"
 				>
 					<Eye class="h-3.5 w-3.5 text-ink" />
 					<span>{m.card_quick_view()}</span>

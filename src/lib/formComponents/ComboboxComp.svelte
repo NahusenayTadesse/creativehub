@@ -19,6 +19,7 @@
 	let {
 		items,
 		name,
+		id = undefined,
 		value = $bindable(),
 		required = false,
 		disabled = false,
@@ -31,6 +32,14 @@
 	}: {
 		items: Item[];
 		name: string;
+		/**
+		 * What a label points at, when it cannot be `name`.
+		 *
+		 * A field can legitimately appear twice on one page — the same filter in
+		 * a phone's drawer and in a desktop sidebar — and then `name` is shared
+		 * by design while the `id` may not be.
+		 */
+		id?: string;
 		value?: string | number | undefined;
 		required?: boolean;
 		disabled?: boolean;
@@ -76,7 +85,7 @@
 			<button
 				{...props}
 				type="button"
-				id={name}
+				id={id ?? name}
 				role="combobox"
 				aria-expanded={open}
 				class="flex h-11 w-full items-center justify-between gap-1.5 rounded-none border border-transparent border-b-input bg-transparent py-2 pr-0 pl-3 text-left text-sm capitalize transition-[color,border-color] outline-none focus-visible:border-b-ring disabled:cursor-not-allowed disabled:opacity-50 aria-expanded:border-b-ring"
