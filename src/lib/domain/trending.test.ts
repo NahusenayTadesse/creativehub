@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+	LOCAL_FIRST_BONUS,
 	TRENDING_SIGNALS,
 	compareCandidates,
 	decayWeight,
+	localBonus,
+	matchesLocation,
 	newcomerValue,
 	normalizeValues,
+	positionScore,
 	scoreCandidates,
 	verificationValue,
 	type ScoredCandidate,
@@ -265,5 +269,103 @@ describe('compareCandidates', () => {
 			.map((c) => c.creatorId);
 		expect(once).toEqual([1, 2, 3]);
 		expect(again).toEqual(once);
+	});
+});
+
+const at = (
+	countryId: number | null,
+	regionId: number | null = null,
+	city: string | null = null
+) => ({
+	countryId,
+	regionId,
+	city
+});
+
+describe('matchesLocation', () => {
+	it('matches on the country when that is the level asked for', () => {
+		expect(matchesLocation(at(1), at(1), 'country')).toBe(true);
+		expect(matchesLocation(at(2), at(1), 'country')).toBe(false);
+	});
+
+	it('ignores a shared region when only the country is being matched', () => {
+		expect(matchesLocation(at(2, 9), at(1, 9), 'country')).toBe(false);
+	});
+
+	it('demands the same region at region level', () => {
+		expect(matchesLocation(at(1, 9), at(1, 9), 'region')).toBe(true);
+		expect(matchesLocation(at(1, 8), at(1, 9), 'region')).toBe(false);
+	});
+
+	it('demands the same city at city level, however it was typed', () => {
+		expect(matchesLocation(at(1, 9, 'Addis Ababa'), at(1, 9, ' addis ababa '), 'city')).toBe(true);
+		expect(matchesLocation(at(1, 9, 'Adama'), at(1, 9, 'Addis Ababa'), 'city')).toBe(false);
+	});
+
+	/* The fallbacks are the point: a reader we know less about should get a
+	   wider match, not an empty one. */
+	it('falls back to the region for a reader with no city', () => {
+		expect(matchesLocation(at(1, 9, 'Adama'), at(1, 9, null), 'city')).toBe(true);
+		expect(matchesLocation(at(1, 8, 'Adama'), at(1, 9, null), 'city')).toBe(false);
+	});
+
+	it('falls back to the country for a reader with neither', () => {
+		expect(matchesLocation(at(1, 8), at(1, null), 'city')).toBe(true);
+		expect(matchesLocation(at(1, 8), at(1, null), 'region')).toBe(true);
+		expect(matchesLocation(at(2, 8), at(1, null), 'region')).toBe(false);
+	});
+
+	it('matches nobody when the reader location is unknown', () => {
+		expect(matchesLocation(at(1, 9, 'Addis Ababa'), at(null), 'country')).toBe(false);
+		expect(matchesLocation(at(null), at(null), 'country')).toBe(false);
+	});
+});
+
+describe('localBonus', () => {
+	it('is worth nothing when the setting is off, local or not', () => {
+		expect(localBonus(true, 'off', 40)).toBe(0);
+		expect(localBonus(false, 'off', 40)).toBe(0);
+	});
+
+	it('is worth nothing to a creator who is not local', () => {
+		expect(localBonus(false, 'boost', 40)).toBe(0);
+		expect(localBonus(false, 'first', 40)).toBe(0);
+	});
+
+	it('pays the configured points in boost', () => {
+		expect(localBonus(true, 'boost', 15)).toBe(15);
+		expect(localBonus(true, 'boost', -5)).toBe(0);
+	});
+
+	it('outruns any real score in first, whatever the points say', () => {
+		expect(localBonus(true, 'first', 0)).toBeGreaterThan(100);
+		expect(localBonus(true, 'first', 0)).toBe(LOCAL_FIRST_BONUS);
+	});
+});
+
+describe('positionScore', () => {
+	it('runs from 100 at the top of the board to 0 at the bottom', () => {
+		expect(positionScore(1, 12)).toBe(100);
+		expect(positionScore(12, 12)).toBe(0);
+	});
+
+	it('decreases with every step down the board', () => {
+		const series = [1, 2, 3, 4].map((rank) => positionScore(rank, 12));
+		expect(series).toEqual([...series].sort((a, b) => b - a));
+	});
+
+	it('gives a one-creator board the top score rather than dividing by zero', () => {
+		expect(positionScore(1, 1)).toBe(100);
+	});
+
+	/* What the two settings are meant to feel like, in the units they share. */
+	it('lets a boost lift a local creator past a nearby stranger but not the leader', () => {
+		const boost = 15;
+		expect(positionScore(4, 12) + boost).toBeGreaterThan(positionScore(3, 12));
+		expect(positionScore(4, 12) + boost).toBeLessThan(positionScore(1, 12));
+	});
+
+	it('lets first put the last local creator above the leader', () => {
+		expect(positionScore(12, 12) + LOCAL_FIRST_BONUS).toBeGreaterThan(positionScore(1, 12));
 	});
 });

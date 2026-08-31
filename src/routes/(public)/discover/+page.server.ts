@@ -5,6 +5,7 @@ import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { listCreators, creatorFacet } from '$lib/server/queries';
+import { getLocalRanker } from '$lib/server/trending-service';
 import { getOrganizationFor } from '$lib/server/guards';
 import { calculateMatch, ADJACENT_CATEGORIES } from '$lib/domain/match';
 import type { CreatorCard } from '$lib/server/queries';
@@ -68,7 +69,32 @@ export const load: PageServerLoad = async ({ url, locals, parent }) => {
 			}).total;
 	})();
 
-	const creators = await listCreators(url, wantsMatch ? { rank: scoreFor } : {});
+	/*
+	 * Putting the reader's own market first, when the reader has not already
+	 * said how they want this list ordered.
+	 *
+	 * A chosen sort, a country or region filter, or a brief to match against are
+	 * all statements of intent, and quietly reordering underneath any of them
+	 * would make the control the reader just used look broken. What is left is
+	 * the default view, where "near me" is the better guess than nothing. The
+	 * strength and the match level are the operator's, set on the trending
+	 * control — see $lib/server/trending-service.ts.
+	 */
+	const sort = url.searchParams.get('sort');
+	const readerChoseOrder =
+		wantsMatch ||
+		(!!sort && sort !== 'score') ||
+		url.searchParams.has('country') ||
+		url.searchParams.has('region');
+	const local = readerChoseOrder ? null : await getLocalRanker();
+
+	const rank = wantsMatch
+		? scoreFor
+		: local
+			? (creator: CreatorCard) => creator.score + local(creator)
+			: undefined;
+
+	const creators = await listCreators(url, rank ? { rank } : {});
 
 	/* Scores for the cards on this page. Cheap: the page is already in hand. */
 	const matchScores: Record<number, number> = {};

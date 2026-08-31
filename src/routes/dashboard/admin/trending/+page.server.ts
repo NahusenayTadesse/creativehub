@@ -94,6 +94,7 @@ function toPreviewRow(entry: Awaited<ReturnType<typeof buildBoard>>['ranked'][nu
 		fullName: entry.candidate.fullName,
 		avatar: entry.candidate.avatar,
 		countryName: entry.candidate.countryName,
+		city: entry.candidate.city,
 		verificationLevel: entry.candidate.verificationLevel,
 		followers: entry.candidate.followers,
 		source: entry.source,
@@ -134,7 +135,13 @@ export const actions: Actions = {
 		const existing = await ensureTrendingConfig(user.id);
 		await db
 			.update(t.trendingConfig)
-			.set({ ...values, updatedBy: user.id })
+			.set({
+				...values,
+				/* The select posts 0 for "every market"; the column is a foreign
+				   key, where that has to be null. */
+				countryId: values.countryId || null,
+				updatedBy: user.id
+			})
 			.where(eq(t.trendingConfig.id, existing.id));
 
 		await recordAudit({

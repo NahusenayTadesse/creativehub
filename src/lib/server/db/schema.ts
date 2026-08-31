@@ -962,6 +962,25 @@ export const trendingModeEnum = ['manual', 'automatic', 'hybrid'] as const;
  */
 export const trendingNormalizationEnum = ['percentile', 'minmax'] as const;
 
+/**
+ * What a reader's own location does to the order they are shown.
+ *
+ * `off` serves everyone the same board. `boost` is worth `localBoost` points
+ * out of a hundred to a creator in the reader's market — enough to lift a
+ * near-miss above a stranger, not enough to bury a runaway leader. `first`
+ * puts every local creator ahead of every other one, board order kept inside
+ * each group.
+ */
+export const trendingLocalRankingEnum = ['off', 'boost', 'first'] as const;
+
+/**
+ * How close a creator has to be to count as the reader's own.
+ *
+ * The finer levels fall back rather than fail: a reader whose city is unknown
+ * is still matched on their region, and one with neither on their country.
+ */
+export const trendingLocalMatchEnum = ['country', 'region', 'city'] as const;
+
 export const trendingOverrideKindEnum = ['pin', 'boost', 'block'] as const;
 export const trendingEntrySourceEnum = ['pinned', 'algorithm', 'manual'] as const;
 export const trendingTriggerEnum = ['manual', 'auto', 'settings'] as const;
@@ -1039,6 +1058,20 @@ export const trendingConfig = mysqlTable('trending_config', {
 
 	/** In hybrid mode, whether pins take the top slots or are merely guaranteed. */
 	pinnedFirst: boolean('pinned_first').default(true).notNull(),
+
+	/* Location. The market the board is drawn from, and what a reader's own
+	   location is worth once it has been drawn. */
+
+	/**
+	 * Restricts the board to one market. Null — the default — ranks every
+	 * country together, which is what a platform with one home market wants
+	 * until the day it has two.
+	 */
+	countryId: int('country_id').references(() => countries.id),
+	localRanking: mysqlEnum('local_ranking', trendingLocalRankingEnum).default('off').notNull(),
+	localMatch: mysqlEnum('local_match', trendingLocalMatchEnum).default('country').notNull(),
+	/** Points out of a hundred a local match is worth. Only read in `boost`. */
+	localBoost: int('local_boost').default(15).notNull(),
 
 	autoRefresh: boolean('auto_refresh').default(false).notNull(),
 	refreshIntervalMinutes: int('refresh_interval_minutes').default(360).notNull(),

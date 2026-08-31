@@ -7,14 +7,18 @@ import {
 	WEIGHT_COLUMN,
 	compareCandidates,
 	decayWeight,
+	localBonus,
+	matchesLocation,
 	newcomerValue,
 	scoreCandidates,
 	verificationValue,
+	type CreatorLocation,
 	type ScoredCandidate,
 	type SignalValues,
 	type TrendingSignal,
 	type TrendingWeights
 } from '$lib/domain/trending';
+import { getViewerLocation } from '$lib/server/viewer-location';
 
 /**
  * Building, previewing and publishing the trending board.
@@ -54,6 +58,11 @@ export type TrendingConfigValues = {
 	maxTenureDays: number;
 	cooldownDays: number;
 	pinnedFirst: boolean;
+	/** 0 — "every market" — rather than null, so a `<select>` can carry it. */
+	countryId: number;
+	localRanking: (typeof t.trendingLocalRankingEnum)[number];
+	localMatch: (typeof t.trendingLocalMatchEnum)[number];
+	localBoost: number;
 	autoRefresh: boolean;
 	refreshIntervalMinutes: number;
 	isFrozen: boolean;
@@ -88,6 +97,10 @@ export const TRENDING_DEFAULTS: TrendingConfigValues = {
 	maxTenureDays: 0,
 	cooldownDays: 0,
 	pinnedFirst: true,
+	countryId: 0,
+	localRanking: 'off',
+	localMatch: 'country',
+	localBoost: 15,
 	autoRefresh: false,
 	refreshIntervalMinutes: 360,
 	isFrozen: false
@@ -107,14 +120,27 @@ export async function getTrendingConfigValues(): Promise<
 > {
 	const row = await getTrendingConfig();
 	if (!row) return { ...TRENDING_DEFAULTS, id: null, lastRunAt: null };
-	return { ...TRENDING_DEFAULTS, ...row, id: row.id, lastRunAt: row.lastRunAt };
+	return {
+		...TRENDING_DEFAULTS,
+		...row,
+		/* The column is a nullable foreign key; the form and the ranking both
+		   want a number, and 0 is the "every market" the select offers. */
+		countryId: row.countryId ?? 0,
+		id: row.id,
+		lastRunAt: row.lastRunAt
+	};
 }
 
 /** The config row, created from the defaults on first use. */
 export async function ensureTrendingConfig(actorId?: string | null): Promise<TrendingConfigRow> {
 	const existing = await getTrendingConfig();
 	if (existing) return existing;
-	await db.insert(t.trendingConfig).values({ ...TRENDING_DEFAULTS, createdBy: actorId ?? null });
+	/* `countryId` is 0 in the defaults because that is what the select posts;
+	   the column is a foreign key, where "no market" has to be null. */
+	const { countryId, ...defaults } = TRENDING_DEFAULTS;
+	await db
+		.insert(t.trendingConfig)
+		.values({ ...defaults, countryId: countryId || null, createdBy: actorId ?? null });
 	const created = await getTrendingConfig();
 	if (!created) throw new Error('trending config could not be created');
 	return created;
@@ -179,6 +205,8 @@ export type Candidate = {
 	avatar: string | null;
 	countryId: number | null;
 	countryName: string | null;
+	regionId: number | null;
+	city: string | null;
 	categoryIds: number[];
 	verificationLevel: string;
 	availability: string;
@@ -214,6 +242,8 @@ export async function gatherCandidates(
 			avatar: t.creators.avatar,
 			countryId: t.creators.countryId,
 			countryName: t.countries.name,
+			regionId: t.creators.regionId,
+			city: t.creators.city,
 			score: t.creators.score,
 			totalReach: t.creators.totalReach,
 			averageRating: t.creators.averageRating,
@@ -339,7 +369,11 @@ export async function gatherCandidates(
 		const verificationRank = VERIFICATION_ORDER.indexOf(creator.verificationLevel);
 
 		let excludedReason: string | null = null;
-		if (creator.score < config.minScore) excludedReason = 'min_score';
+		/* The market comes before the numeric floors: "not in this country" is
+		   the reason an operator wants told, not "score too low". */
+		if (config.countryId && creator.countryId !== config.countryId) {
+			excludedReason = 'outside_market';
+		} else if (creator.score < config.minScore) excludedReason = 'min_score';
 		else if ((creator.totalReach || followers) < config.minFollowers) excludedReason = 'min_reach';
 		else if (creator.averageRating < config.minRating) excludedReason = 'min_rating';
 		else if (verificationRank < minVerificationRank) excludedReason = 'min_verification';
@@ -355,6 +389,8 @@ export async function gatherCandidates(
 			avatar: creator.avatar,
 			countryId: creator.countryId,
 			countryName: creator.countryName,
+			regionId: creator.regionId,
+			city: creator.city,
 			categoryIds: categories.filter((c) => c.creatorId === creator.id).map((c) => c.categoryId),
 			verificationLevel: creator.verificationLevel,
 			availability: creator.availability,
@@ -693,7 +729,11 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 	const started = Date.now();
 	const now = new Date();
 	const config = await ensureTrendingConfig(options.actorId);
-	const values = { ...TRENDING_DEFAULTS, ...config } as TrendingConfigValues;
+	const values = {
+		...TRENDING_DEFAULTS,
+		...config,
+		countryId: config.countryId ?? 0
+	} as TrendingConfigValues;
 
 	if (config.isFrozen) {
 		return { runId: null, entryCount: 0, changedCount: 0, stats: emptyStats(), skipped: 'frozen' };
@@ -849,6 +889,7 @@ export async function listTrendingBoard() {
 			totalReach: t.creators.totalReach,
 			averageRating: t.creators.averageRating,
 			verificationLevel: t.creators.verificationLevel,
+			city: t.creators.city,
 			countryName: t.countries.name,
 			countryFlag: t.countries.flag
 		})
@@ -856,6 +897,33 @@ export async function listTrendingBoard() {
 		.innerJoin(t.creators, eq(t.creators.id, t.trendingEntries.creatorId))
 		.leftJoin(t.countries, eq(t.countries.id, t.creators.countryId))
 		.orderBy(asc(t.trendingEntries.rank));
+}
+
+/* ------------------------------------------------------------------ *
+ * Ranking for the reader
+ * ------------------------------------------------------------------ */
+
+/**
+ * What a creator's location is worth to the reader looking at this request,
+ * or null when it is worth nothing.
+ *
+ * Null covers two situations that mean the same thing to a list — the operator
+ * has the setting off, or we could not tell where the reader is — and
+ * collapsing them here keeps every caller down to one branch: rank by this, or
+ * leave the order alone.
+ */
+export async function getLocalRanker(): Promise<((creator: CreatorLocation) => number) | null> {
+	const config = await getTrendingConfig();
+	const mode = config?.localRanking ?? TRENDING_DEFAULTS.localRanking;
+	if (mode === 'off') return null;
+
+	const viewer = await getViewerLocation();
+	if (!viewer) return null;
+
+	const level = config?.localMatch ?? TRENDING_DEFAULTS.localMatch;
+	const points = config?.localBoost ?? TRENDING_DEFAULTS.localBoost;
+
+	return (creator) => localBonus(matchesLocation(creator, viewer, level), mode, points);
 }
 
 /** Creator ids in board order — how the public strip knows what comes first. */

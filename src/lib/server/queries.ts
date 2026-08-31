@@ -9,6 +9,8 @@ import * as t from '$lib/server/db/schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
 import { defineQuery, escapeLike, type PageResult, type RowOf } from '$lib/server/query';
 import { handleFromEmail, looksLikeSamePerson } from '$lib/domain/claim';
+import { positionScore } from '$lib/domain/trending';
+import { getLocalRanker } from '$lib/server/trending-service';
 import { getRequestEvent } from '$app/server';
 
 /**
@@ -283,18 +285,40 @@ export async function listFeaturedCreators(limit = 6): Promise<CreatorCard[]> {
  * order when no board has been published yet.
  */
 export async function listTrendingCreators(limit = 8): Promise<CreatorCard[]> {
-	const board = await db
-		.select({ creatorId: t.trendingEntries.creatorId, rank: t.trendingEntries.rank })
-		.from(t.trendingEntries)
-		.orderBy(asc(t.trendingEntries.rank));
+	const [board, local] = await Promise.all([
+		db
+			.select({ creatorId: t.trendingEntries.creatorId, rank: t.trendingEntries.rank })
+			.from(t.trendingEntries)
+			.orderBy(asc(t.trendingEntries.rank)),
+		getLocalRanker()
+	]);
 
 	const rankOf = new Map(board.map((entry) => [entry.creatorId, entry.rank]));
+
+	/*
+	 * The board's own order, as a score a location bonus can be added to.
+	 *
+	 * The position is used rather than the stored trending score because the
+	 * two disagree deliberately — a pinned creator holds their slot whatever
+	 * they scored — and the operator's arrangement is what has to survive
+	 * inside each group.
+	 */
+	const boardScore = (row: any) => {
+		const rank = rankOf.get(row.id);
+		/* No board published yet — the documented fallback is score order, and
+		   the platform score is already the same 0–100 scale the bonus is in. */
+		return rank === undefined ? row.score : positionScore(rank, board.length);
+	};
+
+	const rank = local
+		? { by: (row: any) => boardScore(row) + local(row) }
+		: /* Negated because ranking sorts high-to-low and rank 1 comes first. */
+			{ by: (row: any) => -(rankOf.get(row.id) ?? Infinity) };
 
 	const page = await creatorsQuery.run(unfiltered(), {
 		where: [...publishedCreators(), eq(t.creators.isTrending, true)],
 		perPage: limit,
-		/* Negated because ranking sorts high-to-low and rank 1 comes first. */
-		...(board.length ? { rank: { by: (row: any) => -(rankOf.get(row.id) ?? Infinity) } } : {})
+		...(board.length || local ? { rank } : {})
 	});
 
 	return page.rows;

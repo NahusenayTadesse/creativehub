@@ -162,6 +162,82 @@ export const trendingPresets = () =>
 
 export type TrendingNormalization = 'percentile' | 'minmax';
 
+/* ------------------------------------------------------------------ *
+ * Location
+ * ------------------------------------------------------------------ */
+
+export type TrendingLocalRanking = 'off' | 'boost' | 'first';
+export type TrendingLocalMatch = 'country' | 'region' | 'city';
+
+/** Where a reader is, as much of it as could be worked out. */
+export type ViewerLocation = {
+	countryId: number | null;
+	regionId: number | null;
+	city: string | null;
+};
+
+/** Where a creator is, as the cards and the board already carry it. */
+export type CreatorLocation = {
+	countryId: number | null;
+	regionId: number | null;
+	city: string | null;
+};
+
+const sameCity = (a: string | null, b: string | null) =>
+	!!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * Whether this creator counts as the reader's own.
+ *
+ * The match level is a ceiling, not a demand. A reader whose city we never
+ * learned would match nobody at `city`, and answering "no local creators" to
+ * someone whose country we do know is worse than answering it a level wider —
+ * so each level falls back to the next one out.
+ */
+export function matchesLocation(
+	creator: CreatorLocation,
+	viewer: ViewerLocation,
+	level: TrendingLocalMatch
+): boolean {
+	if (level === 'city' && viewer.city) return sameCity(creator.city, viewer.city);
+	if ((level === 'city' || level === 'region') && viewer.regionId !== null) {
+		return creator.regionId === viewer.regionId;
+	}
+	return viewer.countryId !== null && creator.countryId === viewer.countryId;
+}
+
+/**
+ * A bonus no genuine score can reach, so `first` really means first.
+ *
+ * The alternative — sorting on a boolean and then on the score — would mean a
+ * second comparator for every list that wants this, and the two would drift.
+ */
+export const LOCAL_FIRST_BONUS = 1_000_000;
+
+/**
+ * What a local match adds to a creator's ordering score.
+ *
+ * Both callers rank on a 0–100 scale — the platform score on discovery, the
+ * board position on the homepage strip — so the operator's `boost` is in the
+ * same units on both, and "worth fifteen points" means one thing.
+ */
+export function localBonus(isLocal: boolean, mode: TrendingLocalRanking, points: number): number {
+	if (!isLocal || mode === 'off') return 0;
+	return mode === 'first' ? LOCAL_FIRST_BONUS : Math.max(0, points);
+}
+
+/**
+ * A board position as a 0–100 score, so a bonus can be added to it.
+ *
+ * Rank is used rather than the stored trending score because the two disagree
+ * on purpose: a pinned creator holds slot one whatever they scored. Ordering
+ * on the position keeps the operator's arrangement intact inside each group.
+ */
+export function positionScore(rank: number, size: number): number {
+	if (size <= 1) return 100;
+	return (100 * (size - rank)) / (size - 1);
+}
+
 /**
  * How much an event that happened `ageDays` ago still counts.
  *

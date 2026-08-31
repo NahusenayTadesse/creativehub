@@ -36,7 +36,8 @@
 		Shuffle,
 		Clock,
 		History,
-		Inbox
+		Inbox,
+		MapPin
 	} from '@lucide/svelte';
 
 	let { data } = $props();
@@ -140,8 +141,39 @@
 		{ value: 'minmax', name: m.at_norm_minmax() }
 	]);
 
+	/* 0 rather than an empty string: the field is a number everywhere else, and
+	   the schema coerces what the select posts. */
+	const marketItems = $derived([
+		{ value: 0, name: m.at_market_all() },
+		...data.reference.countries.map((country) => ({
+			value: country.id,
+			name: `${country.flag} ${country.name}`
+		}))
+	]);
+
+	const localRankingItems = $derived([
+		{ value: 'off', name: m.at_local_off() },
+		{ value: 'boost', name: m.at_local_boost_mode() },
+		{ value: 'first', name: m.at_local_first_mode() }
+	]);
+
+	const localMatchItems = $derived([
+		{ value: 'country', name: m.at_local_match_country() },
+		{ value: 'region', name: m.at_local_match_region() },
+		{ value: 'city', name: m.at_local_match_city() }
+	]);
+
+	const localRankingHelp = $derived(
+		$form.localRanking === 'first'
+			? m.at_local_first_help()
+			: $form.localRanking === 'boost'
+				? m.at_local_boost_help()
+				: m.at_local_off_help()
+	);
+
 	const reasonLabel = (key: string) =>
 		({
+			outside_market: m.at_reason_outside_market(),
 			min_score: m.at_reason_min_score(),
 			min_reach: m.at_reason_min_reach(),
 			min_rating: m.at_reason_min_rating(),
@@ -208,6 +240,7 @@
 		| 'maxPerCountry'
 		| 'maxTenureDays'
 		| 'cooldownDays'
+		| 'localBoost'
 		| 'refreshIntervalMinutes';
 	type ToggleFieldName =
 		| 'requireChannel'
@@ -366,7 +399,9 @@
 									</a>
 									<span class="block text-[10px] text-ink-dim">
 										{entry.countryFlag ?? ''}
-										{entry.countryName ?? ''} · {compact(entry.totalReach)}
+										{[entry.city, entry.countryName].filter(Boolean).join(', ')} · {compact(
+											entry.totalReach
+										)}
 									</span>
 								</td>
 								<td class="py-2 font-black text-ink">{entry.trendingScore.toFixed(1)}</td>
@@ -567,6 +602,67 @@
 			</div>
 		</div>
 
+		<!-- Location -->
+		<div class="bento-card bento-card-static space-y-4">
+			<h2 class={sectionTitle}>
+				<MapPin class="h-4 w-4 text-brand-fg" />
+				{m.at_location_title()}
+			</h2>
+			<p class="text-[11px] font-medium text-ink-soft">{m.at_location_help()}</p>
+
+			<div class="grid gap-3 lg:grid-cols-3">
+				<InputComp
+					{form}
+					{errors}
+					name="countryId"
+					type="select"
+					label={m.at_market()}
+					items={marketItems}
+					hint={m.at_market_help()}
+				/>
+				<InputComp
+					{form}
+					{errors}
+					name="localRanking"
+					type="select"
+					label={m.at_local_ranking()}
+					items={localRankingItems}
+					hint={localRankingHelp}
+				/>
+				<InputComp
+					{form}
+					{errors}
+					name="localMatch"
+					type="select"
+					label={m.at_local_match()}
+					items={localMatchItems}
+					disabled={$form.localRanking === 'off'}
+					hint={m.at_local_match_help()}
+				/>
+			</div>
+
+			<!-- Only `boost` reads the points, so the slider says so rather than
+			     sitting there looking live. -->
+			<div class={$form.localRanking === 'boost' ? '' : 'opacity-50'}>
+				<InputComp
+					{form}
+					{errors}
+					name="localBoost"
+					type="range"
+					label={m.at_local_boost()}
+					min={0}
+					max={100}
+					step={1}
+					disabled={$form.localRanking !== 'boost'}
+					hint={$form.localRanking === 'boost'
+						? m.at_local_boost_field_help()
+						: m.at_local_boost_inactive()}
+					formatValue={(points) => m.at_local_boost_value({ points })}
+					className="h-2 appearance-none rounded-full border-2 border-edge bg-well"
+				/>
+			</div>
+		</div>
+
 		<!-- Fairness + automation -->
 		<div class="grid gap-4 lg:grid-cols-2">
 			<div class="bento-card bento-card-static space-y-4">
@@ -692,7 +788,9 @@
 								<span>
 									<span class="block text-xs font-black text-ink">{row.fullName}</span>
 									<span class="block text-[10px] font-medium text-ink-dim">
-										{row.countryName ?? ''} · {compact(row.followers)} · {sourceLabel(row.source)}
+										{[row.city, row.countryName].filter(Boolean).join(', ')} · {compact(
+											row.followers
+										)} · {sourceLabel(row.source)}
 									</span>
 								</span>
 							</span>

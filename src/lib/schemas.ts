@@ -809,6 +809,14 @@ export const trendingConfigSchema = z.object({
 	cooldownDays: z.coerce.number().int().min(0).max(365).default(0),
 
 	pinnedFirst: z.coerce.boolean().default(false),
+
+	/** 0 means every market — the board is not restricted to one country. */
+	countryId: z.coerce.number().int().min(0).default(0),
+	localRanking: z.enum(['off', 'boost', 'first']).default('off'),
+	localMatch: z.enum(['country', 'region', 'city']).default('country'),
+	/** Points out of a hundred a local match is worth, in `boost`. */
+	localBoost: z.coerce.number().int().min(0).max(100).default(15),
+
 	autoRefresh: z.coerce.boolean().default(false),
 	refreshIntervalMinutes: z.coerce.number().int().min(15).max(10080).default(360),
 	isFrozen: z.coerce.boolean().default(false)

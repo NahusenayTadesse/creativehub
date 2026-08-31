@@ -23,6 +23,12 @@ declare global {
 			 * what is cached, so parallel loads join it rather than racing.
 			 */
 			referenceData?: Promise<import('$lib/server/queries').ReferenceData>;
+			/**
+			 * Where the reader is, resolved at most once per request — see
+			 * $lib/server/viewer-location.ts. `null` once resolved means we could
+			 * not tell, which is a settled answer rather than a missing one.
+			 */
+			viewerLocation?: Promise<import('$lib/server/viewer-location').ResolvedViewerLocation | null>;
 		}
 
 		// interface Error {}
