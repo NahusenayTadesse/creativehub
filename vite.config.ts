@@ -132,9 +132,34 @@ export default defineConfig({
 			   through `@friendofsvelte/tipex`, which Vite already inlines because
 			   it is a Svelte package. */
 			'@tiptap/extension-placeholder',
-			/* The article sanitiser. Server-only, and reached by every route that
-			   writes or renders a post. */
-			'sanitize-html'
+			/*
+			 * The article sanitiser, and its whole CommonJS subtree.
+			 *
+			 * Naming only `sanitize-html` inlines its own source but leaves the
+			 * `__require('htmlparser2')` inside that source as a runtime call —
+			 * which resolves locally, where `node_modules` exists, and was a 500 on
+			 * the article editor in production, where it does not. Inlining that
+			 * one then exposes the next layer down, so the list is the closure
+			 * rather than the direct dependencies: `postcss` brings `nanoid`,
+			 * `picocolors` and `source-map-js`; `launder` brings `dayjs`.
+			 *
+			 * The list is not maintained by reading package.json. `verify:build`
+			 * names whatever is still unresolved — it matches `__require` as well
+			 * as `import` now — so the rule is simply: add what it prints, until
+			 * it prints nothing.
+			 */
+			'sanitize-html',
+			'htmlparser2',
+			'deepmerge',
+			'escape-string-regexp',
+			'is-plain-object',
+			'launder',
+			'parse-srcset',
+			'postcss',
+			'dayjs',
+			'nanoid',
+			'picocolors',
+			'source-map-js'
 		],
 		/**
 		 * `nodemailer` is CommonJS, and `noExternal` above means "inline it".

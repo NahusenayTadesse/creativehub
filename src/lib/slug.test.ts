@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { slugify } from './slug';
 
-/* `uniqueSlug` is not covered here: it is a database round trip, which is what
-   the Playwright suite is for. This is the half that is pure. */
+/* `uniqueSlug` lives in `$lib/server/slug.ts` and is a database round trip,
+   which is what the Playwright suite is for. This is the half that is pure. */
 describe('slugify', () => {
 	it('lowercases and joins words with hyphens', () => {
 		expect(slugify('Telebirr SuperApp 5G Launch')).toBe('telebirr-superapp-5g-launch');

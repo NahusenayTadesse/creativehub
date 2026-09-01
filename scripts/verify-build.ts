@@ -11,6 +11,13 @@
  * Nothing in `npm run build` catches that, and nothing in a smoke test of the
  * homepage catches it either. This does, before the build is shipped.
  *
+ * Both spellings are checked, because a bundle contains both. `sanitize-html`
+ * is CommonJS: naming it in `ssr.noExternal` inlines its *own* source, but the
+ * `require('htmlparser2')` inside that source survives as a runtime call the
+ * bundler never resolved. It is exactly as fatal as a bare `import` and was
+ * exactly as invisible — the article editor was a 500 in production while the
+ * check reported the build self-contained.
+ *
  *   npm run verify:build
  */
 import fs from 'node:fs';
@@ -22,10 +29,18 @@ const SERVER_DIR = 'build/server';
 /**
  * Left alone deliberately.
  *
- * Optional peer dependencies that the driver stack requires *dynamically* and
- * catches when absent — importing them is a probe, not a need.
+ * `@opentelemetry/api` and `bluebird` are optional peer dependencies that the
+ * driver stack requires *dynamically* and catches when absent — importing them
+ * is a probe, not a need.
+ *
+ * `mysql2` is not an import at all. The only occurrence in the bundle is inside
+ * the text of mysql2's own error message — "…try `require('mysql2/promise')`
+ * instead…" — which no amount of care with the pattern below can tell from
+ * code, because as far as a regular expression is concerned it is not
+ * distinguishable from code. The driver itself is bundled; if it were not, the
+ * database would be unreachable on every route rather than on one.
  */
-const ALLOWED = new Set(['@opentelemetry/api', 'bluebird']);
+const ALLOWED = new Set(['@opentelemetry/api', 'bluebird', 'mysql2']);
 
 const BUILTINS = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
 
@@ -36,6 +51,28 @@ if (!fs.existsSync(SERVER_DIR)) {
 
 /** `import 'x'`, `import { a } from 'x'`, `import * as a from 'x'`, `export … from 'x'`. */
 const IMPORT = /(?:^|\n)\s*(?:import|export)\s*(?:[\w*{}\s,$]*?\s*from\s*)?['"]([^'"]+)['"]/g;
+
+/**
+ * `require('x')` — a specifier that reaches the loader without an import
+ * statement, anywhere in the file rather than at the start of a line.
+ *
+ * The leading underscores are the whole point: rolldown renames the call it
+ * emits for an inlined CommonJS module to `__require`, so a `\b` before
+ * `require` — which does not match after an underscore — misses precisely the
+ * case this exists to catch.
+ *
+ * A `.` before it is excluded, because `x.require(…)` is a method on some
+ * object rather than the loader — `browser-image-compression` calls
+ * `window.cordova.require('cordova/modulemapper')` behind a feature test, and
+ * that is not a module this bundle needs.
+ *
+ * `import('x')` is deliberately *not* matched alongside it. A dynamic import of
+ * a bare specifier would fail the same way, but the same syntax is how JSDoc
+ * writes a type — `@type {import('cookie').SerializeOptions}` — and the bundle
+ * is full of those. Checking it reported eleven packages, every one of them a
+ * comment, which is a check nobody would keep.
+ */
+const RUNTIME_REQUIRE = /(?:^|[^\w$.])_*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 
 /** `@scope/name/deep` → `@scope/name`; `name/deep` → `name`. */
 const packageOf = (specifier: string) =>
@@ -53,7 +90,8 @@ const offenders = new Map<string, Set<string>>();
 
 for (const file of walk(SERVER_DIR)) {
 	const source = fs.readFileSync(file, 'utf8');
-	for (const match of source.matchAll(IMPORT)) {
+	const matches = [...source.matchAll(IMPORT), ...source.matchAll(RUNTIME_REQUIRE)];
+	for (const match of matches) {
 		const specifier = match[1];
 		if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('#')) {
 			continue;

@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
 import * as t from './schema';
 import { htmlToText, readingMinutes, sanitizeArticleHtml } from '../sanitize';
+import { slugify } from '../../slug';
 import { calculateScore } from '../../domain/score';
 import { splitFee } from '../../domain/booking';
 import { recalcCreatorAggregates } from './rollups';
@@ -382,7 +383,6 @@ const BLOG_SECTIONS = [
 
 type SeedPost = {
 	title: string;
-	slug: string;
 	section: string;
 	excerpt: string;
 	body: string;
@@ -396,7 +396,6 @@ type SeedPost = {
 const BLOG_POSTS: SeedPost[] = [
 	{
 		title: 'Reach is the number you can buy. Trust is the one that sells.',
-		slug: 'reach-is-the-number-you-can-buy',
 		section: 'creator-economy',
 		excerpt:
 			'A creator with nine thousand followers in one neighbourhood of Addis will move more product than a national page with a hundred times the audience. Here is why, and what it means for a media plan.',
@@ -417,7 +416,6 @@ const BLOG_POSTS: SeedPost[] = [
 	},
 	{
 		title: 'Write a brief a creator can say yes to',
-		slug: 'write-a-brief-a-creator-can-say-yes-to',
 		section: 'working-with-brands',
 		excerpt:
 			'Most briefs are rejected for the same four reasons, and all four are fixable before anyone reads it. A checklist for the version you send out.',
@@ -438,7 +436,6 @@ const BLOG_POSTS: SeedPost[] = [
 	},
 	{
 		title: 'Terms are frozen when both sides agree',
-		slug: 'terms-are-frozen-when-both-sides-agree',
 		section: 'platform-notes',
 		excerpt:
 			'A booking on Creator Network records what was agreed at the moment it was agreed, and nothing later can quietly rewrite it. What that means in practice.',
@@ -455,7 +452,6 @@ const BLOG_POSTS: SeedPost[] = [
 	},
 	{
 		title: 'How to price your first paid collaboration',
-		slug: 'how-to-price-your-first-paid-collaboration',
 		section: 'creator-economy',
 		excerpt:
 			'The first number you name sets every number after it. A method for arriving at one you can defend, without either underselling the work or pricing yourself out of it.',
@@ -1999,9 +1995,19 @@ async function seed() {
 		const body = sanitizeArticleHtml(post.body);
 		const text = htmlToText(body);
 
-		await upsert(t.blogPosts, eq(t.blogPosts.slug, post.slug), {
+		/*
+		 * Derived, not declared — through the same function the save action uses.
+		 *
+		 * A hand-written slug that `slugify` would not produce is a slug the
+		 * first save silently replaces, and the next seed then no longer
+		 * recognises the row it wrote: `upsert` matches on the slug, finds
+		 * nothing, and inserts the article a second time.
+		 */
+		const slug = slugify(post.title, 'post');
+
+		await upsert(t.blogPosts, eq(t.blogPosts.slug, slug), {
 			title: post.title,
-			slug: post.slug,
+			slug,
 			excerpt: post.excerpt,
 			body,
 			searchText: text,
