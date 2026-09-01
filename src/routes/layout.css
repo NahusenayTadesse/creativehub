@@ -574,3 +574,276 @@
 		transform: none;
 	}
 }
+
+/* ------------------------------------------------------------------ *
+ * Article body — the one place the site renders authored HTML.
+ *
+ * Defined here rather than in a component because two surfaces need exactly
+ * the same rules: the published article, and the rich text editor an operator
+ * writes it in. Anything that lives in only one of them makes the editor a
+ * liar about what the page will look like.
+ *
+ * The selectors are element-level and scoped to `.article-body`, because the
+ * markup they style is authored — it carries no classes of its own, and the
+ * sanitiser strips any it arrives with.
+ * ------------------------------------------------------------------ */
+
+.article-body {
+	color: var(--ink);
+	font-size: 1rem;
+	line-height: 1.75;
+	font-weight: 450;
+	/* An authored paste can carry a very long unbroken URL, and the page must
+	   not scroll sideways because of one. */
+	overflow-wrap: break-word;
+}
+
+.article-body > * + * {
+	margin-top: 1.15em;
+}
+
+.article-body h1,
+.article-body h2,
+.article-body h3,
+.article-body h4,
+.article-body h5,
+.article-body h6 {
+	font-weight: 900;
+	letter-spacing: -0.01em;
+	line-height: 1.25;
+	color: var(--ink);
+	/* Headings need more air above than below: a heading belongs to the text
+	   that follows it, not the paragraph it was pushed away from. */
+	margin-top: 1.9em;
+	margin-bottom: 0.6em;
+	scroll-margin-top: 6rem;
+}
+
+.article-body h1 {
+	font-size: 1.85rem;
+}
+.article-body h2 {
+	font-size: 1.5rem;
+}
+.article-body h3 {
+	font-size: 1.25rem;
+}
+.article-body h4,
+.article-body h5,
+.article-body h6 {
+	font-size: 1.05rem;
+}
+
+.article-body > :first-child {
+	margin-top: 0;
+}
+
+/* `[href]` rather than `a`: the sanitiser strips the href off a link whose
+   scheme it refuses and keeps the text, and a green underlined phrase that
+   does nothing when clicked is worse than plain words. */
+.article-body a[href] {
+	color: var(--brand-soft-fg);
+	font-weight: 700;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	text-decoration-thickness: 2px;
+}
+
+.article-body a[href]:hover {
+	background-color: var(--brand-soft);
+}
+
+.article-body strong,
+.article-body b {
+	font-weight: 900;
+}
+
+.article-body ul,
+.article-body ol {
+	padding-inline-start: 1.5rem;
+}
+
+.article-body ul {
+	list-style: disc;
+}
+
+.article-body ol {
+	list-style: decimal;
+}
+
+.article-body li + li {
+	margin-top: 0.4em;
+}
+
+.article-body li::marker {
+	color: var(--ink-dim);
+	font-weight: 700;
+}
+
+/* The editor's task lists carry their own checkbox, so they must not also
+   carry a bullet. */
+.article-body ul[data-type='taskList'] {
+	list-style: none;
+	padding-inline-start: 0.25rem;
+}
+
+.article-body ul[data-type='taskList'] li {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6rem;
+}
+
+.article-body ul[data-type='taskList'] li > label {
+	margin-top: 0.35em;
+}
+
+.article-body blockquote {
+	border-inline-start: 4px solid rgb(var(--bento-ink));
+	background-color: var(--well);
+	border-radius: 0 1rem 1rem 0;
+	padding: 0.9rem 1.25rem;
+	font-weight: 500;
+	font-style: italic;
+	color: var(--ink-soft);
+}
+
+.article-body pre {
+	background-color: var(--bento-dark);
+	color: var(--inverse-ink);
+	border: 2px solid rgb(var(--bento-ink));
+	border-radius: 1rem;
+	padding: 1rem 1.1rem;
+	/* A code block is the one thing in an article that may not be rewrapped,
+	   so it gets its own scroller rather than widening the page. */
+	overflow-x: auto;
+	font-family: var(--font-mono, ui-monospace, monospace);
+	font-size: 0.85rem;
+	line-height: 1.6;
+}
+
+.article-body pre code {
+	background: none;
+	border: 0;
+	padding: 0;
+	font-size: inherit;
+	color: inherit;
+}
+
+.article-body code {
+	background-color: var(--well);
+	border: 1px solid var(--edge-soft);
+	border-radius: 0.4rem;
+	padding: 0.1rem 0.35rem;
+	font-family: var(--font-mono, ui-monospace, monospace);
+	font-size: 0.87em;
+	font-weight: 600;
+}
+
+.article-body img {
+	border: 2px solid rgb(var(--bento-ink));
+	border-radius: 1.25rem;
+	box-shadow: 4px 4px 0px 0px rgb(var(--bento-shadow));
+	max-width: 100%;
+	height: auto;
+	display: block;
+	margin-inline: auto;
+}
+
+.article-body figure figcaption {
+	margin-top: 0.6rem;
+	text-align: center;
+	font-size: 0.75rem;
+	font-weight: 700;
+	color: var(--ink-dim);
+}
+
+.article-body hr {
+	border: 0;
+	border-top: 2px dashed var(--edge-mid);
+	margin-block: 2.25em;
+}
+
+.article-body table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.87rem;
+	/* Tables are the other thing that cannot rewrap; see `pre` above. */
+	display: block;
+	overflow-x: auto;
+}
+
+.article-body th,
+.article-body td {
+	border: 1px solid var(--edge-mid);
+	padding: 0.5rem 0.7rem;
+	text-align: start;
+}
+
+.article-body th {
+	background-color: var(--well);
+	font-weight: 900;
+}
+
+.article-body mark {
+	background-color: var(--bento-yellow);
+	color: var(--ink);
+	padding: 0.05em 0.2em;
+	border-radius: 0.25rem;
+}
+
+/* ------------------------------------------------------------------ *
+ * ProseMirror — the structural minimum the editor needs.
+ *
+ * Tipex ships its own stylesheet, but it is a whole compiled Tailwind build
+ * including a preflight reset, so importing it would reset this app's own
+ * styles from inside a component. Everything visual comes from `.article-body`
+ * above instead, which is also what makes the editor show the article.
+ * ------------------------------------------------------------------ */
+
+.ProseMirror {
+	outline: none;
+	min-height: 20rem;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+	content: attr(data-placeholder);
+	float: inline-start;
+	height: 0;
+	pointer-events: none;
+	color: var(--ink-faint);
+	font-weight: 500;
+}
+
+/* The selected image, so a click before a resize or a delete is visible. */
+.ProseMirror img.ProseMirror-selectednode {
+	outline: 3px solid var(--brand);
+	outline-offset: 3px;
+}
+
+.ProseMirror .ProseMirror-gapcursor {
+	display: none;
+	pointer-events: none;
+	position: absolute;
+}
+
+.ProseMirror .ProseMirror-gapcursor:after {
+	content: '';
+	display: block;
+	position: absolute;
+	top: -2px;
+	width: 20px;
+	border-top: 2px solid var(--ink);
+	animation: prosemirror-blink 1.1s steps(2, start) infinite;
+}
+
+.ProseMirror-focused .ProseMirror-gapcursor {
+	display: block;
+}
+
+@keyframes prosemirror-blink {
+	to {
+		visibility: hidden;
+	}
+}

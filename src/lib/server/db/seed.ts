@@ -17,6 +17,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
 import * as t from './schema';
+import { htmlToText, readingMinutes, sanitizeArticleHtml } from '../sanitize';
 import { calculateScore } from '../../domain/score';
 import { splitFee } from '../../domain/booking';
 import { recalcCreatorAggregates } from './rollups';
@@ -345,6 +346,131 @@ const GALLERY_SLIDES = [
 		image: '/gallery/earnings.webp',
 		linkUrl: '/register',
 		linkLabel: 'Join as a creator'
+	}
+];
+
+/* ------------------------------------------------------------------ *
+ * The journal
+ *
+ * Bodies are written as the sanitiser will store them — plain allowlisted
+ * markup, no classes — so that seeded articles and authored ones render
+ * through exactly the same rules. `searchText` and `readingMinutes` are
+ * derived at seed time by the same functions the save action uses, so a
+ * seeded post is searchable the moment it lands.
+ * ------------------------------------------------------------------ */
+
+const BLOG_SECTIONS = [
+	{
+		name: 'Creator economy',
+		slug: 'creator-economy',
+		description: 'How money actually moves between brands and the people making the work.',
+		accent: 'mint'
+	},
+	{
+		name: 'Working with brands',
+		slug: 'working-with-brands',
+		description: 'Briefs, rates and the paperwork that keeps a booking from going wrong.',
+		accent: 'yellow'
+	},
+	{
+		name: 'Platform notes',
+		slug: 'platform-notes',
+		description: 'What changed on Creator Network, and why it changed.',
+		accent: 'indigo'
+	}
+];
+
+type SeedPost = {
+	title: string;
+	slug: string;
+	section: string;
+	excerpt: string;
+	body: string;
+	tags: string[];
+	author: string;
+	/** Days before today. The newest post is 0. */
+	daysAgo: number;
+	featured?: boolean;
+};
+
+const BLOG_POSTS: SeedPost[] = [
+	{
+		title: 'Reach is the number you can buy. Trust is the one that sells.',
+		slug: 'reach-is-the-number-you-can-buy',
+		section: 'creator-economy',
+		excerpt:
+			'A creator with nine thousand followers in one neighbourhood of Addis will move more product than a national page with a hundred times the audience. Here is why, and what it means for a media plan.',
+		body: `<p>Every brief that crosses this platform opens with a follower count, and almost none of them should. Reach is the cheapest number in the business to acquire and the least predictive of whether anyone buys anything.</p>
+<h2>What a small account actually has</h2>
+<p>An account with nine thousand followers in Bole is not a small version of an account with nine hundred thousand. It is a different object. The audience overlaps with itself — people who know each other, shop in the same places, and read a recommendation as a recommendation rather than an advertisement.</p>
+<ul><li>Replies arrive from names the creator recognises.</li><li>A comment thread reads like a conversation, not a feed.</li><li>A recommendation carries the cost of being wrong in front of people you will see again.</li></ul>
+<p>That last one is the whole mechanism. Trust is expensive to hold and cheap to lose, which is exactly why it converts.</p>
+<h2>What this changes about a brief</h2>
+<p>Three things, in order of how much money they save:</p>
+<ol><li><strong>Stop setting a follower floor.</strong> It filters out the accounts that would have worked and lets in the ones that will not.</li><li><strong>Brief the audience, not the number.</strong> "People who cook at home in Addis" is a filter. "Fifty thousand followers" is a shrug.</li><li><strong>Pay for the recommendation, not the impression.</strong> A creator who has to disclaim your product to keep their audience has sold you nothing.</li></ol>
+<blockquote>The question is never how many people will see it. It is how many of them will believe it.</blockquote>
+<p>None of this argues against scale. It argues against buying scale first and hoping credibility follows, which is the order most plans are still written in.</p>`,
+		tags: ['micro-creators', 'brand strategy', 'measurement'],
+		author: 'Creator Network',
+		daysAgo: 3,
+		featured: true
+	},
+	{
+		title: 'Write a brief a creator can say yes to',
+		slug: 'write-a-brief-a-creator-can-say-yes-to',
+		section: 'working-with-brands',
+		excerpt:
+			'Most briefs are rejected for the same four reasons, and all four are fixable before anyone reads it. A checklist for the version you send out.',
+		body: `<p>Briefs get ignored far more often than they get declined, and the reasons repeat. Here is the short version of what makes a creator answer.</p>
+<h2>Say what it pays</h2>
+<p>A brief with no number is a request for free labour until proven otherwise. If the budget is a range, publish the range. If it is barter, say what the goods are and what they are worth.</p>
+<h2>Say what you actually need made</h2>
+<p>"Some content" is not a deliverable. Three of these are:</p>
+<ul><li>One 60-second video, shot vertically, delivered as a file.</li><li>Two in-feed photographs with the product visible in both.</li><li>Usage on your own channels for ninety days.</li></ul>
+<h2>Say when</h2>
+<p>A deadline is not a constraint you are imposing on the creator. It is the information that lets them tell you whether they are free.</p>
+<h2>Say who decides</h2>
+<p>Nothing kills a booking faster than a fourth round of revisions from someone who was not in the original conversation. Name the approver in the brief and hold to it.</p>
+<p>A brief with those four in it gets read to the end. One without them is a guess the creator has to price defensively, which is how a job that should cost you thirty thousand birr ends up quoted at eighty.</p>`,
+		tags: ['briefs', 'brand strategy', 'rates'],
+		author: 'Creator Network',
+		daysAgo: 12
+	},
+	{
+		title: 'Terms are frozen when both sides agree',
+		slug: 'terms-are-frozen-when-both-sides-agree',
+		section: 'platform-notes',
+		excerpt:
+			'A booking on Creator Network records what was agreed at the moment it was agreed, and nothing later can quietly rewrite it. What that means in practice.',
+		body: `<p>The most common dispute in creator work is not about money. It is about what was agreed, and it happens because the agreement lived in a chat thread that both sides remember differently.</p>
+<h2>What gets recorded</h2>
+<p>When a brand and a creator accept terms, the booking takes a copy: the price, the deliverables, the deadline, the number of revisions, and the currency. That copy does not change when a rate card changes, when a package is edited, or when a profile is updated.</p>
+<blockquote>A price list is a current statement of intent. A booking is a record of what was true when two people shook hands.</blockquote>
+<h2>What this rules out</h2>
+<ul><li>A rate that rises between agreement and delivery.</li><li>A deliverable list that grows after work has started.</li><li>A revision allowance that turns out to have been unlimited all along.</li></ul>
+<p>Changing any of it takes a counter-proposal that the other side accepts, which is recorded in turn. The history is the point: every state a booking passed through is kept, so "what did we agree" has one answer rather than two.</p>`,
+		tags: ['bookings', 'platform'],
+		author: 'Creator Network',
+		daysAgo: 24
+	},
+	{
+		title: 'How to price your first paid collaboration',
+		slug: 'how-to-price-your-first-paid-collaboration',
+		section: 'creator-economy',
+		excerpt:
+			'The first number you name sets every number after it. A method for arriving at one you can defend, without either underselling the work or pricing yourself out of it.',
+		body: `<p>Naming a price is the hardest part of turning an audience into an income, and the usual advice — "charge what you are worth" — is useless, because nobody knows what that is on the first try.</p>
+<h2>Start from the work, not the audience</h2>
+<p>Count the hours the job actually takes: the planning, the shoot, the edit, the revisions, and the hour you will spend answering messages about it afterwards. Multiply by a rate you would accept for any other skilled work.</p>
+<p>That is the floor. It has nothing to do with your following, and it is the number below which the job costs you money.</p>
+<h2>Then add what the brand is buying</h2>
+<p>Three things raise it, and each is worth naming separately on your rate card:</p>
+<ul><li><strong>Exclusivity.</strong> Not working with a competitor for a period has a cost.</li><li><strong>Usage.</strong> A brand running your video as an advertisement is buying something quite different from a post on your own feed.</li><li><strong>Speed.</strong> A deadline inside a week is a premium, not a favour.</li></ul>
+<h2>Publish it</h2>
+<p>A published rate card ends the negotiation before it starts, and it protects you from the version of the conversation where you are asked to guess first. If a brand cannot meet it, they will say so, and that is a faster no than the alternative.</p>`,
+		tags: ['rates', 'getting started'],
+		author: 'Creator Network',
+		daysAgo: 40
 	}
 ];
 
@@ -1855,6 +1981,41 @@ async function seed() {
 
 	console.log('→ accounts');
 	const adminId = await ensureUser('admin@creatornetwork.et', 'Platform Operator', 'admin');
+
+	console.log(`→ ${BLOG_POSTS.length} journal articles`);
+	const sectionIds = new Map<string, number>();
+	for (const [index, section] of BLOG_SECTIONS.entries()) {
+		const id = await upsert(t.blogCategories, eq(t.blogCategories.slug, section.slug), {
+			...section,
+			sortOrder: index,
+			isActive: true
+		});
+		sectionIds.set(section.slug, id);
+	}
+
+	for (const post of BLOG_POSTS) {
+		/* Through the same two functions the save action uses, so a seeded body
+		   and an authored one are stored under identical rules. */
+		const body = sanitizeArticleHtml(post.body);
+		const text = htmlToText(body);
+
+		await upsert(t.blogPosts, eq(t.blogPosts.slug, post.slug), {
+			title: post.title,
+			slug: post.slug,
+			excerpt: post.excerpt,
+			body,
+			searchText: text,
+			readingMinutes: readingMinutes(text),
+			categoryId: sectionIds.get(post.section) ?? null,
+			tags: post.tags,
+			status: 'published' as const,
+			publishedAt: daysBefore(post.daysAgo),
+			isFeatured: post.featured ?? false,
+			authorName: post.author,
+			createdBy: adminId,
+			updatedBy: adminId
+		});
+	}
 
 	console.log(`→ ${CREATORS.length} creators`);
 	const creatorIds: Record<string, number> = {};

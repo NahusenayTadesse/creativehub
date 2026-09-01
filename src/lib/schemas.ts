@@ -1,8 +1,11 @@
 import * as m from '$lib/paraglide/messages';
 import { z } from 'zod/v4';
 import { idSchema, sortOrderField } from '$lib/server/crud';
+/* Declared in `$lib/blog.ts`, which components can import; see the note there. */
+import { BLOG_ACCENTS, BLOG_STATUSES } from '$lib/blog';
 
 export { idSchema, sortOrderField };
+export { BLOG_ACCENTS, BLOG_STATUSES };
 
 /* ------------------------------------------------------------------ *
  * Building blocks
@@ -838,3 +841,111 @@ export const trendingOverrideRemove = z.object({ id: z.coerce.number() });
 export const trendingRunSchema = z.object({
 	note: z.string().trim().max(300).optional().default('')
 });
+
+/* ------------------------------------------------------------------ *
+ * Blog
+ *
+ * The body arrives as HTML from the rich text editor, so what is checked here
+ * is only its size. Its *contents* are narrowed on the way into the database
+ * by `sanitizeArticleHtml` — an allowlist is not something a Zod refinement
+ * can express, and a validator that merely rejected a bad body would leave the
+ * operator with no way to save a paste that carried one stray attribute.
+ * ------------------------------------------------------------------ */
+
+const blogCategoryFields = {
+	name: name(120),
+	description: z.string().trim().max(300).optional().default(''),
+	accent: z.enum(BLOG_ACCENTS).default('mint'),
+	isActive: active,
+	sortOrder: sortOrderField
+};
+
+/* The slug is derived from the name by the route and passed through `defaults`,
+   so no form can post one and no permalink can be reassigned by hand. */
+export const blogCategoryAdd = z.object(blogCategoryFields);
+export const blogCategoryEdit = z.object({ ...blogCategoryFields, ...idSchema.shape });
+
+/**
+ * A megabyte of markup.
+ *
+ * Not a limit anyone writing prose will meet — it is roughly a hundred
+ * thousand words — but the body is the one field a form can make arbitrarily
+ * large, and an unbounded `text` reaching a `MEDIUMTEXT` column is a request
+ * the server has to buffer either way.
+ */
+const MAX_BODY_CHARS = 1_000_000;
+
+export const blogPostSchema = z
+	.object({
+		id: refId,
+		title: name(250),
+		excerpt: z.string().trim().max(500).optional().default(''),
+		body: z.string().max(MAX_BODY_CHARS).optional().default(''),
+
+		featuredImage: uploadOrUrl,
+		featuredImageAlt: z.string().trim().max(250).optional().default(''),
+
+		/** 0 is "no section", which is what an empty select posts. */
+		categoryId: z.coerce.number().int().min(0).default(0),
+		tags: lines,
+
+		status: z.enum(BLOG_STATUSES).default('draft'),
+		/** Blank means "stamp the moment it first goes live". */
+		publishedOn: z.string().trim().max(20).optional().default(''),
+
+		isFeatured: z.coerce.boolean().default(false),
+		sortOrder: sortOrderField,
+
+		metaTitle: z.string().trim().max(250).optional().default(''),
+		metaDescription: z.string().trim().max(320).optional().default(''),
+		ogImage: uploadOrUrl,
+		noIndex: z.coerce.boolean().default(false),
+
+		authorName: z.string().trim().max(180).optional().default('')
+	})
+	/* A draft may be a title and nothing else. A published article is a page
+	   someone will land on from a search result, so it needs words on it. */
+	.refine((v) => v.status !== 'published' || htmlHasText(v.body), {
+		path: ['body'],
+		error: () => m.val_body_required()
+	});
+
+/**
+ * True when `html` has any readable text in it.
+ *
+ * The editor's idea of empty is `<p></p>`, so a length check on the markup
+ * would call that a full article. Tags are stripped and what remains is
+ * trimmed — the same question the article page asks when it decides whether to
+ * render a body at all.
+ */
+function htmlHasText(html: string | undefined): boolean {
+	return Boolean(
+		(html ?? '')
+			.replace(/<[^>]*>/g, ' ')
+			.replace(/&nbsp;/g, ' ')
+			.trim()
+	);
+}
+
+/** Creating a post is one field: everything else is edited on its own page. */
+export const blogPostCreate = z.object({ title: name(250) });
+
+/* No `postId`: the gallery's CRUD is scoped to the post whose page it is on,
+   and the column is stamped from the route rather than taken from the form. */
+const blogImageFields = {
+	image: uploadOrUrl,
+	caption: z.string().trim().max(300).optional().default(''),
+	alt: z.string().trim().max(250).optional().default(''),
+	isActive: active,
+	sortOrder: sortOrderField
+};
+
+/* A gallery entry with no picture is nothing at all, so add insists on one.
+   An edit does not: an empty picker there means "keep the stored image". */
+export const blogImageAdd = z
+	.object(blogImageFields)
+	.refine((v) => (v.image instanceof File ? v.image.size > 0 : Boolean(v.image)), {
+		path: ['image'],
+		error: () => m.val_image_required()
+	});
+export const blogImageEdit = z.object({ ...blogImageFields, ...idSchema.shape });

@@ -6,6 +6,7 @@ import {
 	double,
 	varchar,
 	text,
+	mediumtext,
 	boolean,
 	json,
 	date,
@@ -1165,6 +1166,141 @@ export const trendingRuns = mysqlTable('trending_runs', {
 });
 
 /* ================================================================== *
+ * 9. BLOG
+ *
+ * Editorial pages, written by an operator and read by anyone. Three tables:
+ *
+ *   blog_categories   the sections a post can sit in — a reference table
+ *   blog_posts        the article itself, body included
+ *   blog_post_images  the gallery under an article, in the order chosen
+ *
+ * The body is HTML, because the editor that produces it is a rich text
+ * editor. It is sanitised on the way *in* — see `$lib/server/sanitize.ts` —
+ * so that the one place rendering it with `{@html}` is reading a value that
+ * was already narrowed to an allowlist, rather than trusting the column.
+ * ================================================================== */
+
+/**
+ * The sections a post can belong to.
+ *
+ * Separate from `categories`, which is the creator taxonomy: the filters on
+ * discovery and the sections on a blog are different vocabularies that would
+ * otherwise fight over one table, and renaming "Beauty" for creators would
+ * silently rename a blog section.
+ */
+export const blogCategories = mysqlTable(
+	'blog_categories',
+	{
+		id: id(),
+		name: varchar('name', { length: 120 }).notNull(),
+		slug: varchar('slug', { length: 140 }).notNull(),
+		description: varchar('description', { length: 300 }),
+		/** One of the `tile-*` accents, so a section reads the same everywhere. */
+		accent: varchar('accent', { length: 40 }).default('mint').notNull(),
+		...publishable(),
+		...audit()
+	},
+	(t) => [uniqueIndex('blog_categories_slug_idx').on(t.slug)]
+);
+
+/**
+ * `draft` is invisible to everyone but an operator, `published` is live, and
+ * `archived` keeps a post reachable by its URL while dropping it from the
+ * index and the feed — an article that is out of date but still linked to.
+ */
+export const blogPostStatusEnum = ['draft', 'published', 'archived'] as const;
+
+export const blogPosts = mysqlTable(
+	'blog_posts',
+	{
+		id: id(),
+		title: varchar('title', { length: 250 }).notNull(),
+		/** Derived from the title and made unique on save; never posted by a form. */
+		slug: varchar('slug', { length: 280 }).notNull(),
+		/** The standfirst: the card blurb, and the meta description's fallback. */
+		excerpt: varchar('excerpt', { length: 500 }).default('').notNull(),
+		/** Sanitised HTML. Written only through `sanitizeArticleHtml`. */
+		body: mediumtext('body'),
+		/**
+		 * The body with its markup taken out.
+		 *
+		 * Search runs against this rather than `body`, because a `LIKE '%…%'`
+		 * over HTML matches tag and attribute names — searching for "strong" or
+		 * "class" would return every article that has ever been bolded.
+		 */
+		searchText: mediumtext('search_text'),
+		/** Whole minutes, computed from the body on save. Zero means unknown. */
+		readingMinutes: int('reading_minutes').default(0).notNull(),
+
+		featuredImage: varchar('featured_image', { length: 500 }).default('').notNull(),
+		featuredImageAlt: varchar('featured_image_alt', { length: 250 }),
+
+		categoryId: int('category_id').references(() => blogCategories.id),
+		tags: json('tags').$type<string[]>().default([]).notNull(),
+
+		status: mysqlEnum('status', blogPostStatusEnum).default('draft').notNull(),
+		/**
+		 * When the post went live, which is not `createdAt`: a draft written in
+		 * March and published in June is a June article, and the feed, the
+		 * sitemap and the byline all date it by this.
+		 */
+		publishedAt: timestamp('published_at', { fsp: 3 }),
+
+		/** Lifts one post into the index's lead slot. `sortOrder` breaks ties. */
+		isFeatured: boolean('is_featured').default(false).notNull(),
+		sortOrder: int('sort_order').default(0).notNull(),
+
+		metaTitle: varchar('meta_title', { length: 250 }),
+		metaDescription: varchar('meta_description', { length: 320 }),
+		/** The social card image, when it should differ from the featured image. */
+		ogImage: varchar('og_image', { length: 500 }),
+		/** Set when a post should stay reachable but out of search results. */
+		noIndex: boolean('no_index').default(false).notNull(),
+
+		authorId: userRef('author_id').references(() => user.id, { onDelete: 'set null' }),
+		/**
+		 * The byline as it was written, kept beside `authorId`.
+		 *
+		 * The join to `user` supplies the name and the picture for a live
+		 * account; this is what the article still says when that account is gone,
+		 * and what lets a piece be filed under a name that is not an account.
+		 */
+		authorName: varchar('author_name', { length: 180 }),
+
+		...audit()
+	},
+	(t) => [
+		uniqueIndex('blog_posts_slug_idx').on(t.slug),
+		index('blog_posts_status_idx').on(t.status, t.publishedAt),
+		index('blog_posts_category_idx').on(t.categoryId)
+	]
+);
+
+/**
+ * The gallery beneath an article.
+ *
+ * Kept in its own table rather than as a JSON column on the post, because each
+ * image is uploaded, captioned and reordered on its own — and because a
+ * removed image has a file on disk that has to be deleted with it.
+ */
+export const blogPostImages = mysqlTable(
+	'blog_post_images',
+	{
+		id: id(),
+		postId: int('post_id')
+			.notNull()
+			.references(() => blogPosts.id, { onDelete: 'cascade' }),
+		/** An uploaded file name, or an absolute URL. `assetUrl` accepts both. */
+		image: varchar('image', { length: 500 }).notNull(),
+		caption: varchar('caption', { length: 300 }),
+		alt: varchar('alt', { length: 250 }),
+		...publishable(),
+		...audit()
+	},
+	(t) => [index('blog_post_images_post_idx').on(t.postId)]
+);
+
+/* ================================================================== *
  * RELATIONS
  * ================================================================== */
 
@@ -1314,6 +1450,23 @@ export const trendingEntriesRelations = relations(trendingEntries, ({ one }) => 
 
 export const trendingOverridesRelations = relations(trendingOverrides, ({ one }) => ({
 	creator: one(creators, { fields: [trendingOverrides.creatorId], references: [creators.id] })
+}));
+
+export const blogCategoriesRelations = relations(blogCategories, ({ many }) => ({
+	posts: many(blogPosts)
+}));
+
+export const blogPostsRelations = relations(blogPosts, ({ one, many }) => ({
+	category: one(blogCategories, {
+		fields: [blogPosts.categoryId],
+		references: [blogCategories.id]
+	}),
+	author: one(user, { fields: [blogPosts.authorId], references: [user.id] }),
+	images: many(blogPostImages)
+}));
+
+export const blogPostImagesRelations = relations(blogPostImages, ({ one }) => ({
+	post: one(blogPosts, { fields: [blogPostImages.postId], references: [blogPosts.id] })
 }));
 
 export * from './auth.schema';

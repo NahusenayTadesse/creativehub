@@ -20,6 +20,7 @@
 		Languages,
 		Settings,
 		GalleryHorizontal,
+		Newspaper,
 		UserRoundCog,
 		ScrollText,
 		UserRoundCheck,
@@ -192,6 +193,17 @@
 						icon: Building2
 					},
 					{ title: m.sb_users_roles(), url: resolve('/dashboard/admin/users'), icon: UserRoundCog }
+				]
+			},
+			{
+				section: m.sb_blog(),
+				items: [
+					{ title: m.sb_blog_posts(), url: resolve('/dashboard/admin/blog'), icon: Newspaper },
+					{
+						title: m.sb_blog_categories(),
+						url: resolve('/dashboard/admin/blog/categories'),
+						icon: Tags
+					}
 				]
 			},
 			{

@@ -3,9 +3,24 @@
    builder, whose type widens with each join and so cannot be named. The row
    types these definitions produce are `RowOf<typeof …>` and fully checked. */
 
-import { and, asc, desc, eq, gt, inArray, isNull, like, or, sql, type SQL } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNull,
+	like,
+	lte,
+	ne,
+	or,
+	sql,
+	type SQL
+} from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
+import { user } from '$lib/server/db/auth.schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
 import { defineQuery, escapeLike, type PageResult, type RowOf } from '$lib/server/query';
 import { handleFromEmail, looksLikeSamePerson } from '$lib/domain/claim';
@@ -1592,3 +1607,255 @@ export const countPendingVerifications = async () => {
 		.where(eq(t.verificationRequests.status, 'pending'));
 	return Number(rows[0]?.count ?? 0);
 };
+
+/* ------------------------------------------------------------------ *
+ * Blog
+ *
+ * Two audiences read these rows through the same definition. A visitor sees
+ * `publishedPosts()` — live, dated, not deleted. An operator's listing passes
+ * no such condition and gets drafts too, plus the status filter that lets them
+ * be found. Which of the two applies is decided by the caller from the
+ * session, never by anything in the query string.
+ * ------------------------------------------------------------------ */
+
+/** Sections an operator has left visible, in the order they arranged them. */
+export const listBlogCategories = () =>
+	db
+		.select()
+		.from(t.blogCategories)
+		.where(live(t.blogCategories))
+		.orderBy(asc(t.blogCategories.sortOrder), asc(t.blogCategories.name));
+
+const blogPostColumns = {
+	id: t.blogPosts.id,
+	title: t.blogPosts.title,
+	slug: t.blogPosts.slug,
+	excerpt: t.blogPosts.excerpt,
+	featuredImage: t.blogPosts.featuredImage,
+	featuredImageAlt: t.blogPosts.featuredImageAlt,
+	readingMinutes: t.blogPosts.readingMinutes,
+	tags: t.blogPosts.tags,
+	status: t.blogPosts.status,
+	publishedAt: t.blogPosts.publishedAt,
+	isFeatured: t.blogPosts.isFeatured,
+	sortOrder: t.blogPosts.sortOrder,
+	noIndex: t.blogPosts.noIndex,
+	createdAt: t.blogPosts.createdAt,
+	updatedAt: t.blogPosts.updatedAt,
+	categoryId: t.blogPosts.categoryId,
+	categoryName: t.blogCategories.name,
+	categorySlug: t.blogCategories.slug,
+	categoryAccent: t.blogCategories.accent,
+	authorId: t.blogPosts.authorId,
+	/* The stored byline wins; the account's name is what an older post that
+	   never set one falls back to. Neither is required, so a post can be
+	   published before anyone has decided whose name goes on it. */
+	authorName: sql<string | null>`coalesce(${t.blogPosts.authorName}, ${user.name})`,
+	authorImage: user.image
+};
+
+/* Both sides are optional: a post need not sit in a section, and its author
+   may be an account that has since been removed. An inner join on either would
+   silently drop the post from every listing it belongs in. */
+const blogJoins = (qb: any) =>
+	qb
+		.leftJoin(t.blogCategories, eq(t.blogCategories.id, t.blogPosts.categoryId))
+		.leftJoin(user, eq(user.id, t.blogPosts.authorId));
+
+/**
+ * Posts carrying a given tag.
+ *
+ * `tags` is a JSON array, so this is a containment test rather than a join —
+ * `json_contains` with the value quoted as a JSON string. The value is bound
+ * as a parameter, not interpolated, so a tag containing a quote is a tag that
+ * matches nothing rather than a query that breaks.
+ */
+const postsTagged = (tag: string) =>
+	sql`json_contains(${t.blogPosts.tags}, ${JSON.stringify(tag)})`;
+
+export const blogPostsQuery = defineQuery({
+	table: t.blogPosts,
+	columns: blogPostColumns,
+	joins: blogJoins,
+	/* `searchText` rather than `body`: see the column's own note. */
+	search: [t.blogPosts.title, t.blogPosts.excerpt, t.blogPosts.searchText],
+	filters: {
+		status: { type: 'enum', column: t.blogPosts.status, values: t.blogPostStatusEnum },
+		category: { type: 'text', column: t.blogCategories.slug },
+		tag: { type: 'custom', build: (values) => postsTagged(values[0]) },
+		featured: { type: 'flag', column: t.blogPosts.isFeatured }
+	},
+	sort: {
+		/* A published post is dated by `publishedAt`; a draft has none, so the
+		   fallback keeps drafts in the operator's listing rather than sorting
+		   them all to one end of it. */
+		newest: {
+			column: sql`coalesce(${t.blogPosts.publishedAt}, ${t.blogPosts.createdAt})`,
+			direction: 'desc'
+		},
+		oldest: {
+			column: sql`coalesce(${t.blogPosts.publishedAt}, ${t.blogPosts.createdAt})`,
+			direction: 'asc'
+		},
+		title: { column: t.blogPosts.title, direction: 'asc' },
+		updated: { column: t.blogPosts.updatedAt, direction: 'desc' }
+	},
+	defaultSort: 'newest',
+	tiebreaker: t.blogPosts.id
+});
+
+export type BlogCard = RowOf<typeof blogPostColumns>;
+
+/**
+ * What a visitor may see: live, and dated in the past.
+ *
+ * The `publishedAt <= now` half is what makes scheduling work — a post dated
+ * next Tuesday is saved as published and simply is not selected until then, so
+ * nothing has to run on a timer to release it.
+ */
+const publishedPosts = (): SQL[] => [
+	isNull(t.blogPosts.deletedAt),
+	eq(t.blogPosts.status, 'published'),
+	lte(t.blogPosts.publishedAt, sql`now()`)
+];
+
+/** One page of live posts. */
+export const listPublishedPosts = (url: URL, options: { perPage?: number } = {}) =>
+	blogPostsQuery.run(url, { where: publishedPosts(), perPage: options.perPage });
+
+/** How many live posts sit in each section, for the chips above the index. */
+export const blogCategoryFacet = (url: URL) =>
+	blogPostsQuery.facet(url, 'category', { where: publishedPosts() });
+
+/** Every post, drafts included — for the operator's listing only. */
+export const listAllPosts = (url: URL, options: { perPage?: number } = {}) =>
+	blogPostsQuery.run(url, {
+		where: [isNull(t.blogPosts.deletedAt)],
+		perPage: options.perPage
+	});
+
+/** How many posts sit in each state, for the tabs above the operator's list. */
+export const blogStatusFacet = (url: URL) =>
+	blogPostsQuery.facet(url, 'status', { where: [isNull(t.blogPosts.deletedAt)] });
+
+/**
+ * The lead article on the index.
+ *
+ * Whichever live post an operator flagged, most recent first. It is fetched
+ * apart from the paged list so that it can be rendered large at the top
+ * without disappearing from page one — the list excludes it by id.
+ */
+export async function getFeaturedPost(): Promise<BlogCard | null> {
+	const page = await blogPostsQuery.run(new URL('http://list.local/?featured=1'), {
+		where: publishedPosts(),
+		perPage: 1
+	});
+	return (page.rows[0] as BlogCard) ?? null;
+}
+
+/**
+ * One post by its slug, body included.
+ *
+ * `status` comes back with it rather than being filtered here: a draft is
+ * legitimately reachable by an operator previewing it, and the route decides
+ * that from the session. The soft-delete condition is not negotiable, though —
+ * a removed post is removed for everyone.
+ */
+export async function getPostBySlug(slug: string) {
+	const rows = await blogJoins(
+		db
+			.select({
+				...blogPostColumns,
+				body: t.blogPosts.body,
+				metaTitle: t.blogPosts.metaTitle,
+				metaDescription: t.blogPosts.metaDescription,
+				ogImage: t.blogPosts.ogImage,
+				categoryDescription: t.blogCategories.description
+			})
+			.from(t.blogPosts)
+			.$dynamic()
+	)
+		.where(and(isNull(t.blogPosts.deletedAt), eq(t.blogPosts.slug, slug)))
+		.limit(1);
+
+	return (rows.at(0) as any) ?? null;
+}
+
+/** The gallery under one post, in the order an operator arranged it. */
+export const listPostImages = (postId: number, options: { visibleOnly?: boolean } = {}) =>
+	db
+		.select()
+		.from(t.blogPostImages)
+		.where(
+			and(
+				eq(t.blogPostImages.postId, postId),
+				isNull(t.blogPostImages.deletedAt),
+				...(options.visibleOnly ? [eq(t.blogPostImages.isActive, true)] : [])
+			)
+		)
+		.orderBy(asc(t.blogPostImages.sortOrder), asc(t.blogPostImages.id));
+
+/**
+ * What to read next, at the foot of an article.
+ *
+ * Same section first, then anything else live, and never the article itself.
+ * One query rather than two: ordering by whether the section matches puts the
+ * related ones first without needing a second round trip when there are too
+ * few of them to fill the row.
+ */
+export async function getRelatedPosts(post: { id: number; categoryId: number | null }, limit = 3) {
+	const rows = await blogJoins(db.select(blogPostColumns).from(t.blogPosts).$dynamic())
+		.where(and(...publishedPosts(), ne(t.blogPosts.id, post.id)))
+		.orderBy(
+			desc(sql`${t.blogPosts.categoryId} <=> ${post.categoryId ?? null}`),
+			desc(t.blogPosts.publishedAt)
+		)
+		.limit(limit);
+	return rows as BlogCard[];
+}
+
+/** Live posts for the feed and the sitemap, newest first. */
+export const listPostsForFeed = (limit: number) =>
+	db
+		.select({
+			title: t.blogPosts.title,
+			slug: t.blogPosts.slug,
+			excerpt: t.blogPosts.excerpt,
+			featuredImage: t.blogPosts.featuredImage,
+			publishedAt: t.blogPosts.publishedAt,
+			updatedAt: t.blogPosts.updatedAt,
+			noIndex: t.blogPosts.noIndex,
+			authorName: t.blogPosts.authorName,
+			categoryName: t.blogCategories.name
+		})
+		.from(t.blogPosts)
+		.leftJoin(t.blogCategories, eq(t.blogCategories.id, t.blogPosts.categoryId))
+		.where(and(...publishedPosts()))
+		.orderBy(desc(t.blogPosts.publishedAt))
+		.limit(limit);
+
+/**
+ * The tags in use across live posts, most-used first.
+ *
+ * Read in one pass over the JSON columns rather than modelled as a table:
+ * tags are free text an operator types, there is nothing to attach to one, and
+ * a join table would need its own CRUD screen to say the same thing.
+ */
+export async function listBlogTags(limit = 30): Promise<{ tag: string; count: number }[]> {
+	const rows = await db
+		.select({ tags: t.blogPosts.tags })
+		.from(t.blogPosts)
+		.where(and(...publishedPosts()));
+
+	const counts = new Map<string, number>();
+	for (const row of rows) {
+		for (const tag of row.tags ?? []) {
+			counts.set(tag, (counts.get(tag) ?? 0) + 1);
+		}
+	}
+
+	return [...counts.entries()]
+		.map(([tag, count]) => ({ tag, count }))
+		.sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+		.slice(0, limit);
+}

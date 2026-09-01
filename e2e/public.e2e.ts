@@ -62,6 +62,84 @@ test.describe('briefs', () => {
  * Every one of these returned 500 before the query layer was fixed, and every
  * one of them is reachable with no session at all.
  */
+/**
+ * The journal.
+ *
+ * What is checked here is the half that only exists once a URL, a load function
+ * and SQL are all in play: that a body written as HTML survives storage and
+ * renders as elements, and that the three states of a post mean what they say
+ * to someone with no session.
+ */
+test.describe('the journal', () => {
+	/* The index also links the feed at `/blog/rss.xml`, which is not an article
+	   and answers with XML rather than a page. */
+	const articleLink = 'a[href^="/blog/"]:not([href$=".xml"])';
+
+	test('lists articles and puts its state in the URL', async ({ page }) => {
+		await page.goto('/blog');
+		await expect(page.locator(articleLink).first()).toBeVisible();
+
+		await page.goto('/blog?category=creator-economy');
+		await expect(page).toHaveURL(/category=creator-economy/);
+		await expect(page.locator(articleLink).first()).toBeVisible();
+	});
+
+	test('a search that matches nothing says so instead of erroring', async ({ page }) => {
+		const response = await page.goto('/blog?q=zzzznothingmatchesthis');
+		expect(response?.status()).toBe(200);
+	});
+
+	test('an article renders its body as markup, not as escaped text', async ({ page }) => {
+		await page.goto('/blog');
+		await page.locator(articleLink).first().click();
+
+		const body = page.locator('.article-body');
+		await expect(body).toBeVisible();
+		/* The body is stored as HTML. If it ever reached the page escaped, this
+		   would find no heading and the reader would be looking at tag names. */
+		await expect(body.locator('h2, p').first()).toBeVisible();
+		await expect(body).not.toContainText('<p>');
+	});
+
+	test('an article carries its canonical and social metadata', async ({ page }) => {
+		await page.goto('/blog');
+		await page.locator(articleLink).first().click();
+
+		await expect(page.locator('link[rel=canonical]')).toHaveAttribute('href', /\/blog\//);
+		await expect(page.locator('meta[property="og:type"]')).toHaveAttribute('content', 'article');
+		const ld = await page.locator('script[type="application/ld+json"]').textContent();
+		expect(JSON.parse(ld ?? '{}')['@type']).toBe('BlogPosting');
+	});
+
+	test('a slug that does not exist is a 404, not a 500', async ({ page }) => {
+		const response = await page.goto('/blog/no-such-article-exists-here');
+		expect(response?.status()).toBe(404);
+	});
+
+	test('the feed is well-formed and lists only live articles', async ({ request }) => {
+		const response = await request.get('/blog/rss.xml');
+		expect(response.status()).toBe(200);
+		expect(response.headers()['content-type']).toContain('application/rss+xml');
+
+		const body = await response.text();
+		expect(body).toContain('<rss version="2.0"');
+		expect(body).toContain('<item>');
+		/* A feed is syndication, so it must not carry a draft any more than the
+		   index does. */
+		expect(body).not.toContain('<status>');
+	});
+
+	test('the sitemap lists the journal', async ({ request }) => {
+		const body = await (await request.get('/sitemap.xml')).text();
+		expect(body).toContain('/blog');
+	});
+
+	test('writing an article needs an operator', async ({ page }) => {
+		await page.goto('/dashboard/admin/blog');
+		await expect(page).toHaveURL(/\/login/);
+	});
+});
+
 test.describe('crafted list parameters', () => {
 	const hostile = [
 		'?sort=__proto__',
@@ -75,7 +153,7 @@ test.describe('crafted list parameters', () => {
 		'?q=%27%3B+drop+table+creators%3B+--'
 	];
 
-	for (const path of ['/discover', '/campaigns']) {
+	for (const path of ['/discover', '/campaigns', '/blog']) {
 		for (const query of hostile) {
 			test(`${path}${query} is not an error page`, async ({ page }) => {
 				const response = await page.goto(`${path}${query}`);
@@ -119,7 +197,12 @@ test.describe('operational routes', () => {
 });
 
 test.describe('the dashboard is not public', () => {
-	for (const path of ['/dashboard', '/dashboard/bookings', '/dashboard/admin/users']) {
+	for (const path of [
+		'/dashboard',
+		'/dashboard/bookings',
+		'/dashboard/admin/users',
+		'/dashboard/admin/blog'
+	]) {
 		test(`${path} sends a signed-out visitor to sign in`, async ({ page }) => {
 			await page.goto(path);
 			await expect(page).toHaveURL(/\/login/);

@@ -43,6 +43,13 @@
       "when": 1788203343571,
       "tag": "0005_chief_red_shift",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1788249278707,
+      "tag": "0006_puzzling_thena",
+      "breakpoints": true
     }
   ]
 }

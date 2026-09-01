@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, lte } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import type { RequestHandler } from './$types';
@@ -33,7 +33,7 @@ const escape = (value: string) =>
 type Entry = { path: string; lastmod?: string | null; changefreq: string; priority: string };
 
 export const GET: RequestHandler = async ({ url, setHeaders }) => {
-	const [creators, campaigns] = await Promise.all([
+	const [creators, campaigns, posts] = await Promise.all([
 		db
 			.select({ username: t.creators.username, updatedAt: t.creators.updatedAt })
 			.from(t.creators)
@@ -51,6 +51,23 @@ export const GET: RequestHandler = async ({ url, setHeaders }) => {
 			.from(t.campaigns)
 			.where(and(isNull(t.campaigns.deletedAt), eq(t.campaigns.status, 'published')))
 			.orderBy(desc(t.campaigns.updatedAt))
+			.limit(MAX_URLS),
+		/* Only articles that are live *and* dated in the past: one scheduled for
+		   next week is published as far as the column is concerned, and listing
+		   it would send a crawler to a 404. `noIndex` posts are left out for the
+		   reason they carry the flag. */
+		db
+			.select({ slug: t.blogPosts.slug, updatedAt: t.blogPosts.updatedAt })
+			.from(t.blogPosts)
+			.where(
+				and(
+					isNull(t.blogPosts.deletedAt),
+					eq(t.blogPosts.status, 'published'),
+					eq(t.blogPosts.noIndex, false),
+					lte(t.blogPosts.publishedAt, new Date())
+				)
+			)
+			.orderBy(desc(t.blogPosts.publishedAt))
 			.limit(MAX_URLS)
 	]);
 
@@ -58,6 +75,7 @@ export const GET: RequestHandler = async ({ url, setHeaders }) => {
 		{ path: '/', changefreq: 'daily', priority: '1.0' },
 		{ path: '/discover', changefreq: 'daily', priority: '0.9' },
 		{ path: '/campaigns', changefreq: 'daily', priority: '0.9' },
+		{ path: '/blog', changefreq: 'daily', priority: '0.8' },
 		...creators.map((creator) => ({
 			path: `/creators/${creator.username}`,
 			lastmod: day(creator.updatedAt),
@@ -69,6 +87,12 @@ export const GET: RequestHandler = async ({ url, setHeaders }) => {
 			lastmod: day(campaign.updatedAt),
 			changefreq: 'daily',
 			priority: '0.8'
+		})),
+		...posts.map((post) => ({
+			path: `/blog/${post.slug}`,
+			lastmod: day(post.updatedAt),
+			changefreq: 'monthly',
+			priority: '0.7'
 		}))
 	];
 

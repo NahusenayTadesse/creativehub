@@ -135,6 +135,7 @@
 			</div>
 
 			<div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-slab-ink-dim">
+				<a href={resolve('/blog')} class="hover:text-slab-brand">{m.nav_blog()}</a>
 				<a href={resolve('/terms')} class="hover:text-slab-brand">{m.footer_terms()}</a>
 				<a href={resolve('/privacy')} class="hover:text-slab-brand">{m.footer_privacy()}</a>
 				<span class="flex items-center gap-1">

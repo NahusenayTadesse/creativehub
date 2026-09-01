@@ -99,10 +99,13 @@ src/lib/
     guards.ts        requireUser / requireRole / requireBookingAccess + audit
     query.ts         The one query builder: search, filter, sort, page, facet
     queries.ts       Every read the app performs, defined against that builder
+    sanitize.ts      The allowlist an article body is narrowed to before storage
+    slug.ts          Title → permalink, made unique against its own table
     score-service.ts Recalculates derived creator fields after a write
     trending-service.ts Gathers the trending signals, publishes the board
-    db/schema.ts     34 tables
+    db/schema.ts     37 tables
   schemas.ts       Every Zod schema, shared by forms and actions
+  blog.ts          Section colours, article dates and states — client-safe
 ```
 
 ### One query builder, used everywhere
@@ -392,6 +395,40 @@ Three properties are deliberate:
   each signal to each rank, `trending_runs` stores the settings the run used,
   and `creators.is_trending` is rewritten from the board so the badge on a card
   and the strip on the homepage cannot disagree.
+
+### The journal is written in HTML, and stored sanitised
+
+`/dashboard/admin/blog` is an operator-only editor built on
+[Tipex](https://tipex.pages.dev/) (Tiptap). An article carries a rich text body,
+a featured image, a gallery, a section, free-form tags and its own search and
+social metadata; `/blog` is the public index, `/blog/rss.xml` the feed, and
+published articles are added to `sitemap.xml`.
+
+The body is the only value in the app that reaches `{@html}`, so the rule that
+matters is where it is narrowed:
+
+- **Sanitised on write, never on read.** `sanitizeArticleHtml` runs in the save
+  action, so what the column holds is already allowlisted markup. A second
+  surface that renders a body — the feed, an email, a preview — cannot forget a
+  step it does not have to take. The editor runs in a browser, so what arrives
+  at the action is whatever was posted to it, not whatever the editor showed.
+- **The allowlist is a parse, not a pattern.** `sanitize-html` builds the
+  document the browser would build. Scripts, iframes, forms, `on*` handlers and
+  `javascript:` URLs are dropped; `data:` survives on `<img>` alone, because the
+  editor pastes images that way. Class names are matched against a small set, so
+  a body cannot reach into the site's own utilities and repaint the page.
+- **The editor is the page.** The content area carries `.article-body`, the same
+  class the published article uses, so a heading is the size it will be.
+- **Three states, not a checkbox.** A draft is a 404 to everyone but an
+  operator, who sees it with a preview banner and `noindex`. `published` with a
+  future date is scheduling: the public query hides anything dated later than
+  now, so nothing has to run on a timer to release it. `archived` keeps a URL
+  reachable while dropping it from the index and the feed.
+
+Inline pictures are uploaded before the article is saved — the markup being
+written has to refer to them already — through `POST /dashboard/admin/blog/upload`,
+which re-checks the role itself, because a layout `load` never runs for a
+request that renders no page.
 
 ## Tests
 

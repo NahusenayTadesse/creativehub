@@ -124,7 +124,18 @@ export default defineConfig({
 	 * so the next one cannot reach production the same quiet way.
 	 */
 	ssr: {
-		noExternal: ['@internationalized/date', 'browser-image-compression', 'nodemailer'],
+		noExternal: [
+			'@internationalized/date',
+			'browser-image-compression',
+			'nodemailer',
+			/* Imported directly by `rich-editor.svelte`. The rest of Tiptap arrives
+			   through `@friendofsvelte/tipex`, which Vite already inlines because
+			   it is a Svelte package. */
+			'@tiptap/extension-placeholder',
+			/* The article sanitiser. Server-only, and reached by every route that
+			   writes or renders a post. */
+			'sanitize-html'
+		],
 		/**
 		 * `nodemailer` is CommonJS, and `noExternal` above means "inline it".
 		 *
@@ -134,7 +145,8 @@ export default defineConfig({
 		 * touched mail first, and only that one. Pre-bundling it to ESM gives dev
 		 * the same module the build produces.
 		 */
-		optimizeDeps: { include: ['nodemailer'] }
+		/* `sanitize-html` is CommonJS too; see the note above `nodemailer`. */
+		optimizeDeps: { include: ['nodemailer', 'sanitize-html'] }
 	},
 
 	/**

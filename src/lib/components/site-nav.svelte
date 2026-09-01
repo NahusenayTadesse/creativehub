@@ -106,6 +106,16 @@
 				>
 					{m.nav_opportunities()}
 				</a>
+				<a
+					href={resolve('/blog')}
+					class="rounded-xl px-4 py-2 text-xs font-black tracking-wider uppercase transition-all {isActive(
+						'/blog'
+					)
+						? 'border-2 border-edge bg-inverse text-inverse-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]'
+						: 'border-2 border-transparent text-ink-soft hover:bg-well'}"
+				>
+					{m.nav_blog()}
+				</a>
 			</nav>
 
 			<div class="hidden items-center gap-3 lg:flex">
@@ -238,6 +248,17 @@
 					: ''}"
 			>
 				{m.nav_opportunities()}
+			</a>
+			<a
+				href={resolve('/blog')}
+				onclick={() => (mobileOpen = false)}
+				class="block rounded-xl px-3 py-3 text-sm font-black text-ink hover:bg-panel {isActive(
+					'/blog'
+				)
+					? 'bg-panel'
+					: ''}"
+			>
+				{m.nav_blog()}
 			</a>
 
 			{#if user}

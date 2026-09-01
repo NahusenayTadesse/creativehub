@@ -42,8 +42,26 @@ const FILE_COLUMNS: [table: string, column: string][] = [
 	['creators', 'cover'],
 	['organizations', 'logo'],
 	['portfolio_items', 'url'],
-	['social_accounts', 'profile_url']
+	['social_accounts', 'profile_url'],
+	['blog_posts', 'featured_image'],
+	['blog_posts', 'og_image'],
+	['blog_post_images', 'image']
 ];
+
+/**
+ * Columns whose *text* mentions uploads rather than naming one.
+ *
+ * An article body is HTML, and a picture dropped into it is an `<img>` inside
+ * that markup — there is no column holding its name. Left off this list, every
+ * inline picture in the journal is an orphan by the definition above, and a
+ * single `--apply` empties every published article of its illustrations while
+ * the rows still point at them.
+ */
+const FILE_TEXT_COLUMNS: [table: string, column: string][] = [['blog_posts', 'body']];
+
+/** Every `/files/<name>` and `/files/private/<name>` mentioned in some text. */
+const namesIn = (text: string): string[] =>
+	[...text.matchAll(/\/files\/(?:private\/)?([A-Za-z0-9._-]+)/g)].map((match) => match[1]);
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL is not set');
@@ -78,6 +96,19 @@ for (const [table, column] of FILE_COLUMNS) {
 		/* Stored as `abc.png` or `private/abc.png`; normalise to the base name so
 		   a file moved between visibilities is never counted as an orphan. */
 		referenced.add(path.basename(String(row.value)));
+	}
+}
+
+for (const [table, column] of FILE_TEXT_COLUMNS) {
+	if (!present.has(`${table}.${column}`)) {
+		console.warn(`· skipping ${table}.${column} — not in this database`);
+		continue;
+	}
+	const [rows] = await connection.query<mysql.RowDataPacket[]>(
+		`SELECT \`${column}\` AS value FROM \`${table}\` WHERE \`${column}\` IS NOT NULL AND \`${column}\` <> ''`
+	);
+	for (const row of rows) {
+		for (const name of namesIn(String(row.value))) referenced.add(name);
 	}
 }
 
