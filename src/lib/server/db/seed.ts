@@ -351,7 +351,7 @@ const GALLERY_SLIDES = [
 ];
 
 /* ------------------------------------------------------------------ *
- * The journal
+ * The blog
  *
  * Bodies are written as the sanitiser will store them — plain allowlisted
  * markup, no classes — so that seeded articles and authored ones render
@@ -1978,7 +1978,7 @@ async function seed() {
 	console.log('→ accounts');
 	const adminId = await ensureUser('admin@creatornetwork.et', 'Platform Operator', 'admin');
 
-	console.log(`→ ${BLOG_POSTS.length} journal articles`);
+	console.log(`→ ${BLOG_POSTS.length} blog posts`);
 	const sectionIds = new Map<string, number>();
 	for (const [index, section] of BLOG_SECTIONS.entries()) {
 		const id = await upsert(t.blogCategories, eq(t.blogCategories.slug, section.slug), {

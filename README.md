@@ -396,13 +396,13 @@ Three properties are deliberate:
   and `creators.is_trending` is rewritten from the board so the badge on a card
   and the strip on the homepage cannot disagree.
 
-### The journal is written in HTML, and stored sanitised
+### The blog is written in HTML, and stored sanitised
 
 `/dashboard/admin/blog` is an operator-only editor built on
 [Tipex](https://tipex.pages.dev/) (Tiptap). An article carries a rich text body,
 a featured image, a gallery, a section, free-form tags and its own search and
 social metadata; `/blog` is the public index, `/blog/rss.xml` the feed, and
-published articles are added to `sitemap.xml`.
+published posts are added to `sitemap.xml`.
 
 The body is the only value in the app that reaches `{@html}`, so the rule that
 matters is where it is narrowed:
@@ -418,14 +418,14 @@ matters is where it is narrowed:
   editor pastes images that way. Class names are matched against a small set, so
   a body cannot reach into the site's own utilities and repaint the page.
 - **The editor is the page.** The content area carries `.article-body`, the same
-  class the published article uses, so a heading is the size it will be.
+  class the published post uses, so a heading is the size it will be.
 - **Three states, not a checkbox.** A draft is a 404 to everyone but an
   operator, who sees it with a preview banner and `noindex`. `published` with a
   future date is scheduling: the public query hides anything dated later than
   now, so nothing has to run on a timer to release it. `archived` keeps a URL
   reachable while dropping it from the index and the feed.
 
-Inline pictures are uploaded before the article is saved — the markup being
+Inline pictures are uploaded before the post is saved — the markup being
 written has to refer to them already — through `POST /dashboard/admin/blog/upload`,
 which re-checks the role itself, because a layout `load` never runs for a
 request that renders no page.

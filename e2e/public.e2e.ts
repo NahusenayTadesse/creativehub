@@ -63,14 +63,14 @@ test.describe('briefs', () => {
  * one of them is reachable with no session at all.
  */
 /**
- * The journal.
+ * The blog.
  *
  * What is checked here is the half that only exists once a URL, a load function
  * and SQL are all in play: that a body written as HTML survives storage and
  * renders as elements, and that the three states of a post mean what they say
  * to someone with no session.
  */
-test.describe('the journal', () => {
+test.describe('the blog', () => {
 	/* The index also links the feed at `/blog/rss.xml`, which is not an article
 	   and answers with XML rather than a page. */
 	const articleLink = 'a[href^="/blog/"]:not([href$=".xml"])';
@@ -129,7 +129,7 @@ test.describe('the journal', () => {
 		expect(body).not.toContain('<status>');
 	});
 
-	test('the sitemap lists the journal', async ({ request }) => {
+	test('the sitemap lists the blog', async ({ request }) => {
 		const body = await (await request.get('/sitemap.xml')).text();
 		expect(body).toContain('/blog');
 	});
