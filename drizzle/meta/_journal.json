@@ -50,6 +50,13 @@
       "when": 1788249278707,
       "tag": "0006_puzzling_thena",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1788290910244,
+      "tag": "0007_spooky_phantom_reporter",
+      "breakpoints": true
     }
   ]
 }

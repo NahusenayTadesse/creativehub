@@ -409,3 +409,183 @@ const round = (value: number, places: number) => {
 	const factor = 10 ** places;
 	return Math.round(value * factor) / factor;
 };
+
+/* ------------------------------------------------------------------ *
+ * Lanes
+ *
+ * A lane is the board cut down to one category, market or channel. There is
+ * deliberately no second ranking here: a lane keeps the order the board
+ * already produced, so "trending in fashion" cannot disagree with "trending"
+ * about which of two fashion creators is doing better.
+ * ------------------------------------------------------------------ */
+
+export const TRENDING_LANE_KINDS = [
+	'category',
+	'country',
+	'region',
+	'city',
+	'platform',
+	'language'
+] as const;
+
+export type TrendingLaneKind = (typeof TRENDING_LANE_KINDS)[number];
+
+/** The `trending_config` column holding how many lanes of each kind to keep. */
+export const LANE_LIMIT_COLUMN = {
+	category: 'maxCategoryLanes',
+	country: 'maxCountryLanes',
+	region: 'maxRegionLanes',
+	city: 'maxCityLanes',
+	platform: 'maxPlatformLanes',
+	language: 'maxLanguageLanes'
+} as const satisfies Record<TrendingLaneKind, string>;
+
+export const trendingLaneKindMeta = () =>
+	[
+		{ key: 'category', label: m.at_lane_kind_category() },
+		{ key: 'country', label: m.at_lane_kind_country() },
+		{ key: 'region', label: m.at_lane_kind_region() },
+		{ key: 'city', label: m.at_lane_kind_city() },
+		{ key: 'platform', label: m.at_lane_kind_platform() },
+		{ key: 'language', label: m.at_lane_kind_language() }
+	] as const satisfies ReadonlyArray<{ key: TrendingLaneKind; label: string }>;
+
+/**
+ * One group a creator belongs to.
+ *
+ * `refId` is the reference row for every kind that has one, and `refKey` is
+ * the free-text fallback the one kind without a table — a city — needs. Both
+ * are carried rather than only an id so that a lane can be matched against a
+ * reader's location later without knowing which of the two it was cut on.
+ */
+export type LaneFacet = {
+	kind: TrendingLaneKind;
+	refId: number | null;
+	refKey: string | null;
+	label: string;
+};
+
+/** A ranked creator, with the groups they would put in a lane. */
+export type LaneCandidate = {
+	creatorId: number;
+	score: number;
+	source: 'pinned' | 'algorithm' | 'manual';
+	facets: LaneFacet[];
+};
+
+export type LaneLimits = Record<TrendingLaneKind, number>;
+
+export type LaneOptions = {
+	/** How many creators a lane holds. */
+	slots: number;
+	/** Lanes thinner than this are dropped rather than published half-empty. */
+	minSize: number;
+	/** How far down the ranking to look. 0 means the whole pool. */
+	poolSize: number;
+	/** Lanes kept per kind, best first. 0 switches that kind off. */
+	limits: LaneLimits;
+};
+
+export type BuiltLane = {
+	kind: TrendingLaneKind;
+	refId: number | null;
+	refKey: string | null;
+	label: string;
+	topScore: number;
+	entries: {
+		creatorId: number;
+		rank: number;
+		score: number;
+		source: LaneCandidate['source'];
+	}[];
+};
+
+/** A lane's identity, stable across runs — what a chip is keyed on. */
+export const laneKey = (lane: { kind: string; refId: number | null; refKey: string | null }) =>
+	`${lane.kind}:${lane.refId ?? lane.refKey ?? ''}`;
+
+/**
+ * Cuts the ranked pool into lanes.
+ *
+ * `pool` arrives in board order, and every lane is filled by walking it once,
+ * so a creator's position inside a lane is their position on the board with
+ * everyone else removed. Which lanes survive is decided afterwards, by size
+ * first: a thin lane is a worse strip than no strip, however good its leader.
+ */
+export function buildLanes(pool: LaneCandidate[], options: LaneOptions): BuiltLane[] {
+	const slots = Math.max(1, options.slots);
+	const minSize = Math.max(1, options.minSize);
+	const considered = options.poolSize > 0 ? pool.slice(0, options.poolSize) : pool;
+
+	const lanes = new Map<string, BuiltLane>();
+
+	for (const candidate of considered) {
+		for (const facet of candidate.facets) {
+			if ((options.limits[facet.kind] ?? 0) <= 0) continue;
+
+			const key = laneKey(facet);
+			let lane = lanes.get(key);
+			if (!lane) {
+				lane = {
+					kind: facet.kind,
+					refId: facet.refId,
+					refKey: facet.refKey,
+					label: facet.label,
+					topScore: candidate.score,
+					entries: []
+				};
+				lanes.set(key, lane);
+			}
+			if (lane.entries.length >= slots) continue;
+			lane.entries.push({
+				creatorId: candidate.creatorId,
+				rank: lane.entries.length + 1,
+				score: candidate.score,
+				source: candidate.source
+			});
+		}
+	}
+
+	const kept: BuiltLane[] = [];
+	for (const kind of TRENDING_LANE_KINDS) {
+		const limit = options.limits[kind] ?? 0;
+		if (limit <= 0) continue;
+		kept.push(
+			...[...lanes.values()]
+				.filter((lane) => lane.kind === kind && lane.entries.length >= minSize)
+				.sort(
+					(a, b) =>
+						b.entries.length - a.entries.length ||
+						b.topScore - a.topScore ||
+						a.label.localeCompare(b.label)
+				)
+				.slice(0, limit)
+		);
+	}
+	return kept;
+}
+
+/**
+ * How much of the reader's own location a lane matches — 3 for their city,
+ * down to 0 for a lane that is not about where they are.
+ *
+ * Sorting on this rather than on a boolean is what lets "your city" sit above
+ * "your region" above "your country" without three passes, and it leaves every
+ * other lane at 0, holding the order the run published.
+ */
+export function laneLocalRank(
+	lane: { kind: string; refId: number | null; refKey: string | null },
+	viewer: ViewerLocation | null
+): number {
+	if (!viewer) return 0;
+	if (lane.kind === 'city' && viewer.city && lane.refKey) {
+		return sameCity(lane.refKey, viewer.city) ? 3 : 0;
+	}
+	if (lane.kind === 'region' && viewer.regionId !== null) {
+		return lane.refId === viewer.regionId ? 2 : 0;
+	}
+	if (lane.kind === 'country' && viewer.countryId !== null) {
+		return lane.refId === viewer.countryId ? 1 : 0;
+	}
+	return 0;
+}

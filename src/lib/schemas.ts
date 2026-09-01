@@ -777,6 +777,9 @@ export const gallerySlideEdit = z.object({ ...gallerySlideFields, ...idSchema.sh
 
 const weight = z.coerce.number().int().min(0).max(100).default(0);
 
+/** How many lanes of one kind to publish. 0 switches that kind off. */
+const laneCount = z.coerce.number().int().min(0).max(12);
+
 export const trendingConfigSchema = z.object({
 	id: z.coerce.number().optional(),
 	mode: z.enum(['manual', 'automatic', 'hybrid']).default('hybrid'),
@@ -819,6 +822,21 @@ export const trendingConfigSchema = z.object({
 	localMatch: z.enum(['country', 'region', 'city']).default('country'),
 	/** Points out of a hundred a local match is worth, in `boost`. */
 	localBoost: z.coerce.number().int().min(0).max(100).default(15),
+
+	/* Lanes — the same ranking cut by category, market and channel. A count of
+	   0 switches that kind of lane off, which is how an operator turns the
+	   homepage strip back into the single board it used to be. */
+	laneSlots: z.coerce.number().int().min(1).max(24).default(8),
+	laneMinSize: z.coerce.number().int().min(1).max(24).default(4),
+	/** 0 means every eligible candidate is considered for a lane. */
+	lanePoolSize: z.coerce.number().int().min(0).max(1000).default(120),
+	maxCategoryLanes: laneCount.default(6),
+	maxCountryLanes: laneCount.default(3),
+	maxRegionLanes: laneCount.default(0),
+	maxCityLanes: laneCount.default(0),
+	maxPlatformLanes: laneCount.default(3),
+	maxLanguageLanes: laneCount.default(0),
+	laneLocalFirst: z.coerce.boolean().default(false),
 
 	autoRefresh: z.coerce.boolean().default(false),
 	refreshIntervalMinutes: z.coerce.number().int().min(15).max(10080).default(360),

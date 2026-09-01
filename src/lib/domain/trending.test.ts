@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
 	LOCAL_FIRST_BONUS,
+	TRENDING_LANE_KINDS,
 	TRENDING_SIGNALS,
+	buildLanes,
 	compareCandidates,
 	decayWeight,
+	laneKey,
+	laneLocalRank,
 	localBonus,
 	matchesLocation,
 	newcomerValue,
@@ -11,6 +15,9 @@ import {
 	positionScore,
 	scoreCandidates,
 	verificationValue,
+	type LaneCandidate,
+	type LaneLimits,
+	type LaneOptions,
 	type ScoredCandidate,
 	type SignalValues,
 	type TrendingWeights
@@ -367,5 +374,127 @@ describe('positionScore', () => {
 
 	it('lets first put the last local creator above the leader', () => {
 		expect(positionScore(12, 12) + LOCAL_FIRST_BONUS).toBeGreaterThan(positionScore(1, 12));
+	});
+});
+
+/* ------------------------------------------------------------------ *
+ * Lanes
+ * ------------------------------------------------------------------ */
+
+const limits = (overrides: Partial<LaneLimits> = {}): LaneLimits =>
+	Object.fromEntries(TRENDING_LANE_KINDS.map((kind) => [kind, overrides[kind] ?? 0])) as LaneLimits;
+
+const laneOptions = (overrides: Partial<LaneOptions> = {}): LaneOptions => ({
+	slots: 8,
+	minSize: 2,
+	poolSize: 0,
+	limits: limits({ category: 4, country: 4, city: 4 }),
+	...overrides
+});
+
+/** `count` creators, all in one category, in descending score order. */
+const inCategory = (count: number, categoryId = 1, from = 1): LaneCandidate[] =>
+	Array.from({ length: count }, (_, index) => ({
+		creatorId: from + index,
+		score: 100 - index,
+		source: 'algorithm' as const,
+		facets: [
+			{
+				kind: 'category' as const,
+				refId: categoryId,
+				refKey: null,
+				label: `Category ${categoryId}`
+			}
+		]
+	}));
+
+describe('buildLanes', () => {
+	it('keeps the order the board handed it', () => {
+		const lanes = buildLanes(inCategory(4), laneOptions());
+		expect(lanes).toHaveLength(1);
+		expect(lanes[0].entries.map((entry) => entry.creatorId)).toEqual([1, 2, 3, 4]);
+		expect(lanes[0].entries.map((entry) => entry.rank)).toEqual([1, 2, 3, 4]);
+	});
+
+	it('cuts a lane at its slot count', () => {
+		const lanes = buildLanes(inCategory(10), laneOptions({ slots: 3 }));
+		expect(lanes[0].entries).toHaveLength(3);
+	});
+
+	it('drops a lane too thin to be a strip', () => {
+		expect(buildLanes(inCategory(3), laneOptions({ minSize: 4 }))).toEqual([]);
+	});
+
+	it('publishes nothing for a kind whose count is zero', () => {
+		const lanes = buildLanes(inCategory(6), laneOptions({ limits: limits({ country: 4 }) }));
+		expect(lanes).toEqual([]);
+	});
+
+	it('keeps the biggest lanes when there are more than the limit allows', () => {
+		const pool = [...inCategory(6, 1, 1), ...inCategory(2, 2, 100), ...inCategory(4, 3, 200)];
+		const lanes = buildLanes(pool, laneOptions({ limits: limits({ category: 2 }) }));
+		expect(lanes.map((lane) => lane.refId)).toEqual([1, 3]);
+	});
+
+	it('looks no further down the ranking than the pool size', () => {
+		const lanes = buildLanes(inCategory(10), laneOptions({ poolSize: 3 }));
+		expect(lanes[0].entries.map((entry) => entry.creatorId)).toEqual([1, 2, 3]);
+	});
+
+	it('puts one creator in every lane they belong to', () => {
+		const pool: LaneCandidate[] = [1, 2].map((id) => ({
+			creatorId: id,
+			score: 100 - id,
+			source: 'algorithm',
+			facets: [
+				{ kind: 'category', refId: 7, refKey: null, label: 'Fashion' },
+				{ kind: 'city', refId: null, refKey: 'addis ababa', label: 'Addis Ababa' }
+			]
+		}));
+		const lanes = buildLanes(pool, laneOptions());
+		expect(lanes.map((lane) => lane.kind)).toEqual(['category', 'city']);
+		expect(lanes.every((lane) => lane.entries.length === 2)).toBe(true);
+	});
+
+	/* The kinds are published in a fixed order so the homepage strip does not
+	   rearrange itself between two runs that found the same lanes. */
+	it('orders lanes by kind, not by size across kinds', () => {
+		const pool = inCategory(4).map((candidate) => ({
+			...candidate,
+			facets: [
+				...candidate.facets,
+				{ kind: 'country' as const, refId: 3, refKey: null, label: 'Ethiopia' }
+			]
+		}));
+		expect(buildLanes(pool, laneOptions()).map((lane) => lane.kind)).toEqual([
+			'category',
+			'country'
+		]);
+	});
+});
+
+describe('laneLocalRank', () => {
+	const viewer = { countryId: 3, regionId: 9, city: 'Addis Ababa' };
+
+	it('ranks the reader’s city above their region above their country', () => {
+		const city = laneLocalRank({ kind: 'city', refId: null, refKey: 'addis ababa' }, viewer);
+		const region = laneLocalRank({ kind: 'region', refId: 9, refKey: null }, viewer);
+		const country = laneLocalRank({ kind: 'country', refId: 3, refKey: null }, viewer);
+		expect(city).toBeGreaterThan(region);
+		expect(region).toBeGreaterThan(country);
+		expect(country).toBeGreaterThan(0);
+	});
+
+	it('is nothing for somewhere else, another kind, or an unknown reader', () => {
+		expect(laneLocalRank({ kind: 'country', refId: 4, refKey: null }, viewer)).toBe(0);
+		expect(laneLocalRank({ kind: 'category', refId: 3, refKey: null }, viewer)).toBe(0);
+		expect(laneLocalRank({ kind: 'country', refId: 3, refKey: null }, null)).toBe(0);
+	});
+});
+
+describe('laneKey', () => {
+	it('separates a reference lane from a city lane of the same name', () => {
+		expect(laneKey({ kind: 'category', refId: 4, refKey: null })).toBe('category:4');
+		expect(laneKey({ kind: 'city', refId: null, refKey: 'addis ababa' })).toBe('city:addis ababa');
 	});
 });

@@ -932,13 +932,15 @@ export const gallerySlides = mysqlTable('gallery_slides', {
  *
  * The trending strip used to be a single `creators.is_trending` checkbox: an
  * operator ticked a box and nothing recorded why, when, or on what evidence.
- * These five tables hold the whole mechanism instead —
+ * These seven tables hold the whole mechanism instead —
  *
- *   trending_config     one row of knobs: which signals count and how much
- *   trending_overrides  operator pins, boosts and blocks, optionally expiring
- *   trending_entries    the board that is live right now, one row per slot
- *   trending_cooldowns  who is resting, so the same faces cannot camp forever
- *   trending_runs       append-only history of every recompute
+ *   trending_config       one row of knobs: which signals count and how much
+ *   trending_overrides    operator pins, boosts and blocks, optionally expiring
+ *   trending_entries      the board that is live right now, one row per slot
+ *   trending_lanes        the same board cut by category, market and channel
+ *   trending_lane_entries who is in each lane, in order
+ *   trending_cooldowns    who is resting, so the same faces cannot camp forever
+ *   trending_runs         append-only history of every recompute
  *
  * `creators.is_trending` is still the flag every card and query reads; a run
  * rewrites it from the entries below, so the badge and the board cannot drift.
@@ -981,6 +983,22 @@ export const trendingLocalRankingEnum = ['off', 'boost', 'first'] as const;
  * is still matched on their region, and one with neither on their country.
  */
 export const trendingLocalMatchEnum = ['country', 'region', 'city'] as const;
+
+/**
+ * The ways the board is cut into lanes.
+ *
+ * Every one of these is a column or a join the creator table already carries,
+ * which is the test a new kind has to pass: a lane the database cannot group
+ * by is a lane somebody has to maintain by hand.
+ */
+export const trendingLaneKindEnum = [
+	'category',
+	'country',
+	'region',
+	'city',
+	'platform',
+	'language'
+] as const;
 
 export const trendingOverrideKindEnum = ['pin', 'boost', 'block'] as const;
 export const trendingEntrySourceEnum = ['pinned', 'algorithm', 'manual'] as const;
@@ -1074,6 +1092,32 @@ export const trendingConfig = mysqlTable('trending_config', {
 	/** Points out of a hundred a local match is worth. Only read in `boost`. */
 	localBoost: int('local_boost').default(15).notNull(),
 
+	/* Lanes. The board is one ordered list; a lane is that same ranking cut to
+	   one category, market or channel, so the homepage can offer "trending in
+	   fashion" and "trending in Addis Ababa" without a second algorithm. A
+	   count of 0 switches that kind of lane off. */
+
+	/** How many creators a lane holds. */
+	laneSlots: int('lane_slots').default(8).notNull(),
+	/** A lane thinner than this is not published — three faces is not a strip. */
+	laneMinSize: int('lane_min_size').default(4).notNull(),
+	/** How far down the ranking lanes are cut from. 0 means every candidate. */
+	lanePoolSize: int('lane_pool_size').default(120).notNull(),
+	maxCategoryLanes: int('max_category_lanes').default(6).notNull(),
+	maxCountryLanes: int('max_country_lanes').default(3).notNull(),
+	maxRegionLanes: int('max_region_lanes').default(0).notNull(),
+	maxCityLanes: int('max_city_lanes').default(0).notNull(),
+	maxPlatformLanes: int('max_platform_lanes').default(3).notNull(),
+	maxLanguageLanes: int('max_language_lanes').default(0).notNull(),
+	/**
+	 * Whether a reader's own market's lanes are moved to the front.
+	 *
+	 * Read when the page is served rather than when the board is built: the run
+	 * is one board for everybody, and where the reader is is a fact about the
+	 * request.
+	 */
+	laneLocalFirst: boolean('lane_local_first').default(true).notNull(),
+
 	autoRefresh: boolean('auto_refresh').default(false).notNull(),
 	refreshIntervalMinutes: int('refresh_interval_minutes').default(360).notNull(),
 	/** Holds the current board still — no run, manual or automatic, replaces it. */
@@ -1164,6 +1208,55 @@ export const trendingRuns = mysqlTable('trending_runs', {
 	configSnapshot: json('config_snapshot').$type<Record<string, unknown>>(),
 	createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull()
 });
+
+/**
+ * A slice of the same ranking, cut to one category, market or channel.
+ *
+ * Lanes are rewritten wholesale by every run, so there is no unique key here
+ * and no soft delete: the table holds the lanes of the current board and
+ * nothing else. `label` is a snapshot rather than a join because a category
+ * renamed between two runs should read the way it read when the board was
+ * built, and because the homepage should not join five reference tables to
+ * draw a row of chips.
+ */
+export const trendingLanes = mysqlTable(
+	'trending_lanes',
+	{
+		id: id(),
+		kind: mysqlEnum('kind', trendingLaneKindEnum).notNull(),
+		/** The reference row this lane is cut on. Null for `city`, which is text. */
+		refId: int('ref_id'),
+		/** A city, lower-cased, for the one kind that has no reference table. */
+		refKey: varchar('ref_key', { length: 160 }),
+		label: varchar('label', { length: 180 }).notNull(),
+		/** 1-based order among all lanes, before the reader's own market lifts any. */
+		position: int('position').notNull(),
+		size: int('size').notNull(),
+		/** The best score inside the lane — how lanes of one kind are ordered. */
+		topScore: double('top_score').default(0).notNull(),
+		runId: int('run_id'),
+		computedAt: timestamp('computed_at', { fsp: 3 }).defaultNow().notNull()
+	},
+	(t) => [index('trending_lane_position_idx').on(t.position)]
+);
+
+export const trendingLaneEntries = mysqlTable(
+	'trending_lane_entries',
+	{
+		id: id(),
+		laneId: int('lane_id')
+			.notNull()
+			.references(() => trendingLanes.id, { onDelete: 'cascade' }),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		/** 1-based slot within the lane. */
+		rank: int('rank').notNull(),
+		trendingScore: double('trending_score').default(0).notNull(),
+		source: mysqlEnum('source', trendingEntrySourceEnum).default('algorithm').notNull()
+	},
+	(t) => [index('trending_lane_entry_idx').on(t.laneId, t.rank)]
+);
 
 /* ================================================================== *
  * 9. BLOG
@@ -1446,6 +1539,18 @@ export const savedCreatorsRelations = relations(savedCreators, ({ one }) => ({
 
 export const trendingEntriesRelations = relations(trendingEntries, ({ one }) => ({
 	creator: one(creators, { fields: [trendingEntries.creatorId], references: [creators.id] })
+}));
+
+export const trendingLanesRelations = relations(trendingLanes, ({ many }) => ({
+	entries: many(trendingLaneEntries)
+}));
+
+export const trendingLaneEntriesRelations = relations(trendingLaneEntries, ({ one }) => ({
+	lane: one(trendingLanes, {
+		fields: [trendingLaneEntries.laneId],
+		references: [trendingLanes.id]
+	}),
+	creator: one(creators, { fields: [trendingLaneEntries.creatorId], references: [creators.id] })
 }));
 
 export const trendingOverridesRelations = relations(trendingOverrides, ({ one }) => ({

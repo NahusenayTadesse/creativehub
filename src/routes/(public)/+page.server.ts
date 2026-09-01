@@ -2,6 +2,7 @@ import type { PageServerLoad } from './$types';
 import {
 	listFeaturedCreators,
 	listTrendingCreators,
+	listTrendingLanes,
 	getPlatformStats,
 	listGallerySlides
 } from '$lib/server/queries';
@@ -16,12 +17,16 @@ export const load: PageServerLoad = async () => {
 	 */
 	void maybeAutoRefresh();
 
-	const [featured, trending, stats, gallery] = await Promise.all([
+	const [featured, trending, lanes, stats, gallery] = await Promise.all([
 		listFeaturedCreators(),
 		listTrendingCreators(),
+		/* The same board, cut by category, market and channel. Empty until a run
+		   has published lanes, which is what keeps the strip a single row on a
+		   fresh install rather than a row of chips with nothing behind them. */
+		listTrendingLanes(),
 		getPlatformStats(),
 		listGallerySlides()
 	]);
 
-	return { featured, trending, stats, gallery };
+	return { featured, trending, lanes, stats, gallery };
 };

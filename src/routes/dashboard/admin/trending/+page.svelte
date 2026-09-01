@@ -13,8 +13,11 @@
 	import Errors from '$lib/formComponents/Errors.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 	import {
+		LANE_LIMIT_COLUMN,
+		TRENDING_LANE_KINDS,
 		TRENDING_SIGNALS,
 		WEIGHT_COLUMN,
+		trendingLaneKindMeta,
 		trendingPresets,
 		trendingSignalMeta,
 		type TrendingSignal
@@ -37,7 +40,8 @@
 		Clock,
 		History,
 		Inbox,
-		MapPin
+		MapPin,
+		Rows3
 	} from '@lucide/svelte';
 
 	let { data } = $props();
@@ -199,6 +203,13 @@
 
 	const signalLabel = (key: string) => signals.find((signal) => signal.key === key)?.label ?? key;
 
+	const laneKinds = $derived(trendingLaneKindMeta());
+	const laneKindLabel = (key: string) => laneKinds.find((kind) => kind.key === key)?.label ?? key;
+	/** How many lanes of each kind the current settings would publish. */
+	const laneTotal = $derived(
+		TRENDING_LANE_KINDS.reduce((sum, kind) => sum + Number($form[LANE_LIMIT_COLUMN[kind]] ?? 0), 0)
+	);
+
 	/** The two or three signals that actually put a creator where they are. */
 	const topContributors = (components: { key: string; contribution: number }[]) =>
 		[...(components ?? [])].sort((a, b) => b.contribution - a.contribution).slice(0, 3);
@@ -241,12 +252,22 @@
 		| 'maxTenureDays'
 		| 'cooldownDays'
 		| 'localBoost'
+		| 'laneSlots'
+		| 'laneMinSize'
+		| 'lanePoolSize'
+		| 'maxCategoryLanes'
+		| 'maxCountryLanes'
+		| 'maxRegionLanes'
+		| 'maxCityLanes'
+		| 'maxPlatformLanes'
+		| 'maxLanguageLanes'
 		| 'refreshIntervalMinutes';
 	type ToggleFieldName =
 		| 'requireChannel'
 		| 'requireAvailable'
 		| 'requireActivity'
 		| 'pinnedFirst'
+		| 'laneLocalFirst'
 		| 'autoRefresh'
 		| 'isFrozen';
 
@@ -444,6 +465,29 @@
 						{/each}
 					</tbody>
 				</table>
+			</div>
+		{/if}
+
+		<!-- The lanes that same board was cut into. Chips rather than a second
+		     table: what an operator checks here is that the cuts exist and are
+		     the right size, not who is in each one. -->
+		{#if data.lanes.length}
+			<div class="space-y-2 border-t-2 border-edge pt-4">
+				<h3 class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
+					{m.at_board_lanes({ count: data.lanes.length })}
+				</h3>
+				<div class="flex flex-wrap gap-2">
+					{#each data.lanes as lane (lane.id)}
+						<span
+							class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-2.5 py-1 text-[10px] font-black text-ink"
+							title={lane.entries.map((entry) => entry.fullName).join(', ')}
+						>
+							<span class="text-ink-dim">{laneKindLabel(lane.kind)}</span>
+							<span>{lane.label}</span>
+							<span class="rounded-md bg-well px-1.5 text-ink-soft">{lane.entries.length}</span>
+						</span>
+					{/each}
+				</div>
 			</div>
 		{/if}
 	</div>
@@ -663,6 +707,69 @@
 			</div>
 		</div>
 
+		<!-- Lanes -->
+		<div class="bento-card bento-card-static space-y-4">
+			<div class="flex flex-wrap items-center justify-between gap-2">
+				<h2 class={sectionTitle}>
+					<Rows3 class="h-4 w-4 text-brand-fg" />
+					{m.at_lanes_title()}
+				</h2>
+				<span class="text-[10px] font-black text-ink-dim">
+					{m.at_lanes_total({ count: laneTotal })}
+				</span>
+			</div>
+			<p class="text-[11px] font-medium text-ink-soft">{m.at_lanes_help()}</p>
+
+			<div class="grid gap-3 sm:grid-cols-3">
+				{@render numberField('laneSlots', m.at_lane_slots(), m.at_lane_slots_help(), 1, 24)}
+				{@render numberField('laneMinSize', m.at_lane_min(), m.at_lane_min_help(), 1, 24)}
+				{@render numberField('lanePoolSize', m.at_lane_pool(), m.at_lane_pool_help(), 0, 1000)}
+			</div>
+
+			<!-- One field per kind, all reading the same "0 switches it off". A
+			     multi-select would have hidden how many lanes each kind may take. -->
+			<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+				{@render numberField(
+					'maxCategoryLanes',
+					m.at_lane_kind_category(),
+					m.at_lane_count_help(),
+					0,
+					12
+				)}
+				{@render numberField(
+					'maxCountryLanes',
+					m.at_lane_kind_country(),
+					m.at_lane_count_help(),
+					0,
+					12
+				)}
+				{@render numberField(
+					'maxRegionLanes',
+					m.at_lane_kind_region(),
+					m.at_lane_count_help(),
+					0,
+					12
+				)}
+				{@render numberField('maxCityLanes', m.at_lane_kind_city(), m.at_lane_count_help(), 0, 12)}
+				{@render numberField(
+					'maxPlatformLanes',
+					m.at_lane_kind_platform(),
+					m.at_lane_count_help(),
+					0,
+					12
+				)}
+				{@render numberField(
+					'maxLanguageLanes',
+					m.at_lane_kind_language(),
+					m.at_lane_count_help(),
+					0,
+					12
+				)}
+			</div>
+
+			{@render toggleField('laneLocalFirst', m.at_lane_local_first(), m.at_lane_local_first_help())}
+		</div>
+
 		<!-- Fairness + automation -->
 		<div class="grid gap-4 lg:grid-cols-2">
 			<div class="bento-card bento-card-static space-y-4">
@@ -767,6 +874,25 @@
 					</div>
 				</div>
 			{/if}
+
+			<div class="space-y-1">
+				<span class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
+					{m.at_preview_lanes({ count: preview.lanes.length })}
+				</span>
+				<div class="flex flex-wrap gap-2">
+					{#each preview.lanes as lane (lane.kind + lane.label)}
+						<span
+							class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-2.5 py-1 text-[10px] font-black text-ink"
+						>
+							<span class="text-ink-dim">{laneKindLabel(lane.kind)}</span>
+							<span>{lane.label}</span>
+							<span class="rounded-md bg-well px-1.5 text-ink-soft">{lane.size}</span>
+						</span>
+					{:else}
+						<span class="text-[11px] font-medium text-ink-soft">{m.at_preview_no_lanes()}</span>
+					{/each}
+				</div>
+			</div>
 
 			<div class="space-y-2">
 				{#each preview.rows as row (row.creatorId)}

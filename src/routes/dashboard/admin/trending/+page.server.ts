@@ -18,6 +18,8 @@ import {
 	buildBoard,
 	ensureTrendingConfig,
 	getTrendingConfigValues,
+	laneBoardOf,
+	listPublishedLanes,
 	listTrendingBoard,
 	listTrendingCooldowns,
 	listTrendingOverrides,
@@ -53,12 +55,16 @@ const listPickableCreators = () =>
 
 export const load: PageServerLoad = async () => {
 	const config = await getTrendingConfigValues();
-	const [form, overrideForm, runForm, board, overrides, runs, cooldowns, creators] =
+	const [form, overrideForm, runForm, board, lanes, overrides, runs, cooldowns, creators] =
 		await Promise.all([
 			superValidate(config, zod4(trendingConfigSchema)),
 			superValidate(zod4(trendingOverrideSchema)),
 			superValidate(zod4(trendingRunSchema)),
 			listTrendingBoard(),
+			/* Published in the run order, not the reader's: this screen is where
+			   an operator checks what was built, and a board that reordered
+			   itself around whoever opened it could not be checked at all. */
+			listPublishedLanes(),
 			listTrendingOverrides(),
 			listTrendingRuns(),
 			listTrendingCooldowns(),
@@ -71,6 +77,7 @@ export const load: PageServerLoad = async () => {
 		runForm,
 		config,
 		board,
+		lanes,
 		overrides,
 		runs,
 		cooldowns,
@@ -111,6 +118,8 @@ function toPreviewRow(entry: Awaited<ReturnType<typeof buildBoard>>['ranked'][nu
 export type TrendingPreview = {
 	stats: Awaited<ReturnType<typeof buildBoard>>['stats'];
 	rows: PreviewRow[];
+	/** The lanes these settings would publish, in the order they would sit in. */
+	lanes: { kind: string; label: string; size: number }[];
 	entering: string[];
 	leaving: string[];
 };
@@ -187,12 +196,8 @@ export const actions: Actions = {
 			db.select({ creatorId: t.trendingEntries.creatorId }).from(t.trendingEntries)
 		]);
 
-		const board = await buildBoard({
-			config: valuesOf(form.data),
-			overrides,
-			now,
-			restingIds: resting
-		});
+		const values = valuesOf(form.data);
+		const board = await buildBoard({ config: values, overrides, now, restingIds: resting });
 
 		const liveIds = new Set(current.map((row) => row.creatorId));
 		const nextIds = new Set(board.entries.map((entry) => entry.creatorId));
@@ -214,6 +219,13 @@ export const actions: Actions = {
 				/* The bench is worth showing: "who just missed out" is the question an
 				   operator asks straight after "who made it". */
 				rows: board.ranked.slice(0, 40).map(toPreviewRow),
+				/* Cut from the same board object the table above renders, so the
+				   lanes shown are the lanes those rows would produce. */
+				lanes: laneBoardOf(values, board).map((lane) => ({
+					kind: lane.kind,
+					label: lane.label,
+					size: lane.entries.length
+				})),
 				entering: board.entries
 					.filter((entry) => !liveIds.has(entry.creatorId))
 					.map((entry) => entry.candidate.fullName),
@@ -243,7 +255,7 @@ export const actions: Actions = {
 			entity: 'trending_board',
 			entityId: result.runId,
 			action: 'recomputed',
-			reason: `${result.entryCount} slots, ${result.changedCount} changed`
+			reason: `${result.entryCount} slots, ${result.laneCount} lanes, ${result.changedCount} changed`
 		});
 
 		return { ran: result.entryCount, changed: result.changedCount };

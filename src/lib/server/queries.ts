@@ -24,8 +24,12 @@ import { user } from '$lib/server/db/auth.schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
 import { defineQuery, escapeLike, type PageResult, type RowOf } from '$lib/server/query';
 import { handleFromEmail, looksLikeSamePerson } from '$lib/domain/claim';
-import { positionScore } from '$lib/domain/trending';
-import { getLocalRanker } from '$lib/server/trending-service';
+import { laneKey, positionScore, type TrendingLaneKind } from '$lib/domain/trending';
+import {
+	getLocalRanker,
+	listPublishedLanes,
+	orderLanesForViewer
+} from '$lib/server/trending-service';
 import { getRequestEvent } from '$app/server';
 
 /**
@@ -337,6 +341,76 @@ export async function listTrendingCreators(limit = 8): Promise<CreatorCard[]> {
 	});
 
 	return page.rows;
+}
+
+/**
+ * How many distinct creators the lane strip may put on the page.
+ *
+ * The lanes overlap heavily — one creator sits in their category, their market
+ * and their platform — so the cost of the strip is the size of that union, not
+ * the sum of the lanes. This is the ceiling on it, and lanes are dropped whole
+ * rather than truncated when it is reached: half a strip reads as a bug, one
+ * fewer strip does not.
+ */
+const LANE_CARD_LIMIT = 100;
+
+export type TrendingLane = {
+	/** Stable across runs, so a chip can stay selected through a recompute. */
+	key: string;
+	kind: TrendingLaneKind;
+	/** The reference row behind the lane, so a chip can link to its filter. */
+	refId: number | null;
+	label: string;
+	creators: CreatorCard[];
+};
+
+/**
+ * The trending board cut by category, market and channel.
+ *
+ * The cards are fetched once for the union of every lane and handed back out
+ * by reference: a creator in three lanes is one query row and one object, not
+ * three. Lanes arrive in the order the reader's own location earned them.
+ */
+export async function listTrendingLanes(): Promise<TrendingLane[]> {
+	const published = await orderLanesForViewer(await listPublishedLanes());
+	if (!published.length) return [];
+
+	/* Walk the lanes in order, taking whole lanes while the union stays inside
+	   the ceiling. Later lanes are the ones dropped, which is the right end: the
+	   order already puts the reader's own market and the biggest lanes first. */
+	const wanted = new Set<number>();
+	const lanes: typeof published = [];
+	for (const lane of published) {
+		if (!lane.entries.length) continue;
+		const union = new Set(wanted);
+		for (const entry of lane.entries) union.add(entry.creatorId);
+		if (union.size > LANE_CARD_LIMIT && lanes.length) break;
+		lanes.push(lane);
+		for (const id of union) wanted.add(id);
+	}
+	if (!lanes.length) return [];
+
+	const ids = [...wanted].slice(0, LANE_CARD_LIMIT);
+	const page = await creatorsQuery.run(unfiltered(), {
+		where: [...publishedCreators(), inArray(t.creators.id, ids)],
+		perPage: ids.length
+	});
+	const cardOf = new Map(page.rows.map((row) => [row.id, row]));
+
+	return (
+		lanes
+			.map((lane) => ({
+				key: laneKey(lane),
+				kind: lane.kind,
+				refId: lane.refId,
+				label: lane.label,
+				creators: lane.entries
+					.map((entry) => cardOf.get(entry.creatorId))
+					.filter((card): card is CreatorCard => !!card)
+			}))
+			/* A lane whose members all fell out from under it is not a lane. */
+			.filter((lane) => lane.creators.length > 1)
+	);
 }
 
 /** A full profile page: creator, related lists and published reviews. */

@@ -3,16 +3,25 @@ import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
 import {
+	LANE_LIMIT_COLUMN,
+	TRENDING_LANE_KINDS,
 	TRENDING_SIGNALS,
 	WEIGHT_COLUMN,
+	buildLanes,
 	compareCandidates,
 	decayWeight,
+	laneLocalRank,
 	localBonus,
 	matchesLocation,
 	newcomerValue,
 	scoreCandidates,
 	verificationValue,
+	type BuiltLane,
 	type CreatorLocation,
+	type LaneCandidate,
+	type LaneFacet,
+	type LaneLimits,
+	type LaneOptions,
 	type ScoredCandidate,
 	type SignalValues,
 	type TrendingSignal,
@@ -63,6 +72,16 @@ export type TrendingConfigValues = {
 	localRanking: (typeof t.trendingLocalRankingEnum)[number];
 	localMatch: (typeof t.trendingLocalMatchEnum)[number];
 	localBoost: number;
+	laneSlots: number;
+	laneMinSize: number;
+	lanePoolSize: number;
+	maxCategoryLanes: number;
+	maxCountryLanes: number;
+	maxRegionLanes: number;
+	maxCityLanes: number;
+	maxPlatformLanes: number;
+	maxLanguageLanes: number;
+	laneLocalFirst: boolean;
 	autoRefresh: boolean;
 	refreshIntervalMinutes: number;
 	isFrozen: boolean;
@@ -101,6 +120,16 @@ export const TRENDING_DEFAULTS: TrendingConfigValues = {
 	localRanking: 'off',
 	localMatch: 'country',
 	localBoost: 15,
+	laneSlots: 8,
+	laneMinSize: 4,
+	lanePoolSize: 120,
+	maxCategoryLanes: 6,
+	maxCountryLanes: 3,
+	maxRegionLanes: 0,
+	maxCityLanes: 0,
+	maxPlatformLanes: 3,
+	maxLanguageLanes: 0,
+	laneLocalFirst: true,
 	autoRefresh: false,
 	refreshIntervalMinutes: 360,
 	isFrozen: false
@@ -153,6 +182,19 @@ export const weightsOf = (config: Partial<TrendingConfigValues>): TrendingWeight
 			Math.max(0, Number(config[WEIGHT_COLUMN[key] as keyof TrendingConfigValues] ?? 0))
 		])
 	) as TrendingWeights;
+
+/** The lane knobs, read out of the config the same way the weights are. */
+export const laneOptionsOf = (config: Partial<TrendingConfigValues>): LaneOptions => ({
+	slots: Number(config.laneSlots ?? TRENDING_DEFAULTS.laneSlots),
+	minSize: Number(config.laneMinSize ?? TRENDING_DEFAULTS.laneMinSize),
+	poolSize: Number(config.lanePoolSize ?? TRENDING_DEFAULTS.lanePoolSize),
+	limits: Object.fromEntries(
+		TRENDING_LANE_KINDS.map((kind) => [
+			kind,
+			Math.max(0, Number(config[LANE_LIMIT_COLUMN[kind] as keyof TrendingConfigValues] ?? 0))
+		])
+	) as LaneLimits
+});
 
 const VERIFICATION_ORDER = ['unverified', 'social_verified', 'identity_verified', 'cn_verified'];
 
@@ -208,6 +250,8 @@ export type Candidate = {
 	regionId: number | null;
 	city: string | null;
 	categoryIds: number[];
+	/** Every group this creator would appear in — see `buildLanes`. */
+	facets: LaneFacet[];
 	verificationLevel: string;
 	availability: string;
 	followers: number;
@@ -216,6 +260,56 @@ export type Candidate = {
 	/** Why this creator cannot be on the board, or null when they can. */
 	excludedReason: string | null;
 };
+
+/**
+ * The groups one creator belongs to.
+ *
+ * Every lane the homepage can offer is produced here, so adding a way to slice
+ * the board — by language, by price band — is a few lines in one function
+ * rather than a new query, a new table and a new strip. A facet with no label
+ * is dropped: a chip reading "undefined" is worse than one fewer chip.
+ */
+function facetsOf(creator: {
+	categories: { categoryId: number; categoryName: string }[];
+	languages: { languageId: number; languageName: string }[];
+	channels: { platformId: number; platformName: string | null }[];
+	countryId: number | null;
+	countryName: string | null;
+	regionId: number | null;
+	regionName: string | null;
+	city: string | null;
+}): LaneFacet[] {
+	const facets: LaneFacet[] = [];
+	const add = (
+		kind: LaneFacet['kind'],
+		refId: number | null,
+		refKey: string | null,
+		label: string | null
+	) => {
+		if (!label?.trim()) return;
+		facets.push({ kind, refId, refKey, label: label.trim() });
+	};
+
+	for (const row of creator.categories) add('category', row.categoryId, null, row.categoryName);
+	add('country', creator.countryId, null, creator.countryName);
+	add('region', creator.regionId, null, creator.regionName);
+	/* A city has no reference table, so the lane is keyed on the name folded to
+	   lower case — "Addis Ababa" and "addis ababa" are one lane, not two. */
+	if (creator.city?.trim()) {
+		add('city', null, creator.city.trim().toLowerCase(), creator.city);
+	}
+	/* Distinct: a creator with two TikTok channels belongs to the TikTok lane
+	   once, and counting them twice would let one account fill a lane's slots. */
+	const seenPlatforms = new Set<number>();
+	for (const channel of creator.channels) {
+		if (seenPlatforms.has(channel.platformId)) continue;
+		seenPlatforms.add(channel.platformId);
+		add('platform', channel.platformId, null, channel.platformName);
+	}
+	for (const row of creator.languages) add('language', row.languageId, null, row.languageName);
+
+	return facets;
+}
 
 /**
  * Every published creator with the ten raw signals measured for them.
@@ -243,6 +337,7 @@ export async function gatherCandidates(
 			countryId: t.creators.countryId,
 			countryName: t.countries.name,
 			regionId: t.creators.regionId,
+			regionName: t.regions.name,
 			city: t.creators.city,
 			score: t.creators.score,
 			totalReach: t.creators.totalReach,
@@ -253,6 +348,7 @@ export async function gatherCandidates(
 		})
 		.from(t.creators)
 		.leftJoin(t.countries, eq(t.countries.id, t.creators.countryId))
+		.leftJoin(t.regions, eq(t.regions.id, t.creators.regionId))
 		.where(
 			and(
 				eq(t.creators.isActive, true),
@@ -264,69 +360,87 @@ export async function gatherCandidates(
 	if (!creators.length) return [];
 	const ids = creators.map((row) => row.id);
 
-	const [socials, categories, bookings, applications, reviews, saves] = await Promise.all([
-		db
-			.select({
-				creatorId: t.socialAccounts.creatorId,
-				followers: t.socialAccounts.followers,
-				engagementRate: t.socialAccounts.engagementRate
-			})
-			.from(t.socialAccounts)
-			.where(and(inArray(t.socialAccounts.creatorId, ids), liveSocialFilter())),
-		db
-			.select({
-				creatorId: t.creatorCategories.creatorId,
-				categoryId: t.creatorCategories.categoryId
-			})
-			.from(t.creatorCategories)
-			.where(inArray(t.creatorCategories.creatorId, ids)),
-		db
-			.select({ creatorId: t.bookings.creatorId, createdAt: t.bookings.createdAt })
-			.from(t.bookings)
-			.where(
-				and(
-					inArray(t.bookings.creatorId, ids),
-					gte(t.bookings.createdAt, windowStart),
-					/* A cancelled booking is not demand — it is demand that fell over. */
-					ne(t.bookings.status, 'cancelled'),
-					isNull(t.bookings.deletedAt)
-				)
-			),
-		db
-			.select({ creatorId: t.applications.creatorId, createdAt: t.applications.createdAt })
-			.from(t.applications)
-			.where(
-				and(
-					inArray(t.applications.creatorId, ids),
-					gte(t.applications.createdAt, windowStart),
-					ne(t.applications.status, 'withdrawn'),
-					isNull(t.applications.deletedAt)
-				)
-			),
-		db
-			.select({ creatorId: t.reviews.creatorId, createdAt: t.reviews.createdAt })
-			.from(t.reviews)
-			.where(
-				and(
-					inArray(t.reviews.creatorId, ids),
-					gte(t.reviews.createdAt, windowStart),
-					/* The same definition the public rating uses, so a five-star week
+	const [socials, categories, languages, bookings, applications, reviews, saves] =
+		await Promise.all([
+			/* The platform is joined rather than looked up later because a lane
+			   carries its label as a snapshot, and a channel with no live platform
+			   row is a channel no lane should be cut on. */
+			db
+				.select({
+					creatorId: t.socialAccounts.creatorId,
+					followers: t.socialAccounts.followers,
+					engagementRate: t.socialAccounts.engagementRate,
+					platformId: t.socialAccounts.platformId,
+					platformName: t.platforms.name
+				})
+				.from(t.socialAccounts)
+				.leftJoin(t.platforms, eq(t.platforms.id, t.socialAccounts.platformId))
+				.where(and(inArray(t.socialAccounts.creatorId, ids), liveSocialFilter())),
+			db
+				.select({
+					creatorId: t.creatorCategories.creatorId,
+					categoryId: t.creatorCategories.categoryId,
+					categoryName: t.categories.name
+				})
+				.from(t.creatorCategories)
+				.innerJoin(t.categories, eq(t.categories.id, t.creatorCategories.categoryId))
+				.where(inArray(t.creatorCategories.creatorId, ids)),
+			db
+				.select({
+					creatorId: t.creatorLanguages.creatorId,
+					languageId: t.creatorLanguages.languageId,
+					languageName: t.languages.name
+				})
+				.from(t.creatorLanguages)
+				.innerJoin(t.languages, eq(t.languages.id, t.creatorLanguages.languageId))
+				.where(inArray(t.creatorLanguages.creatorId, ids)),
+			db
+				.select({ creatorId: t.bookings.creatorId, createdAt: t.bookings.createdAt })
+				.from(t.bookings)
+				.where(
+					and(
+						inArray(t.bookings.creatorId, ids),
+						gte(t.bookings.createdAt, windowStart),
+						/* A cancelled booking is not demand — it is demand that fell over. */
+						ne(t.bookings.status, 'cancelled'),
+						isNull(t.bookings.deletedAt)
+					)
+				),
+			db
+				.select({ creatorId: t.applications.creatorId, createdAt: t.applications.createdAt })
+				.from(t.applications)
+				.where(
+					and(
+						inArray(t.applications.creatorId, ids),
+						gte(t.applications.createdAt, windowStart),
+						ne(t.applications.status, 'withdrawn'),
+						isNull(t.applications.deletedAt)
+					)
+				),
+			db
+				.select({ creatorId: t.reviews.creatorId, createdAt: t.reviews.createdAt })
+				.from(t.reviews)
+				.where(
+					and(
+						inArray(t.reviews.creatorId, ids),
+						gte(t.reviews.createdAt, windowStart),
+						/* The same definition the public rating uses, so a five-star week
 					   here and the average on the profile cannot disagree. */
-					ratingReviewFilter()
+						ratingReviewFilter()
+					)
+				),
+			db
+				.select({ creatorId: t.savedCreators.creatorId, createdAt: t.savedCreators.createdAt })
+				.from(t.savedCreators)
+				.where(
+					and(
+						inArray(t.savedCreators.creatorId, ids),
+						gte(t.savedCreators.createdAt, windowStart),
+						eq(t.savedCreators.isActive, true),
+						isNull(t.savedCreators.deletedAt)
+					)
 				)
-			),
-		db
-			.select({ creatorId: t.savedCreators.creatorId, createdAt: t.savedCreators.createdAt })
-			.from(t.savedCreators)
-			.where(
-				and(
-					inArray(t.savedCreators.creatorId, ids),
-					gte(t.savedCreators.createdAt, windowStart),
-					eq(t.savedCreators.isActive, true),
-					isNull(t.savedCreators.deletedAt)
-				)
-			)
-	]);
+		]);
 
 	/** Sum of one event type per creator, each event decayed by its own age. */
 	const decayedTotals = (rows: { creatorId: number; createdAt: Date | string }[]) => {
@@ -347,6 +461,8 @@ export async function gatherCandidates(
 
 	return creators.map((creator) => {
 		const mine = socials.filter((row) => row.creatorId === creator.id);
+		const myCategories = categories.filter((row) => row.creatorId === creator.id);
+		const myLanguages = languages.filter((row) => row.creatorId === creator.id);
 		const followers = mine.reduce((sum, row) => sum + row.followers, 0);
 		const engagement = mine.length
 			? mine.reduce((sum, row) => sum + row.engagementRate, 0) / mine.length
@@ -391,7 +507,17 @@ export async function gatherCandidates(
 			countryName: creator.countryName,
 			regionId: creator.regionId,
 			city: creator.city,
-			categoryIds: categories.filter((c) => c.creatorId === creator.id).map((c) => c.categoryId),
+			categoryIds: myCategories.map((row) => row.categoryId),
+			facets: facetsOf({
+				categories: myCategories,
+				languages: myLanguages,
+				channels: mine,
+				countryId: creator.countryId,
+				countryName: creator.countryName,
+				regionId: creator.regionId,
+				regionName: creator.regionName,
+				city: creator.city
+			}),
 			verificationLevel: creator.verificationLevel,
 			availability: creator.availability,
 			followers: creator.totalReach || followers,
@@ -691,6 +817,30 @@ export async function buildBoard(options: BuildOptions): Promise<BoardResult> {
 }
 
 /* ------------------------------------------------------------------ *
+ * Lanes
+ * ------------------------------------------------------------------ */
+
+/**
+ * The ranked pool as lane input.
+ *
+ * `ranked` is used rather than `entries` on purpose: a lane is allowed to be
+ * eight creators deep in a category none of whom made a twelve-slot board, and
+ * cutting lanes from the board alone would have made every lane a subset of
+ * the same twelve faces.
+ */
+export const laneCandidatesOf = (board: BoardResult): LaneCandidate[] =>
+	board.ranked.map((row) => ({
+		creatorId: row.creatorId,
+		score: row.score,
+		source: row.source,
+		facets: row.candidate.facets
+	}));
+
+/** The lanes a board would publish. Writes nothing — the preview uses this. */
+export const laneBoardOf = (config: TrendingConfigValues, board: BoardResult): BuiltLane[] =>
+	buildLanes(laneCandidatesOf(board), laneOptionsOf(config));
+
+/* ------------------------------------------------------------------ *
  * Publishing
  * ------------------------------------------------------------------ */
 
@@ -713,6 +863,7 @@ export type RunOptions = {
 export type RunResult = {
 	runId: number | null;
 	entryCount: number;
+	laneCount: number;
 	changedCount: number;
 	stats: BoardResult['stats'];
 	skipped?: 'frozen';
@@ -736,7 +887,14 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 	} as TrendingConfigValues;
 
 	if (config.isFrozen) {
-		return { runId: null, entryCount: 0, changedCount: 0, stats: emptyStats(), skipped: 'frozen' };
+		return {
+			runId: null,
+			entryCount: 0,
+			laneCount: 0,
+			changedCount: 0,
+			stats: emptyStats(),
+			skipped: 'frozen'
+		};
 	}
 
 	const [overrides, previous, resting] = await Promise.all([
@@ -765,6 +923,7 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 	}
 
 	const board = await buildBoard({ config: values, overrides, now, restingIds: resting });
+	const lanes = laneBoardOf(values, board);
 
 	const previousIds = new Set(previous.map((entry) => entry.creatorId));
 	const nextIds = board.entries.map((entry) => entry.creatorId);
@@ -808,6 +967,35 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 			);
 		}
 
+		/* Lanes are rewritten wholesale rather than reconciled: they carry no
+		   tenure and no history, and a lane that no longer has four creators in
+		   it should vanish rather than linger with a stale membership. */
+		await tx.delete(t.trendingLaneEntries);
+		await tx.delete(t.trendingLanes);
+		for (const [index, lane] of lanes.entries()) {
+			const inserted = await tx.insert(t.trendingLanes).values({
+				kind: lane.kind,
+				refId: lane.refId,
+				refKey: lane.refKey,
+				label: lane.label,
+				position: index + 1,
+				size: lane.entries.length,
+				topScore: lane.topScore,
+				runId: id,
+				computedAt: now
+			});
+			const laneId = insertedId(inserted);
+			await tx.insert(t.trendingLaneEntries).values(
+				lane.entries.map((entry) => ({
+					laneId,
+					creatorId: entry.creatorId,
+					rank: entry.rank,
+					trendingScore: entry.score,
+					source: entry.source
+				}))
+			);
+		}
+
 		for (const [creatorId, restingUntil] of rotateOut) {
 			await tx
 				.insert(t.trendingCooldowns)
@@ -838,7 +1026,13 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 		return id;
 	});
 
-	return { runId, entryCount: board.entries.length, changedCount, stats: board.stats };
+	return {
+		runId,
+		entryCount: board.entries.length,
+		laneCount: lanes.length,
+		changedCount,
+		stats: board.stats
+	};
 }
 
 /**
@@ -897,6 +1091,80 @@ export async function listTrendingBoard() {
 		.innerJoin(t.creators, eq(t.creators.id, t.trendingEntries.creatorId))
 		.leftJoin(t.countries, eq(t.countries.id, t.creators.countryId))
 		.orderBy(asc(t.trendingEntries.rank));
+}
+
+/** One published lane and everyone in it, in lane order. */
+export type PublishedLane = {
+	id: number;
+	kind: (typeof t.trendingLaneKindEnum)[number];
+	refId: number | null;
+	refKey: string | null;
+	label: string;
+	position: number;
+	entries: { creatorId: number; rank: number; fullName: string; username: string }[];
+};
+
+/**
+ * The lanes of the live board.
+ *
+ * One query for the lanes and one for their members rather than a join per
+ * lane: there are at most a couple of dozen lanes, and the homepage is not the
+ * place to find out how many round trips a strip of chips costs.
+ */
+export async function listPublishedLanes(): Promise<PublishedLane[]> {
+	const lanes = await db.select().from(t.trendingLanes).orderBy(asc(t.trendingLanes.position));
+	if (!lanes.length) return [];
+
+	const entries = await db
+		.select({
+			laneId: t.trendingLaneEntries.laneId,
+			creatorId: t.trendingLaneEntries.creatorId,
+			rank: t.trendingLaneEntries.rank,
+			fullName: t.creators.fullName,
+			username: t.creators.username
+		})
+		.from(t.trendingLaneEntries)
+		.innerJoin(t.creators, eq(t.creators.id, t.trendingLaneEntries.creatorId))
+		/* The lane was published against a creator who was live at the time; one
+		   unpublished since should drop out of the strip without a recompute. */
+		.where(and(eq(t.creators.isPublished, true), isNull(t.creators.deletedAt)))
+		.orderBy(asc(t.trendingLaneEntries.laneId), asc(t.trendingLaneEntries.rank));
+
+	return lanes.map((lane) => ({
+		id: lane.id,
+		kind: lane.kind,
+		refId: lane.refId,
+		refKey: lane.refKey,
+		label: lane.label,
+		position: lane.position,
+		entries: entries
+			.filter((entry) => entry.laneId === lane.id)
+			.map(({ creatorId, rank, fullName, username }) => ({ creatorId, rank, fullName, username }))
+	}));
+}
+
+/**
+ * Moves the reader's own city, region and country to the front of the strip.
+ *
+ * Read-time rather than run-time, for the same reason the local boost is: one
+ * board is published for everybody, and where the reader is is a fact about
+ * this request. Returns the published order untouched when the operator has
+ * the setting off or we could not tell where the reader is.
+ */
+export async function orderLanesForViewer<
+	T extends { kind: string; refId: number | null; refKey: string | null; position: number }
+>(lanes: T[]): Promise<T[]> {
+	if (lanes.length < 2) return lanes;
+
+	const config = await getTrendingConfig();
+	if (!(config?.laneLocalFirst ?? TRENDING_DEFAULTS.laneLocalFirst)) return lanes;
+
+	const viewer = await getViewerLocation();
+	if (!viewer) return lanes;
+
+	return [...lanes].sort(
+		(a, b) => laneLocalRank(b, viewer) - laneLocalRank(a, viewer) || a.position - b.position
+	);
 }
 
 /* ------------------------------------------------------------------ *
@@ -974,4 +1242,4 @@ const snapshotOf = (values: TrendingConfigValues): Record<string, unknown> =>
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
-export type { TrendingSignal };
+export type { BuiltLane, TrendingSignal };

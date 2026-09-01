@@ -12,13 +12,21 @@
 		Briefcase,
 		Gift,
 		Ticket,
-		Star
+		Star,
+		Tag,
+		Globe,
+		Map,
+		MapPin,
+		Radio,
+		Languages,
+		Flame
 	} from '@lucide/svelte';
 	import CreatorCard from '$lib/components/creator-card.svelte';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import GalleryCarousel from '$lib/components/gallery-carousel.svelte';
 	import DynamicIcon from '$lib/components/dynamic-icon.svelte';
 	import { formatReach } from '$lib/domain/money';
+	import type { TrendingLaneKind } from '$lib/domain/trending';
 	import * as m from '$lib/paraglide/messages';
 
 	let { data } = $props();
@@ -33,6 +41,64 @@
 		`${resolve('/discover')}${query ? `?q=${encodeURIComponent(query)}` : ''}` as ResolvedPathname
 	);
 	const search = () => goto(searchHref);
+
+	/* ---------------- Trending lanes ----------------
+	   One carousel, not ten stacked ones: the board is cut by category, market
+	   and channel on the server, and the chips swap which cut is on screen.
+	   Everything is already loaded, so switching costs no round trip. */
+
+	const laneIcon = {
+		category: Tag,
+		country: Globe,
+		region: Map,
+		city: MapPin,
+		platform: Radio,
+		language: Languages
+	};
+
+	const strips = $derived([
+		{ key: 'all', kind: null, refId: null, label: m.home_trending_all(), creators: data.trending },
+		...data.lanes
+	]);
+
+	let selectedStrip = $state('all');
+
+	/* Falls back rather than empties: a chip can name a lane that a recompute
+	   has since dropped, and an empty strip would be the only sign of it. */
+	const strip = $derived(strips.find((one) => one.key === selectedStrip) ?? strips[0]);
+
+	/* The discovery filter behind each kind of lane, where there is one. */
+	const laneFilter: Partial<Record<TrendingLaneKind, string>> = {
+		country: 'country',
+		region: 'region',
+		platform: 'platform'
+	};
+
+	/**
+	 * Where "see all" goes for the lane on screen.
+	 *
+	 * Every one of these is a filter discovery already has, so a chip is a
+	 * promise the next page keeps. A language lane has no filter behind it, so
+	 * it lands on unfiltered discovery rather than on a URL that does nothing.
+	 */
+	const stripHref = $derived.by(() => {
+		const discover = resolve('/discover');
+		const filtered = (search: string) => `${discover}?${search}` as ResolvedPathname;
+
+		if (!strip?.kind) return discover as ResolvedPathname;
+		if (strip.kind === 'category') {
+			const slug = data.reference.categories.find((one) => one.id === strip.refId)?.slug;
+			return slug ? filtered(`category=${slug}`) : (discover as ResolvedPathname);
+		}
+		/* A city is free text on a profile rather than a reference row, so the
+		   search box is the only filter that can carry one. */
+		if (strip.kind === 'city') return filtered(`q=${encodeURIComponent(strip.label)}`);
+
+		const param = laneFilter[strip.kind];
+		return param && strip.refId
+			? filtered(`${param}=${strip.refId}`)
+			: (discover as ResolvedPathname);
+	});
 
 	const brandSteps = $derived([
 		{ n: 1, title: m.home_brands_step1_title(), body: m.home_brands_step1_body() },
@@ -260,52 +326,99 @@
 	<!-- ================= TRENDING ================= -->
 	{#if data.trending.length}
 		<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-			<Carousel.Root opts={{ align: 'start', containScroll: 'trimSnaps' }} class="space-y-6">
-				<div class="flex flex-wrap items-end justify-between gap-4">
-					<div>
-						<div
-							class="flex items-center gap-2 text-xs font-bold tracking-wider text-brand-fg uppercase"
-						>
-							<TrendingUp class="h-4 w-4" />
-							<span>{m.home_trending_eyebrow()}</span>
+			<!--
+				Keyed on the lane so Embla is rebuilt rather than asked to keep its
+				scroll position across a set of slides that has entirely changed.
+			-->
+			{#key strip.key}
+				<Carousel.Root opts={{ align: 'start', containScroll: 'trimSnaps' }} class="space-y-6">
+					<div class="space-y-4">
+						<div class="flex flex-wrap items-end justify-between gap-4">
+							<div>
+								<div
+									class="flex items-center gap-2 text-xs font-bold tracking-wider text-brand-fg uppercase"
+								>
+									<TrendingUp class="h-4 w-4" />
+									<span>{m.home_trending_eyebrow()}</span>
+								</div>
+								<h2 class="mt-1 text-xl font-extrabold text-ink sm:text-2xl">
+									{strip.kind ? m.home_trending_in({ lane: strip.label }) : m.home_trending_title()}
+								</h2>
+							</div>
+
+							<div class="flex items-center gap-4">
+								<a
+									href={stripHref}
+									class="flex items-center gap-1 text-xs font-bold text-brand-soft-fg hover:text-brand-soft-fg"
+								>
+									<span>
+										{strip.kind
+											? m.home_view_all_lane({ count: strip.creators.length })
+											: m.home_view_all({ count: data.stats.creators })}
+									</span>
+									<ArrowRight class="h-3.5 w-3.5" />
+								</a>
+
+								<!-- Arrows from `sm` up. A phone swipes the carousel, and the two
+								     buttons only crowded the row they shared with "view all". -->
+								<div class="hidden items-center gap-2 sm:flex">
+									<Carousel.Previous
+										aria-label={m.tbl_previous()}
+										class="static inset-auto my-0 size-9 rounded-xl border-2 border-edge bg-surface text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-brand-soft disabled:opacity-40 disabled:shadow-none"
+									/>
+									<Carousel.Next
+										aria-label={m.tbl_next()}
+										class="static inset-auto my-0 size-9 rounded-xl border-2 border-edge bg-surface text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-brand-soft disabled:opacity-40 disabled:shadow-none"
+									/>
+								</div>
+							</div>
 						</div>
-						<h2 class="mt-1 text-xl font-extrabold text-ink sm:text-2xl">
-							{m.home_trending_title()}
-						</h2>
+
+						<!--
+							The cuts of the board, as one scrolling row. They bleed to the
+							screen edge on a phone so that a half-visible chip says there is
+							more to scroll, which a neatly clipped row does not.
+						-->
+						{#if data.lanes.length}
+							<div
+								class="thin-scroll -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-x-visible sm:px-0"
+								aria-label={m.home_trending_lanes_label()}
+							>
+								{#each strips as one (one.key)}
+									{@const Icon = one.kind ? laneIcon[one.kind] : Flame}
+									<button
+										type="button"
+										onclick={() => (selectedStrip = one.key)}
+										aria-pressed={one.key === strip.key}
+										class="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-edge px-3 py-1.5 text-[11px] font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors {one.key ===
+										strip.key
+											? 'bg-inverse text-inverse-ink'
+											: 'bg-surface text-ink hover:bg-well'}"
+									>
+										<Icon class="h-3.5 w-3.5" />
+										<span>{one.label}</span>
+										<span
+											class="rounded-full px-1.5 {one.key === strip.key
+												? 'text-inverse-ink-dim'
+												: 'text-ink-dim'}"
+										>
+											{one.creators.length}
+										</span>
+									</button>
+								{/each}
+							</div>
+						{/if}
 					</div>
 
-					<div class="flex items-center gap-4">
-						<a
-							href={resolve('/discover')}
-							class="flex items-center gap-1 text-xs font-bold text-brand-soft-fg hover:text-brand-soft-fg"
-						>
-							<span>{m.home_view_all({ count: data.stats.creators })}</span>
-							<ArrowRight class="h-3.5 w-3.5" />
-						</a>
-
-						<!-- Arrows from `sm` up. A phone swipes the carousel, and the two
-						     buttons only crowded the row they shared with "view all". -->
-						<div class="hidden items-center gap-2 sm:flex">
-							<Carousel.Previous
-								aria-label={m.tbl_previous()}
-								class="static inset-auto my-0 size-9 rounded-xl border-2 border-edge bg-surface text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-brand-soft disabled:opacity-40 disabled:shadow-none"
-							/>
-							<Carousel.Next
-								aria-label={m.tbl_next()}
-								class="static inset-auto my-0 size-9 rounded-xl border-2 border-edge bg-surface text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-brand-soft disabled:opacity-40 disabled:shadow-none"
-							/>
-						</div>
-					</div>
-				</div>
-
-				<Carousel.Content class="py-2 pe-2">
-					{#each data.trending as creator (creator.id)}
-						<Carousel.Item class="basis-[86%] sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
-							<CreatorCard {creator} />
-						</Carousel.Item>
-					{/each}
-				</Carousel.Content>
-			</Carousel.Root>
+					<Carousel.Content class="py-2 pe-2">
+						{#each strip.creators as creator (creator.id)}
+							<Carousel.Item class="basis-[86%] sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
+								<CreatorCard {creator} />
+							</Carousel.Item>
+						{/each}
+					</Carousel.Content>
+				</Carousel.Root>
+			{/key}
 		</section>
 	{/if}
 
