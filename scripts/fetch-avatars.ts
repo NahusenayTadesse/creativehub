@@ -12,7 +12,8 @@
  * `--source=csv` (the default) walks the import spreadsheet and fetches the
  * avatar link it carries. `--source=db` asks the database instead — every
  * creator whose `avatar` is empty or still points somewhere else, paired with
- * the best handle they have — and builds the unavatar URL from that. The
+ * every handle they have — and builds the unavatar URLs from those, trying
+ * each in turn until one answers with a picture. The
  * database is the honest list once rows have been edited, claimed or imported
  * from more than one spreadsheet; the CSV only knows about its own 132 rows.
  *
@@ -245,6 +246,7 @@ function creatorsWithAvatars() {
 	return mapCreatorRows(parsed.data)
 		.creators.map(({ creator }) => ({ username: creator.username, url: creator.avatar }))
 		.filter((entry): entry is { username: string; url: string } => Boolean(entry.url))
+		.map(({ username, url }) => ({ username, urls: [url] }))
 		.slice(0, limit || undefined);
 }
 
@@ -308,7 +310,7 @@ function unavatarUrlFor(platform: string, handle: string): string | null {
 }
 
 /**
- * Creators with no picture of our own, each with their best handle.
+ * Creators with no picture of our own, each with every handle they have.
  *
  * "No picture of our own" is `avatar` empty or still holding a URL: a stored
  * file is a bare name, so the colon is what separates the two. The rows this
@@ -339,21 +341,28 @@ async function creatorsFromDb() {
 		const at = UNAVATAR_PROVIDERS.findIndex((entry) => entry.platform === platform);
 		return at === -1 ? Number.MAX_SAFE_INTEGER : at;
 	};
-	const best = new Map<string, { username: string; url: string; rank: number }>();
+	const found = new Map<string, { url: string; rank: number }[]>();
 	for (const row of rows) {
 		const url = unavatarUrlFor(row.platform, row.handle);
 		if (!url) continue;
-		const here = rank(row.platform);
-		const previous = best.get(row.username);
-		if (previous && previous.rank <= here) continue;
-		best.set(row.username, { username: row.username, url, rank: here });
+		const to = found.get(row.username) ?? [];
+		if (!to.some((entry) => entry.url === url)) to.push({ url, rank: rank(row.platform) });
+		found.set(row.username, to);
 	}
+
+	/* Every account they have, best provider first — not just the best one.
+	   A creator whose TikTok answers "paid plan only" may still have a YouTube
+	   channel that answers with a picture, and asking costs one request. */
+	const wanted = [...found].map(([username, entries]) => {
+		const ordered = entries.sort((a, b) => a.rank - b.rank);
+		return { username, urls: ordered.map((entry) => entry.url), rank: ordered[0].rank };
+	});
 
 	/* Sorted so the free providers are tried before the day's quota is spent on
 	   the ones that answer "paid plan only". */
-	return [...best.values()]
+	return wanted
 		.sort((a, b) => a.rank - b.rank || a.username.localeCompare(b.username))
-		.map(({ username, url }) => ({ username, url }))
+		.map(({ username, urls }) => ({ username, urls }))
 		.slice(0, limit || undefined);
 }
 
@@ -399,7 +408,7 @@ const refusalsInARow = new Map<string, number>();
 const givenUpOn = (provider: string) =>
 	(refusalsInARow.get(provider) ?? 0) >= REFUSALS_BEFORE_GIVING_UP;
 
-for (const { username, url } of wanted) {
+for (const { username, urls } of wanted) {
 	const existing = alreadyStored(username, onDisk);
 	if (existing) {
 		results.push({ username, outcome: { state: 'reused', file: existing } });
@@ -414,12 +423,33 @@ for (const { username, url } of wanted) {
 		results.push({ username, outcome: { state: 'planned' } });
 		continue;
 	}
-	if (PRO_ONLY.has(providerOf(url)) || givenUpOn(providerOf(url))) {
-		results.push({ username, outcome: { state: 'paywalled' } });
-		continue;
+
+	/*
+	 * Their accounts in turn, stopping at the first that yields a picture. A
+	 * refusal or a 404 is about that one handle, not about the creator: the
+	 * TikTok unavatar will not serve and the YouTube channel it will are the
+	 * same person. Only the rate limit is worth abandoning them over.
+	 */
+	let outcome: Outcome = { state: 'failed', why: 'no account unavatar could serve' };
+	for (const url of urls) {
+		if (PRO_ONLY.has(providerOf(url)) || givenUpOn(providerOf(url))) {
+			outcome = { state: 'paywalled' };
+			continue;
+		}
+
+		outcome = await fetchAvatar(url, username);
+
+		if (outcome.state === 'paywalled') {
+			refusalsInARow.set(providerOf(url), (refusalsInARow.get(providerOf(url)) ?? 0) + 1);
+		}
+		if (outcome.state === 'stored') {
+			refusalsInARow.set(providerOf(url), 0);
+			onDisk.push(outcome.file);
+		}
+		await sleep(DELAY_MS);
+		if (outcome.state === 'stored' || outcome.state === 'ratelimited') break;
 	}
 
-	const outcome = await fetchAvatar(url, username);
 	results.push({ username, outcome });
 
 	if (outcome.state === 'ratelimited') {
@@ -428,14 +458,6 @@ for (const { username, url } of wanted) {
 		stopped = outcome.retryAfter;
 		break;
 	}
-	if (outcome.state === 'paywalled') {
-		refusalsInARow.set(providerOf(url), (refusalsInARow.get(providerOf(url)) ?? 0) + 1);
-	}
-	if (outcome.state === 'stored') {
-		refusalsInARow.set(providerOf(url), 0);
-		onDisk.push(outcome.file);
-	}
-	await sleep(DELAY_MS);
 }
 
 const by = (state: Outcome['state']) => results.filter((r) => r.outcome.state === state);

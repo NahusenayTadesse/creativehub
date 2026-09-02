@@ -45,3 +45,7 @@ build.tar
 build.zip
 build*.tar.gz
 build*.zip
+
+# Typeset documents — rebuilt from the markdown beside them by
+# `node docs/build-pdf.mjs`, so the source is what belongs in the repository.
+*.pdf
