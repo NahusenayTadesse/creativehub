@@ -740,6 +740,9 @@ export const settingsSchema = z.object({
 	heroTitle: z.string().trim().max(250),
 	heroSubtitle: optionalText,
 	platformFeePercent: z.coerce.number().int().min(0).max(50).default(15),
+	/* Capped at a year: a window longer than that is not a dispute window, it is
+	   an unfinishable deal. Zero switches it off and makes completion final. */
+	disputeWindowDays: z.coerce.number().int().min(0).max(365).default(7),
 	supportEmail: z.string().trim().max(200).optional().default(''),
 	supportPhone: z.string().trim().max(60).optional().default('')
 });
@@ -1025,3 +1028,54 @@ export const payoutAccountVerify = z.object({
 	 */
 	isVerified: z.enum(['true', 'false']).transform((value) => value === 'true')
 });
+
+/* ------------------------------------------------------------------ *
+ * Disputes and cancellation
+ * ------------------------------------------------------------------ */
+
+/** Long enough to be a case rather than a shrug. An operator has to read it. */
+const statement = z
+	.string()
+	.trim()
+	.min(20, { error: () => m.val_too_short() })
+	.max(4000);
+
+export const disputeRaise = z.object({
+	reason: statement,
+	evidenceUrl: optionalUrl
+});
+
+export const disputeRespond = z.object({
+	id: refId,
+	text: statement,
+	evidenceUrl: optionalUrl
+});
+
+export const disputeWithdraw = z.object({ id: refId });
+
+/**
+ * An operator's decision.
+ *
+ * `refundAmount` is only meaningful for a split and is ignored otherwise, so it
+ * is optional here and validated against the booking's price on the server —
+ * this schema cannot see the price, and a split that leaves nothing for one
+ * side is a rule about the deal rather than about the field.
+ */
+export const disputeResolve = z.object({
+	id: refId,
+	resolution: z.enum(['released', 'refunded', 'split']),
+	refundAmount: z.coerce.number().int().min(0).optional().default(0),
+	note: z.string().trim().max(4000).optional().default('')
+});
+
+/** Asking the other side to call the whole thing off. */
+export const cancelRequest = z.object({
+	reason: z
+		.string()
+		.trim()
+		.min(5, { error: () => m.val_too_short() })
+		.max(2000)
+});
+
+/** Answering that request. The booking is the route; only the verdict posts. */
+export const cancelDecision = z.object({ agree: z.enum(['true', 'false']) });

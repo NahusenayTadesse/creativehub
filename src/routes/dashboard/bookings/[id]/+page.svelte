@@ -18,7 +18,10 @@
 		Send,
 		Handshake,
 		Wallet,
-		MessageSquare
+		MessageSquare,
+		Gavel,
+		Undo2,
+		XCircle
 	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
@@ -28,6 +31,8 @@
 	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import StarRating from '$lib/formComponents/StarRating.svelte';
 	import { pipelineSteps, stepIndex } from '$lib/domain/booking';
+	import { disputeResolutionLabel } from '$lib/domain/dispute';
+	import { formatAmountWithCode } from '$lib/domain/money';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
 
@@ -39,6 +44,32 @@
 	const isOperator = $derived(data.side === 'admin');
 
 	const currentStep = $derived(stepIndex(booking.status as BookingStatus));
+
+	/* Whether each button may be drawn is decided on the server, which re-runs
+	   every one of these tests before anything happens. */
+	const openCase = $derived(data.disputes.find((d) => d.status === 'open') ?? null);
+	const closedCases = $derived(data.disputes.filter((d) => d.status !== 'open'));
+	const canRaiseDispute = $derived(data.disputeProblem === null);
+	const iRaisedIt = $derived(Boolean(openCase) && openCase?.raisedBySide === data.side);
+	const canRespondToCase = $derived(
+		Boolean(openCase) && !openCase?.respondedAt && !iRaisedIt && !isOperator
+	);
+	const canAskToCancel = $derived(data.cancelRequestProblem === null && !isOperator);
+	const canAnswerCancel = $derived(data.cancelAgreeProblem === null && !isOperator);
+	const cancelPending = $derived(Boolean(booking.cancelRequestedSide));
+	const iAskedToCancel = $derived(booking.cancelRequestedSide === data.side);
+
+	/* A refund's own vocabulary. The payout labels next door say "Sent to bank"
+	   and "Paid", which read as the wrong direction entirely for money coming
+	   back to the person who paid it. */
+	const refundStatusLabel = (status: string) =>
+		({
+			pending: m.rf_status_pending(),
+			queued: m.rf_status_queued(),
+			success: m.rf_status_success(),
+			failed: m.rf_status_failed(),
+			cancelled: m.rf_status_cancelled()
+		})[status] ?? status;
 	const openProposal = $derived(data.proposals.find((p) => p.status === 'pending') ?? null);
 	const openSubmission = $derived(data.submissions.find((s) => s.status === 'submitted') ?? null);
 	const myReview = $derived(
@@ -87,6 +118,9 @@
 	let reviewOpen = $state(false);
 	let rateOpen = $state(false);
 	let revisionNote = $state('');
+	let disputeOpen = $state(false);
+	let respondOpen = $state(false);
+	let cancelOpen = $state(false);
 
 	/*
 	 * Four forms, each seeded once.
@@ -167,6 +201,57 @@
 		message: chatMessage
 	} = chatSuper;
 
+	const disputeSuper = superForm(
+		untrack(() => data.disputeForm),
+		{
+			id: 'dispute',
+			onUpdated: ({ form }) => {
+				if (form.valid) disputeOpen = false;
+			}
+		}
+	);
+	const {
+		form: disputeForm,
+		errors: disputeErrors,
+		enhance: disputeEnhance,
+		delayed: disputeDelayed,
+		message: disputeMessage
+	} = disputeSuper;
+
+	const respondSuper = superForm(
+		untrack(() => data.respondForm),
+		{
+			id: 'dispute-respond',
+			onUpdated: ({ form }) => {
+				if (form.valid) respondOpen = false;
+			}
+		}
+	);
+	const {
+		form: respondForm,
+		errors: respondErrors,
+		enhance: respondEnhance,
+		delayed: respondDelayed,
+		message: respondMessage
+	} = respondSuper;
+
+	const cancelSuper = superForm(
+		untrack(() => data.cancelForm),
+		{
+			id: 'cancel',
+			onUpdated: ({ form }) => {
+				if (form.valid) cancelOpen = false;
+			}
+		}
+	);
+	const {
+		form: cancelForm,
+		errors: cancelErrors,
+		enhance: cancelEnhance,
+		delayed: cancelDelayed,
+		message: cancelMessage
+	} = cancelSuper;
+
 	/** Everything that has to forget when the reader opens a different booking. */
 	let openBookingId = $state(untrack(() => data.booking.id));
 	$effect(() => {
@@ -177,10 +262,16 @@
 		reviewOpen = false;
 		rateOpen = false;
 		revisionNote = '';
+		disputeOpen = false;
+		respondOpen = false;
+		cancelOpen = false;
 		proposalSuper.reset({ data: data.proposalForm.data, newState: data.proposalForm.data });
 		submissionSuper.reset({ data: data.submitForm.data, newState: data.submitForm.data });
 		ratingSuper.reset({ data: data.reviewForm.data, newState: data.reviewForm.data });
 		chatSuper.reset({ data: data.messageForm.data, newState: data.messageForm.data });
+		disputeSuper.reset({ data: data.disputeForm.data, newState: data.disputeForm.data });
+		respondSuper.reset({ data: data.respondForm.data, newState: data.respondForm.data });
+		cancelSuper.reset({ data: data.cancelForm.data, newState: data.cancelForm.data });
 	});
 
 	/** One toast rule for every form on the page. */
@@ -195,6 +286,9 @@
 	$effect(() => announce($submissionMessage));
 	$effect(() => announce($ratingMessage));
 	$effect(() => announce($chatMessage));
+	$effect(() => announce($disputeMessage));
+	$effect(() => announce($respondMessage));
+	$effect(() => announce($cancelMessage));
 
 	const dateLocale = $derived(getLocale() === 'am' ? 'am-ET' : 'en-GB');
 
@@ -300,6 +394,171 @@
 			</div>
 		</div>
 	{/if}
+
+	<!--
+		A cancellation one side has asked for and the other has not answered.
+
+		Shown before the deal itself, because until it is answered it is the most
+		important thing about this booking to whichever side is being asked.
+	-->
+	{#if cancelPending && booking.status !== 'cancelled'}
+		<div class="flex items-start gap-3 rounded-2xl border-2 border-warn-edge bg-warn-soft p-4">
+			<XCircle class="mt-0.5 h-5 w-5 shrink-0 text-warn-fg" />
+			<div class="min-w-0 flex-1 space-y-2">
+				<p class="text-sm font-black text-warn-fg">{m.cx_pending_title()}</p>
+				<p class="text-xs font-medium text-warn-fg">
+					{iAskedToCancel ? m.cx_pending_you() : m.cx_pending_them()}
+				</p>
+				{#if booking.cancelRequestReason}
+					<p class="rounded-xl border border-warn-edge bg-surface p-2 text-xs text-ink">
+						{booking.cancelRequestReason}
+					</p>
+				{/if}
+
+				{#if canAnswerCancel}
+					<div class="flex flex-wrap gap-2 pt-1">
+						<form
+							method="POST"
+							action="?/answerCancel"
+							use:enhance={actionEnhance(m.cx_agreed_toast())}
+						>
+							<input type="hidden" name="agree" value="true" />
+							<button
+								type="submit"
+								class="rounded-xl border-2 border-edge bg-danger px-3 py-1.5 text-xs font-black text-white hover:opacity-90"
+							>
+								{m.cx_agree()}
+							</button>
+						</form>
+						<form
+							method="POST"
+							action="?/answerCancel"
+							use:enhance={actionEnhance(m.cx_refused_toast())}
+						>
+							<input type="hidden" name="agree" value="false" />
+							<button
+								type="submit"
+								class="rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-panel"
+							>
+								{m.cx_refuse()}
+							</button>
+						</form>
+					</div>
+				{:else if iAskedToCancel}
+					<form
+						method="POST"
+						action="?/answerCancel"
+						use:enhance={actionEnhance(m.cx_refused_toast())}
+					>
+						<input type="hidden" name="agree" value="false" />
+						<button
+							type="submit"
+							class="rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-panel"
+						>
+							{m.cx_withdraw()}
+						</button>
+					</form>
+				{/if}
+			</div>
+		</div>
+	{/if}
+
+	<!-- The open case: both statements, and whatever this reader can still do. -->
+	{#if openCase}
+		<div class="flex items-start gap-3 rounded-2xl border-2 border-danger-edge bg-danger-soft p-4">
+			<Gavel class="mt-0.5 h-5 w-5 shrink-0 text-danger-fg" />
+			<div class="min-w-0 flex-1 space-y-3">
+				<div>
+					<p class="text-sm font-black text-danger-fg">{m.dsp_open_title()}</p>
+					<p class="text-xs font-medium text-danger-fg">{m.dsp_open_body()}</p>
+				</div>
+
+				<div class="space-y-2">
+					<p class="text-[10px] font-black tracking-widest text-ink-soft uppercase">
+						{iRaisedIt ? m.dsp_case_from_you() : m.dsp_case_from_them()}
+					</p>
+					<p class="rounded-xl border border-danger-edge bg-surface p-2 text-xs text-ink">
+						{openCase.reason}
+					</p>
+					{#if openCase.evidenceUrl}
+						<a
+							href={openCase.evidenceUrl}
+							rel="noopener noreferrer nofollow"
+							target="_blank"
+							class="inline-flex items-center gap-1 text-[11px] font-bold text-ink-soft underline"
+						>
+							<ExternalLink class="h-3 w-3" />{m.dsp_evidence_link()}
+						</a>
+					{/if}
+				</div>
+
+				<div class="space-y-2">
+					<p class="text-[10px] font-black tracking-widest text-ink-soft uppercase">
+						{iRaisedIt ? m.dsp_their_answer() : m.dsp_your_answer()}
+					</p>
+					{#if openCase.responseText}
+						<p class="rounded-xl border border-danger-edge bg-surface p-2 text-xs text-ink">
+							{openCase.responseText}
+						</p>
+					{:else}
+						<p class="text-xs font-medium text-ink-soft">
+							{canRespondToCase ? m.dsp_no_answer_yet() : m.dsp_awaiting_answer()}
+						</p>
+					{/if}
+				</div>
+
+				{#if openCase.responseText || iRaisedIt}
+					<p class="text-[11px] font-bold text-ink-soft">{m.dsp_awaiting_operator()}</p>
+				{/if}
+
+				<div class="flex flex-wrap gap-2">
+					{#if canRespondToCase}
+						<button
+							type="button"
+							onclick={() => (respondOpen = true)}
+							class="rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-panel"
+						>
+							{m.dsp_respond()}
+						</button>
+					{/if}
+					{#if iRaisedIt}
+						<form
+							method="POST"
+							action="?/withdrawDispute"
+							use:enhance={actionEnhance(m.dsp_withdrawn_toast())}
+						>
+							<input type="hidden" name="id" value={openCase.id} />
+							<button
+								type="submit"
+								class="inline-flex items-center gap-1 rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-panel"
+							>
+								<Undo2 class="h-3.5 w-3.5" />
+								{m.dsp_withdraw()}
+							</button>
+						</form>
+					{/if}
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Cases already decided. Kept visible: the outcome is why the money moved. -->
+	{#each closedCases as closed (closed.id)}
+		{#if closed.status === 'resolved'}
+			<div class="flex items-start gap-3 rounded-2xl border-2 border-edge bg-panel p-4">
+				<Gavel class="mt-0.5 h-5 w-5 shrink-0 text-ink-soft" />
+				<div class="min-w-0 flex-1">
+					<p class="text-sm font-black text-ink">{m.dsp_resolved_title()}</p>
+					<p class="text-xs font-medium text-ink-soft">
+						{m.dsp_resolved_body({
+							resolution: disputeResolutionLabel(closed.resolution ?? ''),
+							note: closed.resolutionNote ?? ''
+						})}
+					</p>
+				</div>
+			</div>
+		{/if}
+	{/each}
 
 	<!-- ===== Header ===== -->
 	<div class="bento-card bento-card-static space-y-4">
@@ -414,8 +673,43 @@
 						{m.bk_write_review()}
 					</button>
 				{/if}
+
+				<!--
+					The two ways out of a live deal, and they are deliberately not the
+					same button. Cancelling is for a deal that is simply not going
+					ahead and needs the other side to agree; a dispute is for one that
+					is going wrong and needs somebody to decide. Both are quiet
+					secondary actions — neither is a thing to reach for first.
+				-->
+				{#if canAskToCancel}
+					<button
+						type="button"
+						onclick={() => (cancelOpen = true)}
+						class="flex items-center gap-1.5 rounded-xl border-2 border-edge-soft bg-surface px-3 py-2 text-xs font-bold text-ink-soft hover:border-edge hover:text-ink"
+					>
+						<XCircle class="h-3.5 w-3.5" />
+						{m.cx_request()}
+					</button>
+				{/if}
+
+				{#if canRaiseDispute}
+					<button
+						type="button"
+						onclick={() => (disputeOpen = true)}
+						class="flex items-center gap-1.5 rounded-xl border-2 border-edge-soft bg-surface px-3 py-2 text-xs font-bold text-ink-soft hover:border-danger-edge hover:text-danger-fg"
+					>
+						<Gavel class="h-3.5 w-3.5" />
+						{m.dsp_raise()}
+					</button>
+				{/if}
 			</div>
 		</div>
+
+		{#if booking.status === 'completed' && canRaiseDispute && data.disputeWindowClosesAt}
+			<p class="text-[11px] font-medium text-ink-soft">
+				{m.dsp_window_note({ date: formatDate(data.disputeWindowClosesAt) })}
+			</p>
+		{/if}
 
 		<!-- Stepper -->
 		{#if currentStep >= 0}
@@ -775,6 +1069,28 @@
 							method: booking.paymentMethod?.toUpperCase() ?? ''
 						})}
 					</p>
+				{/if}
+
+				<!--
+					Money on its way back, when there is any.
+
+					Shown to both sides rather than to operators alone: a brand whose
+					deal was cancelled or refunded wants to know the refund exists and
+					has not settled yet, and the alternative to saying so here is a
+					support message asking where the money is.
+				-->
+				{#if data.refunds.length}
+					<div class="mt-3 space-y-1 border-t-2 border-edge-soft pt-3">
+						<p class="text-[10px] font-black tracking-widest text-ink-soft uppercase">
+							{m.rf_heading()}
+						</p>
+						{#each data.refunds as refund (refund.id)}
+							<p class="text-[11px] font-medium text-ink-soft">
+								{formatAmountWithCode(refund.amount, refund.currencyCode)} ·
+								{refundStatusLabel(refund.status)}
+							</p>
+						{/each}
+					</div>
 				{/if}
 
 				<p
@@ -1138,6 +1454,137 @@
 					<LoadingBtn name={m.bk_publishing()} />
 				{:else}
 					{m.bk_publish_review()}
+				{/if}
+			</button>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!--
+	Raising a case.
+
+	The hint is the important part of this dialog. Both sides can reach it and
+	most of them will be reaching for it in frustration, so it says plainly what
+	pressing it does: the deal stops, and somebody neutral reads both accounts
+	before any money moves.
+-->
+<Dialog.Root bind:open={disputeOpen}>
+	<Dialog.Content class="w-lg! max-w-[95vw]!">
+		<Dialog.Header>
+			<Dialog.Title class="text-base font-black">{m.dsp_raise()}</Dialog.Title>
+			<Dialog.Description class="text-xs text-ink-soft">{m.dsp_raise_hint()}</Dialog.Description>
+		</Dialog.Header>
+
+		<form method="POST" action="?/raiseDispute" use:disputeEnhance class="space-y-3 text-xs">
+			<InputComp
+				form={disputeForm}
+				errors={disputeErrors}
+				name="reason"
+				type="textarea"
+				rows={5}
+				label={m.dsp_reason()}
+				hint={m.dsp_reason_hint()}
+				required
+			/>
+
+			<InputComp
+				form={disputeForm}
+				errors={disputeErrors}
+				name="evidenceUrl"
+				type="url"
+				label={m.dsp_evidence()}
+				hint={m.dsp_evidence_hint()}
+			/>
+
+			<button
+				type="submit"
+				disabled={$disputeDelayed}
+				class="w-full rounded-2xl border-2 border-edge bg-danger py-3 font-black text-white shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:opacity-90 disabled:opacity-60"
+			>
+				{#if $disputeDelayed}
+					<LoadingBtn name={m.dsp_submit()} />
+				{:else}
+					{m.dsp_submit()}
+				{/if}
+			</button>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- The other side's one written answer. -->
+<Dialog.Root bind:open={respondOpen}>
+	<Dialog.Content class="w-lg! max-w-[95vw]!">
+		<Dialog.Header>
+			<Dialog.Title class="text-base font-black">{m.dsp_respond()}</Dialog.Title>
+		</Dialog.Header>
+
+		<form method="POST" action="?/respondDispute" use:respondEnhance class="space-y-3 text-xs">
+			<input type="hidden" name="id" value={openCase?.id ?? 0} />
+
+			<InputComp
+				form={respondForm}
+				errors={respondErrors}
+				name="text"
+				type="textarea"
+				rows={5}
+				label={m.dsp_response()}
+				hint={m.dsp_response_hint()}
+				required
+			/>
+
+			<InputComp
+				form={respondForm}
+				errors={respondErrors}
+				name="evidenceUrl"
+				type="url"
+				label={m.dsp_evidence()}
+				hint={m.dsp_evidence_hint()}
+			/>
+
+			<button
+				type="submit"
+				disabled={$respondDelayed}
+				class="w-full rounded-2xl border-2 border-edge bg-brand py-3 font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
+			>
+				{#if $respondDelayed}
+					<LoadingBtn name={m.dsp_respond_submit()} />
+				{:else}
+					{m.dsp_respond_submit()}
+				{/if}
+			</button>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Asking the other side to call it off. -->
+<Dialog.Root bind:open={cancelOpen}>
+	<Dialog.Content class="w-lg! max-w-[95vw]!">
+		<Dialog.Header>
+			<Dialog.Title class="text-base font-black">{m.cx_request()}</Dialog.Title>
+			<Dialog.Description class="text-xs text-ink-soft">{m.cx_request_hint()}</Dialog.Description>
+		</Dialog.Header>
+
+		<form method="POST" action="?/requestCancel" use:cancelEnhance class="space-y-3 text-xs">
+			<InputComp
+				form={cancelForm}
+				errors={cancelErrors}
+				name="reason"
+				type="textarea"
+				rows={4}
+				label={m.cx_reason()}
+				hint={m.cx_reason_hint()}
+				required
+			/>
+
+			<button
+				type="submit"
+				disabled={$cancelDelayed}
+				class="w-full rounded-2xl border-2 border-edge bg-surface py-3 font-black text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel disabled:opacity-60"
+			>
+				{#if $cancelDelayed}
+					<LoadingBtn name={m.cx_submit()} />
+				{:else}
+					{m.cx_submit()}
 				{/if}
 			</button>
 		</form>

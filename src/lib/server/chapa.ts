@@ -385,3 +385,110 @@ export async function verifyTransfer(
 		}
 	};
 }
+
+/* ------------------------------------------------------------------ *
+ * Giving money back
+ * ------------------------------------------------------------------ */
+
+export type RefundInput = {
+	/** The deposit being reversed. Chapa refunds a transaction, not a booking. */
+	txRef: string;
+	/** Omit for the whole thing; Chapa reads an absent amount as "all of it". */
+	amount?: number;
+	reason?: string;
+	/** Ours, unique per attempt. Echoed back, but not what verification takes. */
+	reference?: string;
+};
+
+/**
+ * Asks Chapa to return money to whoever paid `txRef`.
+ *
+ * Like a transfer, an accepted refund is not a completed one — the status runs
+ * `initiated` → `processing` → `refunded` or `reversed`, and only
+ * `verifyRefund` says which. Unlike a transfer, the handle for asking is
+ * Chapa's `ref_id` rather than the reference we chose, so a caller that loses
+ * the returned id has no way to ask about the refund again. That is why the
+ * `refunds` table treats `providerRef` as load-bearing rather than as a note.
+ *
+ * Chapa's own charge on the original payment is not returned; the refund plus
+ * that charge come out of the merchant's available balance.
+ */
+export async function refund(
+	input: RefundInput
+): Promise<{ ok: true; refId: string | null } | Failure> {
+	const body: Record<string, string> = {};
+	/* Sent only when partial: an `amount` equal to the whole payment is the
+	   same instruction as omitting it, and omitting it cannot round wrong. */
+	if (typeof input.amount === 'number') body.amount = String(input.amount);
+	if (input.reason) body.reason = input.reason.slice(0, 300);
+	if (input.reference) body.reference = input.reference;
+
+	const result = await call<{ data?: unknown }>(`/refund/${encodeURIComponent(input.txRef)}`, {
+		method: 'POST',
+		body: JSON.stringify(body)
+	});
+
+	if (!result.ok) return result;
+
+	/* Chapa returns the tracking id either bare or wrapped, depending on the
+	   endpoint version. Both shapes are read rather than one being assumed,
+	   because losing this id is losing the ability to verify the refund. */
+	const data = result.body.data as { ref_id?: string; refund_id?: string } | string | undefined;
+	const refId = typeof data === 'string' ? data : (data?.ref_id ?? data?.refund_id ?? null);
+
+	return { ok: true, refId };
+}
+
+export type VerifiedRefund = {
+	/** Chapa's own view: `initiated`, `processing`, `refunded`, `reversed`. */
+	status: string;
+	amount: number;
+	currency: string;
+	mode: string | null;
+	failureReason: string | null;
+};
+
+/** What Chapa says became of the refund it gave us `refId` for. */
+export async function verifyRefund(
+	refId: string
+): Promise<{ ok: true; refund: VerifiedRefund } | Failure> {
+	const result = await call<{
+		data?: {
+			status?: string;
+			amount?: number | string;
+			currency?: string;
+			mode?: string | null;
+			failure_reason?: string | null;
+			reason?: string | null;
+		};
+	}>(`/refund/${encodeURIComponent(refId)}/verify`);
+
+	if (!result.ok) return result;
+
+	const data = result.body.data;
+	if (!data) return { ok: false, error: 'Chapa returned no refund details.' };
+
+	return {
+		ok: true,
+		refund: {
+			status: String(data.status ?? 'unknown'),
+			amount: Number(data.amount ?? 0),
+			currency: String(data.currency ?? ''),
+			mode: data.mode ?? null,
+			failureReason: data.failure_reason ?? null
+		}
+	};
+}
+
+/**
+ * Chapa's refund vocabulary, in ours.
+ *
+ * `initiated` and `processing` are both still in flight and must stay `queued`
+ * — treating either as settled would close a case while the money was still
+ * moving. `reversed` is Chapa's word for a refund that did not happen.
+ */
+export function refundOutcome(status: string): 'pending' | 'success' | 'failed' {
+	if (status === 'refunded' || status === 'success') return 'success';
+	if (status === 'initiated' || status === 'processing' || status === 'pending') return 'pending';
+	return 'failed';
+}

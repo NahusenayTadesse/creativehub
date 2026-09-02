@@ -21,6 +21,7 @@ export const load: PageServerLoad = async () => {
 			heroTitle: settings.heroTitle,
 			heroSubtitle: settings.heroSubtitle ?? '',
 			platformFeePercent: settings.platformFeePercent,
+			disputeWindowDays: settings.disputeWindowDays,
 			supportEmail: settings.supportEmail ?? '',
 			supportPhone: settings.supportPhone ?? ''
 		});

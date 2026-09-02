@@ -441,6 +441,17 @@ export const applications = mysqlTable(
  * 5. TRANSACTIONS — bookings, deliverables, settlement
  * ================================================================== */
 
+/**
+ * Which of the two sides of a deal did something.
+ *
+ * `organization` rather than `brand` because that is the table it points at,
+ * and deliberately not including `admin`: everything this labels is an act of
+ * one of the parties — who asked to cancel, who raised a dispute. An operator
+ * acting on a case is recorded by id in `resolved_by`, not as a third party
+ * here, because an operator is never *a side* of the deal.
+ */
+export const partySideEnum = ['creator', 'organization'] as const;
+
 export const bookingStatusEnum = [
 	'proposed',
 	'negotiating',
@@ -559,6 +570,20 @@ export const bookings = mysqlTable(
 		termsFrozenAt: timestamp('terms_frozen_at', { fsp: 3 }),
 		completedAt: timestamp('completed_at', { fsp: 3 }),
 		cancelReason: text('cancel_reason'),
+		/*
+		 * A cancellation one side has asked for and the other has not answered.
+		 *
+		 * Columns rather than a table: only one request can be outstanding at a
+		 * time, and the history of who asked and what came of it is what the
+		 * audit log is for. Cleared on agreement or refusal, so a non-null
+		 * `cancel_requested_at` means exactly "somebody is waiting on an answer".
+		 */
+		cancelRequestedBy: userRef('cancel_requested_by').references(() => user.id, {
+			onDelete: 'set null'
+		}),
+		cancelRequestedSide: mysqlEnum('cancel_requested_side', partySideEnum),
+		cancelRequestedAt: timestamp('cancel_requested_at', { fsp: 3 }),
+		cancelRequestReason: text('cancel_request_reason'),
 		...publishable(),
 		...audit()
 	},
@@ -717,6 +742,131 @@ export const payouts = mysqlTable(
 		index('payouts_creator_idx').on(t.creatorId),
 		/* The operator queue opens on what is unresolved, so it reads this alone. */
 		index('payouts_status_idx').on(t.status)
+	]
+);
+
+/**
+ * Money going back to the brand.
+ *
+ * Shaped like `payouts` and for the same reasons — an attempt is a row, the row
+ * is written before the provider is called, and only a verification decides it
+ * succeeded. The difference is what it points at: a refund reverses one
+ * *specific deposit*, so it carries that payment's `tx_ref`. Chapa refunds
+ * against the original transaction, not against a booking, and a deal funded by
+ * two attempts has two things that could be reversed.
+ *
+ * `providerRef` is load-bearing here in a way it is not for a payout: Chapa's
+ * refund verification is keyed on the `ref_id` *it* returns, not on the
+ * reference we sent, so a refund whose `ref_id` was lost cannot be asked about.
+ */
+export const refunds = mysqlTable(
+	'refunds',
+	{
+		id: id(),
+		bookingId: int('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		/** The deposit being reversed. Chapa refunds a transaction, not a deal. */
+		paymentId: int('payment_id').references(() => payments.id, { onDelete: 'set null' }),
+		/** Copied from the payment, because that is what Chapa is asked about. */
+		txRef: varchar('tx_ref', { length: 100 }).notNull(),
+		/** Which case caused this, when one did. A cancellation has none. */
+		disputeId: int('dispute_id'),
+		/** Ours, unique per attempt. */
+		reference: varchar('reference', { length: 100 }).notNull(),
+		provider: varchar('provider', { length: 30 }).default('chapa').notNull(),
+		status: mysqlEnum('status', payoutStatusEnum).default('pending').notNull(),
+		amount: int('amount').default(0).notNull(),
+		currencyCode: varchar('currency_code', { length: 8 }).default('ETB').notNull(),
+		reason: varchar('reason', { length: 300 }),
+		/** Chapa's `ref_id`. The only handle its verification endpoint accepts. */
+		providerRef: varchar('provider_ref', { length: 120 }),
+		mode: varchar('mode', { length: 10 }),
+		failureReason: varchar('failure_reason', { length: 300 }),
+		verifiedAt: timestamp('verified_at', { fsp: 3 }),
+		...audit()
+	},
+	(t) => [
+		uniqueIndex('refunds_reference_idx').on(t.reference),
+		index('refunds_booking_idx').on(t.bookingId),
+		index('refunds_status_idx').on(t.status)
+	]
+);
+
+/** Where a case stands. `withdrawn` is the side that raised it backing down. */
+export const disputeStatusEnum = ['open', 'resolved', 'withdrawn'] as const;
+
+/**
+ * How a case ended.
+ *
+ * These are the only three answers, and they are money answers rather than
+ * verdicts: somebody is owed the deposit, or the other one is, or they share
+ * it. `split` exists because half-delivered work is the ordinary case and
+ * forcing it into one of the other two makes an operator choose which party to
+ * treat unfairly.
+ */
+export const disputeResolutionEnum = ['released', 'refunded', 'split'] as const;
+
+/**
+ * One argument about one booking.
+ *
+ * The deal states this can be raised from are declared in `domain/booking.ts`,
+ * not here — a dispute is a transition of the booking, and the table only
+ * records what was said and what an operator decided.
+ *
+ * Both statements are stored on the row rather than left in the booking's
+ * message thread. The thread is where the two sides talk to each other and it
+ * keeps growing; this is what each side wants the operator to read, fixed at
+ * the moment they said it.
+ */
+export const disputes = mysqlTable(
+	'disputes',
+	{
+		id: id(),
+		bookingId: int('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		raisedBy: userRef('raised_by').references(() => user.id, { onDelete: 'set null' }),
+		raisedBySide: mysqlEnum('raised_by_side', partySideEnum).notNull(),
+		reason: text('reason').notNull(),
+		/** A link to whatever they say proves it. Optional, and never fetched. */
+		evidenceUrl: varchar('evidence_url', { length: 500 }),
+		/** The other side's answer. One, not a thread — see the note above. */
+		respondedBy: userRef('responded_by').references(() => user.id, { onDelete: 'set null' }),
+		responseText: text('response_text'),
+		responseEvidenceUrl: varchar('response_evidence_url', { length: 500 }),
+		respondedAt: timestamp('responded_at', { fsp: 3 }),
+		status: mysqlEnum('status', disputeStatusEnum).default('open').notNull(),
+		resolution: mysqlEnum('resolution', disputeResolutionEnum),
+		/*
+		 * What the operator decided each side gets, in the booking's currency.
+		 *
+		 * Written even for the two whole-amount outcomes, so a resolved case
+		 * answers "how much moved" without re-deriving it from a resolution name
+		 * and a booking whose figures may since have been split again.
+		 */
+		refundAmount: int('refund_amount').default(0).notNull(),
+		payoutAmount: int('payout_amount').default(0).notNull(),
+		resolutionNote: text('resolution_note'),
+		resolvedBy: userRef('resolved_by').references(() => user.id, { onDelete: 'set null' }),
+		resolvedAt: timestamp('resolved_at', { fsp: 3 }),
+		/*
+		 * True when the creator had already been paid before this was raised.
+		 *
+		 * Only reachable through the post-completion window, and it changes who
+		 * bears the outcome rather than what is possible. A Chapa refund draws
+		 * on the merchant's available balance, not on the creator's account, so
+		 * the brand can still be paid back — the platform simply absorbs it,
+		 * with nothing in the product that can claw it back from the creator.
+		 * An operator deciding this case is entitled to know that first.
+		 */
+		afterPayout: boolean('after_payout').default(false).notNull(),
+		...audit()
+	},
+	(t) => [
+		index('disputes_booking_idx').on(t.bookingId),
+		/* The queue opens on the open cases, so it reads this alone. */
+		index('disputes_status_idx').on(t.status)
 	]
 );
 
@@ -1008,6 +1158,14 @@ export const siteSettings = mysqlTable('site_settings', {
 	heroSubtitle: text('hero_subtitle'),
 	/** Take rate in percent. Used when a booking is created. */
 	platformFeePercent: int('platform_fee_percent').default(15).notNull(),
+	/**
+	 * How long after a booking completes a brand may still dispute it.
+	 *
+	 * Escrow releases the moment a deal completes, so without a window the
+	 * product's answer to "the video was taken down the next day" is nothing at
+	 * all. Zero switches the window off and makes completion final again.
+	 */
+	disputeWindowDays: int('dispute_window_days').default(7).notNull(),
 	supportEmail: varchar('support_email', { length: 200 }),
 	supportPhone: varchar('support_phone', { length: 60 }),
 	...audit()
@@ -1598,7 +1756,9 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
 	submissions: many(submissions),
 	messages: many(messages),
 	reviews: many(reviews),
-	payouts: many(payouts)
+	payouts: many(payouts),
+	refunds: many(refunds),
+	disputes: many(disputes)
 }));
 
 export const termProposalsRelations = relations(termProposals, ({ one }) => ({
@@ -1608,6 +1768,16 @@ export const termProposalsRelations = relations(termProposals, ({ one }) => ({
 export const payoutAccountsRelations = relations(payoutAccounts, ({ one, many }) => ({
 	creator: one(creators, { fields: [payoutAccounts.creatorId], references: [creators.id] }),
 	payouts: many(payouts)
+}));
+
+export const refundsRelations = relations(refunds, ({ one }) => ({
+	booking: one(bookings, { fields: [refunds.bookingId], references: [bookings.id] }),
+	payment: one(payments, { fields: [refunds.paymentId], references: [payments.id] })
+}));
+
+export const disputesRelations = relations(disputes, ({ one, many }) => ({
+	booking: one(bookings, { fields: [disputes.bookingId], references: [bookings.id] }),
+	refunds: many(refunds)
 }));
 
 export const payoutsRelations = relations(payouts, ({ one }) => ({

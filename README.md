@@ -624,18 +624,77 @@ who changes banks next year must not rewrite where last year's money went. Every
 operator-facing screen shows the number through `maskAccount`; the creator's own
 page is the only place it is rendered whole.
 
+## Getting out of a deal
+
+Until recently a booking past `booked` had exactly one exit: `completed`. A
+creator who vanished, work that was never acceptable, plans that changed — all
+of them left a deposit frozen in escrow with nothing in the product able to move
+it. There are now two exits, and they are deliberately different things.
+
+**Cancelling** is for a deal that is simply not going ahead. One side asks, the
+other agrees, and the deal ends — two presses from two people, which is what
+stops one party walking away from a funded deal and the other finding out
+afterwards. Refusing clears the request so it can be asked again later. If a
+deposit was taken, cancelling asks Chapa to return it. The states this is
+allowed from are exactly the states the lifecycle already declares a `cancelled`
+edge from; `submitted` is the interesting omission, because work has been handed
+over and calling that off is a question about the work.
+
+**Disputing** is for a deal that is going wrong. Either side raises one with a
+written reason and an optional link; the booking moves to `disputed`, which is
+what actually freezes it — the payout queue pays only against released escrow
+and the delivery actions only accept live statuses, so a disputed booking is
+inert everywhere without any of those places knowing disputes exist. The other
+side files one written answer. Both statements live on the case rather than in
+the message thread: the thread is where the two sides talk to each other and it
+keeps growing, while these are what each side wants the operator to read, fixed
+at the moment they said it.
+
+A completed deal can still be disputed, for `dispute_window_days` after it
+finished (seven by default, zero to switch it off). Escrow releases the moment a
+deal completes, so without a window the product's answer to "the video came down
+the next morning" is nothing at all. If the creator has already been paid, the
+case is flagged: a refund still works, because it draws on the merchant balance
+rather than the creator's account, but the platform absorbs it and nothing here
+can recover it from them. An operator is told that before deciding, not after.
+
+An operator works `/dashboard/admin/disputes` and ends a case three ways —
+release to the creator, refund the brand, or split. A split takes a figure and
+the rest follows: the fee is charged on what was _retained_, not on the original
+price, because charging the full fee against a reduced deal would take the whole
+reduction out of the creator's share. A full refund returns the fee too; a deal
+that did not happen has not earned one. A split completes rather than cancels,
+which is load-bearing — the payout queue pays only against released escrow, so a
+split that cancelled would agree the creator was owed something and never pay
+it. The arithmetic is in `domain/dispute.ts` with no database and no network,
+and the three parts are tested to always add back up to the price.
+
+Refunds go through `POST /v1/refund/{tx_ref}`, and `server/refunds.ts` is shaped
+like `payouts.ts` — row written first, `queued` not `success`, only a
+verification concludes anything. One difference matters: Chapa verifies a refund
+by the `ref_id` _it_ returns rather than by the reference we chose, so a refund
+whose id was lost cannot be asked about. That is reported rather than guessed
+at. Chapa's own charge on the original payment is not returned; the refund plus
+that charge come out of the merchant's balance.
+
+The decision is written before the refund is asked for, and a failed refund does
+not fail the decision. A resolution recorded whose refund bounced is recoverable
+— an operator sees the failed row and retries it — while a refund that went out
+against a case the database never closed is money moved with no reason attached
+to it.
+
 ## What is not connected
 
 **Recording a deposit by hand** remains, for money that genuinely moved outside
 the platform: a bank transfer, telebirr paid directly. It is operator-only, and
 the `MANUAL-` payment reference is what tells the two kinds of deposit apart
-afterwards. There is no equivalent on the way out — a payout made by hand is not
-recorded, so a transfer sent from the Chapa dashboard directly will leave the
-booking sitting in the owed queue.
+afterwards. There is no equivalent on the way out — a payout or refund made by
+hand is not recorded, so anything sent from the Chapa dashboard directly leaves
+the booking sitting in a queue here.
 
-**Refunds.** `escrow_status` has a `refunded` state and nothing sets it. Money
-returned to a brand is a conversation and a manual transfer, and the app does
-not know it happened.
+**A manual deposit cannot be refunded.** Chapa reverses a transaction it took,
+and a `MANUAL-` deposit is not one, so a cancelled booking funded that way
+reports that there is nothing to return and an operator moves the money by hand.
 
 ## Scripts
 

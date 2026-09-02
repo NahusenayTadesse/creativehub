@@ -57,13 +57,24 @@
 				rows={3}
 			/>
 
-			<InputComp
-				{form}
-				{errors}
-				label={m.as_fee_percent()}
-				name="platformFeePercent"
-				type="number"
-			/>
+			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+				<InputComp
+					{form}
+					{errors}
+					label={m.as_fee_percent()}
+					name="platformFeePercent"
+					type="number"
+				/>
+				<InputComp
+					{form}
+					{errors}
+					label={m.as_dispute_window()}
+					name="disputeWindowDays"
+					type="number"
+					min={0}
+					hint={m.as_dispute_window_hint()}
+				/>
+			</div>
 
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 				<InputComp {form} {errors} label={m.as_support_email()} name="supportEmail" type="text" />

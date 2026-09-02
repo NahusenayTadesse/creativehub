@@ -45,12 +45,28 @@ describe('canTransition', () => {
 		expect(canTransition('revision', 'submitted')).toBe(true);
 	});
 
-	/* The rule the whole lifecycle rests on: once a deal is settled or dropped,
-	   nothing may move it again — not an operator, not a retried request. */
-	it('makes completed and cancelled terminal', () => {
+	/* Cancelled is the end of the road: nothing may move it again — not an
+	   operator, not a retried request. */
+	it('makes cancelled terminal', () => {
 		for (const to of ALL) {
-			expect(canTransition('completed', to), `completed → ${to}`).toBe(false);
 			expect(canTransition('cancelled', to), `cancelled → ${to}`).toBe(false);
+		}
+	});
+
+	/*
+	 * Completed is terminal but for one edge.
+	 *
+	 * Escrow releases the moment a deal completes, so a problem discovered the
+	 * next morning had no route at all until `completed → disputed` existed.
+	 * Whether that edge is open in a given case is a clock, and the clock lives
+	 * in `domain/dispute.ts`; this table only says the edge is there. Every
+	 * other way out of `completed` stays shut — especially back into delivery,
+	 * which would let a settled deal be re-run against released money.
+	 */
+	it('lets a completed deal be disputed, and nothing else', () => {
+		expect(canTransition('completed', 'disputed')).toBe(true);
+		for (const to of ALL.filter((s) => s !== 'disputed')) {
+			expect(canTransition('completed', to), `completed → ${to}`).toBe(false);
 		}
 	});
 

@@ -2,10 +2,11 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import { settle } from '$lib/server/payments';
 import { isPayoutReference, reconcile } from '$lib/server/payouts';
+import * as refunds from '$lib/server/refunds';
 import type { RequestHandler } from './$types';
 
 /**
- * Where Chapa says a payment or a payout resolved.
+ * Where Chapa says a payment, a payout or a refund resolved.
  *
  * The important thing about this route is what it does *not* do: it never
  * believes the body. The payload is read for one field — the transaction
@@ -68,17 +69,23 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!txRef) return new Response('missing reference', { status: 400 });
 
 	/*
-	 * Deposits and transfers arrive on this one URL, and which of the two this
-	 * is decided by asking our own database, not by reading the payload.
+	 * Deposits, transfers and refunds all arrive on this one URL, and which of
+	 * the three this is decided by asking our own database, not by reading the
+	 * payload.
 	 *
-	 * Chapa sends an `event` field naming the kind, and the payout references
-	 * this app issues carry a `-PO-` infix — either would be quicker to check,
-	 * and both are the body talking. A reference either names a payout row or it
-	 * does not, and that answer cannot be forged from outside. Getting this
-	 * backwards would mean asking the transfer endpoint about a deposit, which
-	 * answers "no such transfer" — a payment that silently never settled.
+	 * Chapa sends an `event` field naming the kind, and the references this app
+	 * issues carry `-PO-` and `-RF-` infixes — either would be quicker to check,
+	 * and both are the body talking. A reference either names a row or it does
+	 * not, and that answer cannot be forged from outside. Getting it backwards
+	 * would mean asking the transfer endpoint about a deposit, which answers "no
+	 * such transfer" — a payment that silently never settled.
 	 */
-	const outcome = (await isPayoutReference(txRef)) ? await reconcile(txRef) : await settle(txRef);
+	const refundRow = await refunds.findByReference(txRef);
+	const outcome = refundRow
+		? await refunds.reconcile(refundRow.id)
+		: (await isPayoutReference(txRef))
+			? await reconcile(txRef)
+			: await settle(txRef);
 
 	/*
 	 * The status code is a delivery receipt, not an opinion, so it says only

@@ -25,7 +25,8 @@
 		ScrollText,
 		UserRoundCheck,
 		SlidersHorizontal,
-		Banknote
+		Banknote,
+		Gavel
 	} from '@lucide/svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
@@ -182,6 +183,7 @@
 					},
 					{ title: m.sb_all_campaigns(), url: resolve('/dashboard/campaigns'), icon: Megaphone },
 					{ title: m.sb_payouts(), url: resolve('/dashboard/admin/payouts'), icon: Banknote },
+					{ title: m.sb_disputes(), url: resolve('/dashboard/admin/disputes'), icon: Gavel },
 					{ title: m.sb_audit_log(), url: resolve('/dashboard/admin/audit'), icon: ScrollText }
 				]
 			},

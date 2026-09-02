@@ -30,7 +30,14 @@ const TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
 	revision: ['submitted', 'cancelled', 'disputed'],
 	approved: ['awaiting_settlement', 'disputed'],
 	awaiting_settlement: ['completed', 'disputed'],
-	completed: [],
+	/*
+	 * A finished deal can still be argued about, for as long as the operator's
+	 * dispute window says. Escrow releases the moment a booking completes, so
+	 * without this edge the product's answer to a problem discovered the next
+	 * morning is nothing at all. `disputeProblem` in `domain/dispute.ts` holds
+	 * the clock; this table only says the edge exists.
+	 */
+	completed: ['disputed'],
 	cancelled: [],
 	disputed: ['completed', 'cancelled']
 };

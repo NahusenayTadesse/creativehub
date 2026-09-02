@@ -2,7 +2,7 @@ import * as m from '$lib/paraglide/messages';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { PageServerLoad, Actions, RequestEvent } from './$types';
 import { db, rowsAffected } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
@@ -10,9 +10,19 @@ import { getBookingDetail, getSettings } from '$lib/server/queries';
 import { notify } from '$lib/server/notify';
 import { chapaEnabled } from '$lib/server/chapa';
 import * as payments from '$lib/server/payments';
+import * as disputes from '$lib/server/disputes';
+import * as refunds from '$lib/server/refunds';
 import { requireBookingAccess, recordAudit } from '$lib/server/guards';
 import { refreshCreatorCompletedBookings, refreshCreatorRating } from '$lib/server/score-service';
 import { canTransition, splitFee, type BookingStatus } from '$lib/domain/booking';
+import {
+	cancelAgreeProblem,
+	cancelRequestProblem,
+	disputeProblem,
+	disputeWindowClosesAt,
+	type CancelProblem,
+	type DisputeProblem
+} from '$lib/domain/dispute';
 import { maskContact } from '$lib/domain/mask';
 import {
 	proposalSchema,
@@ -22,7 +32,12 @@ import {
 	reviewSubmission,
 	reviewSchema,
 	messageSchema,
-	bookingIdSchema
+	bookingIdSchema,
+	disputeRaise,
+	disputeRespond,
+	disputeWithdraw,
+	cancelRequest,
+	cancelDecision
 } from '$lib/schemas';
 
 const toLines = (value: string) =>
@@ -39,12 +54,16 @@ export const load: PageServerLoad = async (event) => {
 	const detail = await getBookingDetail(id);
 	if (!detail) error(404, m.srv_booking_not_found());
 
-	const [proposalForm, submitForm, reviewForm, messageForm] = await Promise.all([
-		superValidate(zod4(proposalSchema), { id: 'proposal' }),
-		superValidate(zod4(submissionSchema), { id: 'submission' }),
-		superValidate(zod4(reviewSchema), { id: 'review' }),
-		superValidate(zod4(messageSchema), { id: 'message' })
-	]);
+	const [proposalForm, submitForm, reviewForm, messageForm, disputeForm, respondForm, cancelForm] =
+		await Promise.all([
+			superValidate(zod4(proposalSchema), { id: 'proposal' }),
+			superValidate(zod4(submissionSchema), { id: 'submission' }),
+			superValidate(zod4(reviewSchema), { id: 'review' }),
+			superValidate(zod4(messageSchema), { id: 'message' }),
+			superValidate(zod4(disputeRaise), { id: 'dispute' }),
+			superValidate(zod4(disputeRespond), { id: 'dispute-respond' }),
+			superValidate(zod4(cancelRequest), { id: 'cancel' })
+		]);
 
 	/* Seed the counter-offer form from whatever is currently on the table. */
 	const latest = detail.proposals.at(-1);
@@ -80,6 +99,14 @@ export const load: PageServerLoad = async (event) => {
 	   page does not show `pending` for a deposit it just took. */
 	const current = payment?.state === 'funded' ? ((await getBookingDetail(id)) ?? detail) : detail;
 
+	const [settings, caseList, refundList] = await Promise.all([
+		getSettings(),
+		disputes.listForBooking(id),
+		refunds.listForBooking(id)
+	]);
+	const windowDays = settings?.disputeWindowDays ?? 0;
+	const openCase = caseList.find((c) => c.status === 'open') ?? null;
+
 	return {
 		...current,
 		side,
@@ -87,6 +114,25 @@ export const load: PageServerLoad = async (event) => {
 		submitForm,
 		reviewForm,
 		messageForm,
+		disputeForm,
+		respondForm,
+		cancelForm,
+		disputes: caseList,
+		refunds: refundList,
+		/*
+		 * Whether each button may be drawn, decided here rather than in the
+		 * template. The same tests run again inside every action, because a page
+		 * left open while the deal moved on would otherwise post against a view
+		 * that is no longer true.
+		 */
+		disputeProblem: disputeProblem(current.booking, {
+			side,
+			hasOpenDispute: Boolean(openCase),
+			windowDays
+		}),
+		disputeWindowClosesAt: disputeWindowClosesAt(current.booking.completedAt, windowDays),
+		cancelRequestProblem: cancelRequestProblem(current.booking),
+		cancelAgreeProblem: cancelAgreeProblem(current.booking, side),
 		payment: payment ? { state: payment.state } : null,
 		/* What the pay button needs to know, decided on the server: whether the
 		   provider is configured at all, and whether this booking is one it can
@@ -163,6 +209,54 @@ async function bookingParties(organizationId: number, creatorId: number) {
 	]);
 
 	return { organizationOwnerId: orgRows.at(0)?.ownerId, creatorUserId: creatorRows.at(0)?.userId };
+}
+
+/** Why a case could not be raised, in the reader's language. */
+const disputeProblemText = (problem: DisputeProblem): string =>
+	({
+		not_disputable: m.dsp_problem_not_disputable(),
+		window_closed: m.dsp_problem_window_closed(),
+		already_open: m.dsp_problem_already_open(),
+		not_a_party: m.dsp_problem_not_a_party()
+	})[problem];
+
+/** Why a cancellation could not be asked for or agreed to. */
+const cancelProblemText = (problem: CancelProblem): string =>
+	({
+		not_cancellable: m.cx_problem_not_cancellable(),
+		already_requested: m.cx_problem_already_requested(),
+		own_request: m.cx_problem_own_request(),
+		no_request: m.cx_problem_no_request()
+	})[problem];
+
+/**
+ * Where a booking was before a dispute froze it.
+ *
+ * Read out of the audit log rather than kept on the booking, because the row
+ * itself no longer remembers: `status` is `disputed`, and the state it came
+ * from only exists in the entry the freeze wrote. A case raised from `revision`
+ * must not resume at `in_production`.
+ *
+ * `booked` is the fallback, and it is the safe one: it is the earliest state a
+ * dispute can be raised from, so a booking restored to it can always move
+ * forward again through the ordinary path.
+ */
+async function statusBeforeDispute(bookingId: number): Promise<string> {
+	const rows = await db
+		.select({ fromState: t.auditLog.fromState })
+		.from(t.auditLog)
+		.where(
+			and(
+				eq(t.auditLog.entity, 'booking'),
+				eq(t.auditLog.entityId, bookingId),
+				eq(t.auditLog.action, 'dispute_raised')
+			)
+		)
+		.orderBy(desc(t.auditLog.id))
+		.limit(1);
+
+	const from = rows.at(0)?.fromState;
+	return from && canTransition(from as BookingStatus, 'disputed') ? from : 'booked';
 }
 
 export const actions: Actions = {
@@ -484,6 +578,230 @@ export const actions: Actions = {
 		);
 
 		return { settled: true };
+	},
+
+	/* ---------------- cancelling by agreement ---------------- */
+
+	/**
+	 * Asks the other side to call the deal off.
+	 *
+	 * Not a cancellation. Most stuck deals are not disagreements — somebody's
+	 * plans changed — and this is the path that does not make an operator
+	 * arbitrate something nobody is arguing about. It takes two presses from two
+	 * people, which is what stops one party walking away from a funded deal and
+	 * the other finding out afterwards.
+	 */
+	requestCancel: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side, user } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(cancelRequest), { id: 'cancel' });
+
+		if (side === 'admin') return fail(403, { message: m.dsp_problem_not_a_party() });
+		if (!form.valid) return fail(400, { message: m.srv_check_form() });
+
+		const problem = cancelRequestProblem(booking);
+		if (problem) return fail(409, { message: cancelProblemText(problem) });
+
+		await db
+			.update(t.bookings)
+			.set({
+				cancelRequestedBy: user.id,
+				cancelRequestedSide: side,
+				cancelRequestedAt: new Date(),
+				cancelRequestReason: form.data.reason,
+				updatedBy: user.id
+			})
+			.where(and(eq(t.bookings.id, id), sql`${t.bookings.cancelRequestedAt} is null`));
+
+		await recordAudit({
+			actorId: user.id,
+			actorLabel: user.name,
+			entity: 'booking',
+			entityId: id,
+			action: 'cancel_requested',
+			reason: form.data.reason.slice(0, 300)
+		});
+
+		const parties = await bookingParties(booking.organizationId, booking.creatorId);
+		await notifyDeal(
+			side === 'creator' ? parties.organizationOwnerId : parties.creatorUserId,
+			m.notif_cancel_requested_title(),
+			m.notif_cancel_requested_body({ title: booking.title }),
+			`/dashboard/bookings/${id}`
+		);
+
+		return message(form, { type: 'success', text: m.cx_requested_toast() });
+	},
+
+	/**
+	 * The other side's answer: agree, and the deal ends; refuse, and it carries
+	 * on with the request cleared so it can be asked again later.
+	 */
+	answerCancel: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side, user } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(cancelDecision));
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
+
+		const problem = cancelAgreeProblem(booking, side);
+		if (problem) return fail(409, { message: cancelProblemText(problem) });
+
+		const cleared = {
+			cancelRequestedBy: null,
+			cancelRequestedSide: null,
+			cancelRequestedAt: null,
+			cancelRequestReason: null,
+			updatedBy: user.id
+		};
+
+		if (form.data.agree === 'false') {
+			await db.update(t.bookings).set(cleared).where(eq(t.bookings.id, id));
+			await recordAudit({
+				actorId: user.id,
+				actorLabel: user.name,
+				entity: 'booking',
+				entityId: id,
+				action: 'cancel_refused'
+			});
+			return { cancelRefused: true };
+		}
+
+		const result = await transition(
+			event,
+			id,
+			booking.status as BookingStatus,
+			'cancelled',
+			{ ...cleared, cancelReason: booking.cancelRequestReason ?? 'Cancelled by agreement' },
+			'Cancelled by agreement'
+		);
+		if (!result.ok) return fail(409, { message: result.text });
+
+		/*
+		 * A funded deal that is called off owes the brand its deposit back.
+		 *
+		 * Asked for after the booking is already cancelled, and a failure does
+		 * not undo that: the deal really is off either way, and a refund that
+		 * Chapa refused is a row an operator can retry rather than a
+		 * cancellation that half happened.
+		 */
+		let refundQueued = false;
+		if (booking.escrowStatus === 'held') {
+			const sent = await refunds.send(booking, {
+				reason: 'Cancelled by agreement',
+				actor: { id: user.id, name: user.name }
+			});
+			refundQueued = sent.ok;
+			if (!sent.ok && sent.code !== 'nothing_to_refund') {
+				console.error(`Refund failed for cancelled booking ${id}:`, sent.error);
+			}
+		}
+
+		const parties = await bookingParties(booking.organizationId, booking.creatorId);
+		await notifyDeal(
+			side === 'creator' ? parties.organizationOwnerId : parties.creatorUserId,
+			m.notif_cancel_agreed_title(),
+			m.notif_cancel_agreed_body({ title: booking.title }),
+			`/dashboard/bookings/${id}`
+		);
+
+		return { cancelled: true, refundQueued };
+	},
+
+	/* ---------------- disputes ---------------- */
+
+	raiseDispute: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side, user } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(disputeRaise), { id: 'dispute' });
+
+		if (side === 'admin') return fail(403, { message: m.dsp_problem_not_a_party() });
+		if (!form.valid) {
+			return message(form, { type: 'error', text: m.srv_dispute_need_reason() }, { status: 400 });
+		}
+
+		const settings = await getSettings();
+		const problem = disputeProblem(booking, {
+			side,
+			hasOpenDispute: Boolean(await disputes.openFor(id)),
+			windowDays: settings?.disputeWindowDays ?? 0
+		});
+		if (problem) {
+			return message(form, { type: 'error', text: disputeProblemText(problem) }, { status: 409 });
+		}
+
+		await disputes.raise(booking, {
+			side,
+			reason: form.data.reason,
+			evidenceUrl: form.data.evidenceUrl,
+			actor: { id: user.id, name: user.name }
+		});
+
+		return message(form, { type: 'success', text: m.dsp_raised_toast() });
+	},
+
+	respondDispute: async (event) => {
+		const id = Number(event.params.id);
+		const { side, user } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(disputeRespond), {
+			id: 'dispute-respond'
+		});
+		if (!form.valid) {
+			return message(form, { type: 'error', text: m.srv_dispute_need_reason() }, { status: 400 });
+		}
+
+		const openCase = await disputes.openFor(id);
+		if (!openCase || openCase.id !== form.data.id) {
+			return message(form, { type: 'error', text: m.srv_dispute_closed() }, { status: 409 });
+		}
+		/* Only the side that did not raise it answers — an operator reads both
+		   statements and is not a third voice in them. */
+		if (side === 'admin' || openCase.raisedBySide === side) {
+			return message(form, { type: 'error', text: m.srv_dispute_not_yours() }, { status: 403 });
+		}
+		if (openCase.respondedAt) {
+			return message(
+				form,
+				{ type: 'error', text: m.srv_dispute_already_answered() },
+				{ status: 409 }
+			);
+		}
+
+		await disputes.respond(openCase, {
+			text: form.data.text,
+			evidenceUrl: form.data.evidenceUrl,
+			actor: { id: user.id, name: user.name }
+		});
+
+		return message(form, { type: 'success', text: m.dsp_responded_toast() });
+	},
+
+	/**
+	 * The side that raised a case backing down.
+	 *
+	 * The booking returns to where it was, which is read from the audit entry
+	 * the freeze wrote rather than guessed: a case raised from `revision` must
+	 * not resume at `in_production`, and the row itself no longer remembers.
+	 */
+	withdrawDispute: async (event) => {
+		const id = Number(event.params.id);
+		const { side, user } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(disputeWithdraw));
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
+
+		const openCase = await disputes.openFor(id);
+		if (!openCase || openCase.id !== form.data.id) {
+			return fail(409, { message: m.srv_dispute_closed() });
+		}
+		if (side === 'admin' || openCase.raisedBySide !== side) {
+			return fail(403, { message: m.srv_dispute_not_yours() });
+		}
+
+		await disputes.withdraw(openCase, await statusBeforeDispute(id), {
+			id: user.id,
+			name: user.name
+		});
+
+		return { withdrawn: true };
 	},
 
 	/* ---------------- delivery ---------------- */
