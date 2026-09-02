@@ -14,21 +14,21 @@
 
 ## Contents
 
-| # | Section | What it covers |
-|---|---------|----------------|
-| 1 | [Overview](#1-overview) | What the product is, who it serves, what it claims |
-| 2 | [At a glance](#2-at-a-glance) | The system in numbers |
-| 3 | [The product](#3-the-product) | Every surface, by the role that uses it |
-| 4 | [Core mechanics](#4-core-mechanics) | The seven pieces of logic the marketplace turns on |
-| 5 | [Architecture](#5-architecture) | Stack, layout, and the four abstractions that carry it |
-| 6 | [Data model](#6-data-model) | 38 tables, grouped by what they are for |
-| 7 | [Security model](#7-security-model) | Authentication, authorisation, input, transport, uploads |
-| 8 | [Payments](#8-payments) | What is connected, what is not, and why |
-| 9 | [Language and theme](#9-language-and-theme) | Two locales, two colour schemes, one component set |
-| 10 | [Build, test, deploy](#10-build-test-deploy) | The path from a commit to a running server |
-| 11 | [Configuration reference](#11-configuration-reference) | Every environment variable, and what breaks without it |
-| 12 | [Roadmap](#12-roadmap) | What to sharpen, what to build, in what order |
-| 13 | [Appendices](#13-appendices) | Route map, script index, glossary |
+| #   | Section                                                | What it covers                                           |
+| --- | ------------------------------------------------------ | -------------------------------------------------------- |
+| 1   | [Overview](#1-overview)                                | What the product is, who it serves, what it claims       |
+| 2   | [At a glance](#2-at-a-glance)                          | The system in numbers                                    |
+| 3   | [The product](#3-the-product)                          | Every surface, by the role that uses it                  |
+| 4   | [Core mechanics](#4-core-mechanics)                    | The seven pieces of logic the marketplace turns on       |
+| 5   | [Architecture](#5-architecture)                        | Stack, layout, and the four abstractions that carry it   |
+| 6   | [Data model](#6-data-model)                            | 38 tables, grouped by what they are for                  |
+| 7   | [Security model](#7-security-model)                    | Authentication, authorisation, input, transport, uploads |
+| 8   | [Payments](#8-payments)                                | What is connected, what is not, and why                  |
+| 9   | [Language and theme](#9-language-and-theme)            | Two locales, two colour schemes, one component set       |
+| 10  | [Build, test, deploy](#10-build-test-deploy)           | The path from a commit to a running server               |
+| 11  | [Configuration reference](#11-configuration-reference) | Every environment variable, and what breaks without it   |
+| 12  | [Roadmap](#12-roadmap)                                 | What to sharpen, what to build, in what order            |
+| 13  | [Appendices](#13-appendices)                           | Route map, script index, glossary                        |
 
 ---
 
@@ -76,29 +76,29 @@ tone for the whole codebase:
 
 ### Who it is for
 
-| Role | Enters through | Works in |
-|------|----------------|----------|
-| **Creator** | Sign-up, or claiming a profile imported for them | Profile, channels, packages, portfolio, applications, bookings, reviews |
-| **Brand / organisation** | Sign-up and creating an organisation | Campaigns, discovery, shortlist, bookings, reviews |
-| **Operator (admin)** | Assigned role | Reference data, verification, claims, introductions, trending, gallery, users, audit, site settings |
-| **Visitor** | No account | Homepage, discovery, creator profiles, open briefs, terms, privacy |
+| Role                     | Enters through                                   | Works in                                                                                            |
+| ------------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| **Creator**              | Sign-up, or claiming a profile imported for them | Profile, channels, packages, portfolio, applications, bookings, reviews                             |
+| **Brand / organisation** | Sign-up and creating an organisation             | Campaigns, discovery, shortlist, bookings, reviews                                                  |
+| **Operator (admin)**     | Assigned role                                    | Reference data, verification, claims, introductions, trending, gallery, users, audit, site settings |
+| **Visitor**              | No account                                       | Homepage, discovery, creator profiles, open briefs, terms, privacy                                  |
 
 ---
 
 ## 2. At a glance
 
-| | |
-|---|---|
-| **Application routes** | 44 pages, 7 endpoints |
-| **Database tables** | 38 (34 domain + 4 authentication) |
-| **Migrations** | 6, committed and replayable from empty |
-| **Translated strings** | 1,700 keys × 2 locales (English, Amharic) — full parity |
-| **Unit test files** | 13, over `domain/` and both query layers |
-| **End-to-end suites** | 4, run against a production build and a real database |
-| **Reference taxonomies** | Countries, regions, categories, platforms, languages |
-| **Booking states** | 10, with declared transitions enforced server-side |
-| **Trending signals** | 10 weighted inputs, plus eligibility floors and fairness caps |
-| **Field components** | 11 input shapes plus 3 richer controls, defined once |
+|                          |                                                               |
+| ------------------------ | ------------------------------------------------------------- |
+| **Application routes**   | 44 pages, 7 endpoints                                         |
+| **Database tables**      | 38 (34 domain + 4 authentication)                             |
+| **Migrations**           | 6, committed and replayable from empty                        |
+| **Translated strings**   | 1,700 keys × 2 locales (English, Amharic) — full parity       |
+| **Unit test files**      | 13, over `domain/` and both query layers                      |
+| **End-to-end suites**    | 4, run against a production build and a real database         |
+| **Reference taxonomies** | Countries, regions, categories, platforms, languages          |
+| **Booking states**       | 10, with declared transitions enforced server-side            |
+| **Trending signals**     | 10 weighted inputs, plus eligibility floors and fairness caps |
+| **Field components**     | 11 input shapes plus 3 richer controls, defined once          |
 
 ---
 
@@ -142,20 +142,20 @@ sources before the person arrived, and that removal is available for the asking.
 
 ### 3.2 The creator workspace
 
-| Surface | Does |
-|---------|------|
-| `/dashboard` | Deal pipeline, earnings, score, next actions |
-| `/dashboard/profile` | The public page: bio, location, categories, languages, avatar, cover |
-| `/dashboard/profile/create` | First-time profile creation |
-| `/dashboard/profile/claim` | Take over a profile that was imported before you arrived |
-| `/dashboard/channels` | Social accounts: handle, followers, engagement rate, verified flag |
-| `/dashboard/packages` | Priced offers — deliverables, price, delivery days, revisions |
-| `/dashboard/portfolio` | Work samples, image or video, with views and likes |
-| `/dashboard/applications` | Applications to open briefs, and their outcomes |
-| `/dashboard/bookings` | Live deals, negotiation, delivery, revisions |
-| `/dashboard/verification` | Submit evidence, move up the verification ladder |
-| `/dashboard/reviews` | Reviews received and given |
-| `/dashboard/settings` | The account: details, password, notification preferences, sessions, closure |
+| Surface                     | Does                                                                        |
+| --------------------------- | --------------------------------------------------------------------------- |
+| `/dashboard`                | Deal pipeline, earnings, score, next actions                                |
+| `/dashboard/profile`        | The public page: bio, location, categories, languages, avatar, cover        |
+| `/dashboard/profile/create` | First-time profile creation                                                 |
+| `/dashboard/profile/claim`  | Take over a profile that was imported before you arrived                    |
+| `/dashboard/channels`       | Social accounts: handle, followers, engagement rate, verified flag          |
+| `/dashboard/packages`       | Priced offers — deliverables, price, delivery days, revisions               |
+| `/dashboard/portfolio`      | Work samples, image or video, with views and likes                          |
+| `/dashboard/applications`   | Applications to open briefs, and their outcomes                             |
+| `/dashboard/bookings`       | Live deals, negotiation, delivery, revisions                                |
+| `/dashboard/verification`   | Submit evidence, move up the verification ladder                            |
+| `/dashboard/reviews`        | Reviews received and given                                                  |
+| `/dashboard/settings`       | The account: details, password, notification preferences, sessions, closure |
 
 A write anywhere in the first six of those recalculates the creator's score
 through `afterWrite`, so the number on the public card never lags the profile it
@@ -163,14 +163,14 @@ describes.
 
 ### 3.3 The brand workspace
 
-| Surface | Does |
-|---------|------|
-| `/dashboard` | Campaign performance, spend chart, shortlist, open deals |
+| Surface                   | Does                                                     |
+| ------------------------- | -------------------------------------------------------- |
+| `/dashboard`              | Campaign performance, spend chart, shortlist, open deals |
 | `/dashboard/organization` | The organisation: name, type, market, logo, verification |
-| `/dashboard/campaigns` | Briefs — draft, publish, close; applications per brief |
-| `/dashboard/shortlist` | Saved creators, with the same badges discovery shows |
-| `/dashboard/bookings` | Deals from both directions, with the full lifecycle |
-| `/dashboard/reviews` | Reviews of creators worked with |
+| `/dashboard/campaigns`    | Briefs — draft, publish, close; applications per brief   |
+| `/dashboard/shortlist`    | Saved creators, with the same badges discovery shows     |
+| `/dashboard/bookings`     | Deals from both directions, with the full lifecycle      |
+| `/dashboard/reviews`      | Reviews of creators worked with                          |
 
 ### 3.4 The operator console
 
@@ -213,13 +213,13 @@ A 0–100 number derived from evidence, capped and floored, recomputed after any
 write that could move it. The weights are the ones the public explainer modal
 shows, because a score nobody can interrogate is a score nobody should trust.
 
-| Component | Out of | Made of |
-|-----------|--------|---------|
-| Profile completeness | 30 | Name, bio over 20 characters, avatar, cover, categories, languages, at least one package, at least one portfolio item |
-| Verification | 25 | `cn_verified` 25 · `identity_verified` 20 · `social_verified` 15 · unverified 5 |
-| Engagement | 15 | Engagement rate scaled against a 10% ceiling |
-| Response rate | 15 | Currently a flat placeholder — reply times are not yet instrumented |
-| Track record | 15 | Completed bookings (to a cap) plus average rating |
+| Component            | Out of | Made of                                                                                                               |
+| -------------------- | ------ | --------------------------------------------------------------------------------------------------------------------- |
+| Profile completeness | 30     | Name, bio over 20 characters, avatar, cover, categories, languages, at least one package, at least one portfolio item |
+| Verification         | 25     | `cn_verified` 25 · `identity_verified` 20 · `social_verified` 15 · unverified 5                                       |
+| Engagement           | 15     | Engagement rate scaled against a 10% ceiling                                                                          |
+| Response rate        | 15     | Currently a flat placeholder — reply times are not yet instrumented                                                   |
+| Track record         | 15     | Completed bookings (to a cap) plus average rating                                                                     |
 
 ### 4.2 The match score — `domain/match.ts`
 
@@ -227,13 +227,13 @@ Campaign-to-creator fit across five weighted factors, producing a total, a tier,
 a short list of stated synergies, a predicted impression range and a
 recommended angle.
 
-| Factor | Out of | Rewards |
-|--------|--------|---------|
-| Niche alignment | 25 | Direct category match (25), adjacent category (18), neither (8) |
-| Audience geography | 25 | Home-market match, or overlap with the brief's target regions and the creator's top audience countries |
-| Performance | 25 | Engagement rate, then rating weighted by volume of completed work, then verification |
-| Platform fit | 15 | Primary channel in the brief's platforms, or any channel |
-| Budget headroom | 10 | Asking price against the brief's ceiling; for barter and event passes, whether reach sits in the requested bracket |
+| Factor             | Out of | Rewards                                                                                                            |
+| ------------------ | ------ | ------------------------------------------------------------------------------------------------------------------ |
+| Niche alignment    | 25     | Direct category match (25), adjacent category (18), neither (8)                                                    |
+| Audience geography | 25     | Home-market match, or overlap with the brief's target regions and the creator's top audience countries             |
+| Performance        | 25     | Engagement rate, then rating weighted by volume of completed work, then verification                               |
+| Platform fit       | 15     | Primary channel in the brief's platforms, or any channel                                                           |
+| Budget headroom    | 10     | Asking price against the brief's ceiling; for barter and event passes, whether reach sits in the requested bracket |
 
 Adjacency is a declared, **symmetric** map of category slugs: a fintech brief
 should still surface a business creator. Symmetry is tested, because only the
@@ -370,18 +370,18 @@ change to the platform fee cannot rewrite the history of a completed deal.
 
 ### 5.1 Stack
 
-| Layer | Choice | Note |
-|-------|--------|------|
-| Framework | SvelteKit 2 · Svelte 5 runes | `adapter-node`, standalone `server.js` |
-| Database | MySQL / MariaDB via Drizzle ORM | Committed migrations, never `push` |
-| Authentication | better-auth | Email + password, Google, sessions, rate limits |
-| Forms | sveltekit-superforms + Zod 4 | One schema shared by the form and the action |
-| Styling | Tailwind 4 + shadcn-svelte | Token-based palette, light and dark |
-| i18n | Paraglide (inlang) | `en` and `am`, compiled, per-request locale |
-| Mail | nodemailer | Optional; the app runs and warns once without it |
-| Payments | Chapa hosted checkout | Deposit in, by server-side verification only |
-| Charts | LayerChart | Spend and performance |
-| Testing | Vitest + Playwright | Unit on domain and queries; e2e on a production build |
+| Layer          | Choice                          | Note                                                  |
+| -------------- | ------------------------------- | ----------------------------------------------------- |
+| Framework      | SvelteKit 2 · Svelte 5 runes    | `adapter-node`, standalone `server.js`                |
+| Database       | MySQL / MariaDB via Drizzle ORM | Committed migrations, never `push`                    |
+| Authentication | better-auth                     | Email + password, Google, sessions, rate limits       |
+| Forms          | sveltekit-superforms + Zod 4    | One schema shared by the form and the action          |
+| Styling        | Tailwind 4 + shadcn-svelte      | Token-based palette, light and dark                   |
+| i18n           | Paraglide (inlang)              | `en` and `am`, compiled, per-request locale           |
+| Mail           | nodemailer                      | Optional; the app runs and warns once without it      |
+| Payments       | Chapa hosted checkout           | Deposit in, by server-side verification only          |
+| Charts         | LayerChart                      | Spend and performance                                 |
+| Testing        | Vitest + Playwright             | Unit on domain and queries; e2e on a production build |
 
 ### 5.2 Layout
 
@@ -432,11 +432,11 @@ reads a `URL`:
 export const bookingsQuery = defineQuery({
 	table: t.bookings,
 	columns: bookingColumns,
-	joins: bookingJoins,          // applied to the page query and the count alike
+	joins: bookingJoins, // applied to the page query and the count alike
 	search: [t.bookings.title, t.bookings.reference, t.creators.fullName],
 	filters: {
-		tab:    { type: 'group', column: t.bookings.status, groups: BOOKING_TABS },
-		escrow: { type: 'enum',  column: t.bookings.escrowStatus, values: t.escrowStatusEnum }
+		tab: { type: 'group', column: t.bookings.status, groups: BOOKING_TABS },
+		escrow: { type: 'enum', column: t.bookings.escrowStatus, values: t.escrowStatusEnum }
 	},
 	sort: { newest: { column: t.bookings.createdAt, direction: 'desc' } /* … */ },
 	defaultSort: 'newest',
@@ -453,7 +453,7 @@ Two rules hold at every call site:
   up in a map, a filter value is checked against its column's vocabulary, `q` is
   escaped before it enters a `LIKE`, and the page size is clamped. An
   unrecognised parameter is dropped rather than passed through.
-- **Ownership is not a filter.** Conditions deciding *whose* rows these are come
+- **Ownership is not a filter.** Conditions deciding _whose_ rows these are come
   from the caller's `where`, derived from the session; filters come from the
   query string. They are separate arguments precisely so a crafted URL cannot
   widen a scope.
@@ -464,11 +464,11 @@ listBookings(url, { role, creatorId: creator?.id, organizationId: organization?.
 
 Three extras earn their place:
 
-| Helper | Does |
-|--------|------|
-| `facet(url, key)` | Counts what each choice of one filter would return, with every *other* filter applied. Because the filter excludes itself, counts stay true while standing on one of them, and summing them gives the unfiltered total. |
-| `hydrate` | Decorates a page **after** it has been cut, so the second query that turns ids into names runs over twenty-four rows rather than the table. |
-| `rank` | Orders by something SQL cannot compute — the campaign fit score. Capped, and the result says where the cap fell. |
+| Helper            | Does                                                                                                                                                                                                                    |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `facet(url, key)` | Counts what each choice of one filter would return, with every _other_ filter applied. Because the filter excludes itself, counts stay true while standing on one of them, and summing them gives the unfiltered total. |
+| `hydrate`         | Decorates a page **after** it has been cut, so the second query that turns ids into names runs over twenty-four rows rather than the table.                                                                             |
+| `rank`            | Orders by something SQL cannot compute — the campaign fit score. Capped, and the result says where the cap fell.                                                                                                        |
 
 ### 5.4 `crud.ts` does the repetitive work
 
@@ -481,7 +481,7 @@ export const { load, actions } = contentCrud({
 	label: 'Country',
 	addSchema: countryAdd,
 	editSchema: countryEdit,
-	listFields: ['paymentRails']   // one-per-line textarea → JSON array
+	listFields: ['paymentRails'] // one-per-line textarea → JSON array
 });
 ```
 
@@ -506,8 +506,15 @@ cannot reach another creator's package by changing the id in the form.
 fields; it does not write inputs.
 
 ```svelte
-<InputComp {form} {errors} name="email" type="email"
-           label={m.login_email()} autocomplete="email" required />
+<InputComp
+	{form}
+	{errors}
+	name="email"
+	type="email"
+	label={m.login_email()}
+	autocomplete="email"
+	required
+/>
 ```
 
 `InputComp` covers eleven shapes — text, number, url, password, textarea,
@@ -548,32 +555,32 @@ last touched it.
 
 ### Reference
 
-| Table | Holds |
-|-------|-------|
-| `countries` | Name, code, flag, currency, symbol, **`usdRate`** (the one FX source), payment rails |
-| `regions` | Sub-national regions and their major cities |
-| `categories` | Content niches, slugged — the slug is what adjacency is declared against |
-| `platforms` | Instagram, TikTok, YouTube, X, and whatever else an operator adds |
-| `languages` | Languages a creator works in |
+| Table        | Holds                                                                                |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `countries`  | Name, code, flag, currency, symbol, **`usdRate`** (the one FX source), payment rails |
+| `regions`    | Sub-national regions and their major cities                                          |
+| `categories` | Content niches, slugged — the slug is what adjacency is declared against             |
+| `platforms`  | Instagram, TikTok, YouTube, X, and whatever else an operator adds                    |
+| `languages`  | Languages a creator works in                                                         |
 
 ### Identity
 
-| Table | Holds |
-|-------|-------|
-| `user`, `session`, `account`, `verification` | better-auth's own tables — the library's to shape |
-| `user_settings` | Preferences. A missing row *means* `DEFAULT_PREFERENCES`, so nothing is written at sign-up |
-| `organizations` | Brand, agency, NGO, government, startup or event organiser; type, market, logo, verification level |
-| `organization_members` | Owner / admin / member seats |
+| Table                                        | Holds                                                                                              |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `user`, `session`, `account`, `verification` | better-auth's own tables — the library's to shape                                                  |
+| `user_settings`                              | Preferences. A missing row _means_ `DEFAULT_PREFERENCES`, so nothing is written at sign-up         |
+| `organizations`                              | Brand, agency, NGO, government, startup or event organiser; type, market, logo, verification level |
+| `organization_members`                       | Owner / admin / member seats                                                                       |
 
 ### Supply
 
-| Table | Holds |
-|-------|-------|
-| `creators` | The profile. Reach, starting price, derived score, verification, availability, overseas share, top audience countries, `isPublished`, `isClaimed` |
-| `creator_categories`, `creator_languages` | Join tables |
-| `social_accounts` | One per channel: handle, followers, engagement rate, platform-verified flag |
-| `packages` | Priced offers: deliverables, price, delivery days, revision allowance |
-| `portfolio_items` | Work samples, image or video, with views and likes |
+| Table                                     | Holds                                                                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `creators`                                | The profile. Reach, starting price, derived score, verification, availability, overseas share, top audience countries, `isPublished`, `isClaimed` |
+| `creator_categories`, `creator_languages` | Join tables                                                                                                                                       |
+| `social_accounts`                         | One per channel: handle, followers, engagement rate, platform-verified flag                                                                       |
+| `packages`                                | Priced offers: deliverables, price, delivery days, revision allowance                                                                             |
+| `portfolio_items`                         | Work samples, image or video, with views and likes                                                                                                |
 
 `creators.totalReach`, `score`, `reviewsCount`, `averageRating` and
 `completedBookings` are denormalised on purpose, so discovery can filter and
@@ -585,43 +592,43 @@ index, so unclaimed supply is unaffected.
 
 ### Demand
 
-| Table | Holds |
-|-------|-------|
-| `campaigns` | The brief: objective, exactly one compensation model, category, platforms, follower bracket, budget range, market, target regions, deliverables, deadline, language, tags, status |
-| `applications` | A creator's pitch and proposed price. Uniquely indexed on `(campaignId, creatorId)` — one active application each |
+| Table          | Holds                                                                                                                                                                             |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `campaigns`    | The brief: objective, exactly one compensation model, category, platforms, follower bracket, budget range, market, target regions, deliverables, deadline, language, tags, status |
+| `applications` | A creator's pitch and proposed price. Uniquely indexed on `(campaignId, creatorId)` — one active application each                                                                 |
 
 ### Transactions
 
-| Table | Holds |
-|-------|-------|
-| `bookings` | The deal: reference, parties, price, **stored** platform fee and creator payout, status, escrow status, introduction status, revision counters, `termsSnapshot` and when it froze |
-| `term_proposals` | One negotiation round each; the chain of them is the timeline |
-| `payments` | Every attempt, including abandoned ones — the difference between "never tried" and "tried twice and gave up" only ever matters once, in a support conversation |
-| `submissions` | Delivery: submitted, approved, or revision requested |
-| `messages` | Scoped to a deal — there is no global inbox — with `isMasked` set when the masker rewrote something |
-| `reviews` | Both directions, brand→creator and creator→brand |
+| Table            | Holds                                                                                                                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bookings`       | The deal: reference, parties, price, **stored** platform fee and creator payout, status, escrow status, introduction status, revision counters, `termsSnapshot` and when it froze |
+| `term_proposals` | One negotiation round each; the chain of them is the timeline                                                                                                                     |
+| `payments`       | Every attempt, including abandoned ones — the difference between "never tried" and "tried twice and gave up" only ever matters once, in a support conversation                    |
+| `submissions`    | Delivery: submitted, approved, or revision requested                                                                                                                              |
+| `messages`       | Scoped to a deal — there is no global inbox — with `isMasked` set when the masker rewrote something                                                                               |
+| `reviews`        | Both directions, brand→creator and creator→brand                                                                                                                                  |
 
 ### Trust and operations
 
-| Table | Holds |
-|-------|-------|
-| `verification_requests` | Evidence for a creator or an organisation, and its outcome |
-| `creator_claims` | A request to take over an imported profile. Grants nothing on its own |
-| `saved_creators` | Shortlists |
-| `notifications` | In-app rows written by `server/notify.ts` |
-| `audit_log` | Append-only: actor, object, from-state, to-state, reason. Never updated, never deleted |
-| `site_settings` | Site name, tagline, hero copy, platform fee percent, support email and phone |
-| `gallery_slides` | Homepage carousel, in the order an operator arranged them |
+| Table                   | Holds                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| `verification_requests` | Evidence for a creator or an organisation, and its outcome                             |
+| `creator_claims`        | A request to take over an imported profile. Grants nothing on its own                  |
+| `saved_creators`        | Shortlists                                                                             |
+| `notifications`         | In-app rows written by `server/notify.ts`                                              |
+| `audit_log`             | Append-only: actor, object, from-state, to-state, reason. Never updated, never deleted |
+| `site_settings`         | Site name, tagline, hero copy, platform fee percent, support email and phone           |
+| `gallery_slides`        | Homepage carousel, in the order an operator arranged them                              |
 
 ### Trending
 
-| Table | Holds |
-|-------|-------|
-| `trending_config` | One row of knobs: mode, slots, window, half-life, normalisation, ten weights, eligibility floors, diversity caps, rotation, location policy, auto-refresh, freeze |
-| `trending_overrides` | Pins, boosts and blocks, each with a reason and an optional expiry |
-| `trending_entries` | The live board, one row per slot, with each signal's contribution |
-| `trending_cooldowns` | Who is resting, so the same faces cannot camp on the homepage |
-| `trending_runs` | Append-only history of every recompute and the settings it used |
+| Table                | Holds                                                                                                                                                             |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `trending_config`    | One row of knobs: mode, slots, window, half-life, normalisation, ten weights, eligibility floors, diversity caps, rotation, location policy, auto-refresh, freeze |
+| `trending_overrides` | Pins, boosts and blocks, each with a reason and an optional expiry                                                                                                |
+| `trending_entries`   | The live board, one row per slot, with each signal's contribution                                                                                                 |
+| `trending_cooldowns` | Who is resting, so the same faces cannot camp on the homepage                                                                                                     |
+| `trending_runs`      | Append-only history of every recompute and the settings it used                                                                                                   |
 
 ---
 
@@ -631,7 +638,7 @@ index, so unclaimed supply is unaffected.
 
 better-auth handles email/password and Google, and rate-limits its own
 endpoints: ten sign-ins a minute, five sign-ups per ten minutes. Vague login
-errors stop an attacker *reading* an answer out of one response; they do nothing
+errors stop an attacker _reading_ an answer out of one response; they do nothing
 about asking a hundred thousand times, which is what the limiter is for. The
 counters are per process, which fits a single-node deployment — behind more than
 one instance, move them to `storage: 'database'`.
@@ -650,10 +657,10 @@ prompted it is signed out too, and the owner types the new password once at
 
 Three guards, and one rule that outranks them:
 
-| Guard | Refuses |
-|-------|---------|
-| `requireUser` | Anyone not signed in |
-| `requireRole` | Anyone whose role is not in the list |
+| Guard                  | Refuses                                |
+| ---------------------- | -------------------------------------- |
+| `requireUser`          | Anyone not signed in                   |
+| `requireRole`          | Anyone whose role is not in the list   |
 | `requireBookingAccess` | Anyone who is not a party to this deal |
 
 The rule is §5.3's: **ownership is never a filter**. Scope comes from the
@@ -702,7 +709,7 @@ file layout and tells everyone else nothing.
 ## 8. Payments
 
 Chapa collects the brand's deposit. `server/chapa.ts` is the API client and
-knows nothing about deals; `server/payments.ts` decides what a payment *means*
+knows nothing about deals; `server/payments.ts` decides what a payment _means_
 for a booking. Keeping the seam there is what makes the rules about money
 readable without a network in the way.
 
@@ -741,7 +748,7 @@ operator last touched months ago.
 ### What is not connected
 
 **Payouts.** Money comes in through Chapa; it goes out by hand. `settle`
-releases escrow as a *record*, not a transfer, and the interface says so rather
+releases escrow as a _record_, not a transfer, and the interface says so rather
 than implying a creator has been paid. Wiring the other direction needs Chapa
 Transfers, a funded balance, and bank details on creator profiles — none of
 which exist yet.
@@ -819,7 +826,7 @@ without running them.
 ### The bundle has to be self-contained
 
 `build/` is shipped on its own — there are no `node_modules` on the server — so
-every dependency has to be *inside* the bundle. Vite does not do that by
+every dependency has to be _inside_ the bundle. Vite does not do that by
 default: `ssr.noExternal` in `vite.config.ts` names the ones it would otherwise
 leave as bare imports, and `npm run verify:build` fails if any survive.
 
@@ -856,28 +863,28 @@ site down with a typo.
 
 ### Operational routes
 
-| Route | For |
-|-------|-----|
-| `/health` | A proxy or uptime check. Touches the database, because "Node is listening" is not the question being asked |
-| `/robots.txt` | A route rather than a static file, so `Sitemap:` can be absolute |
-| `/sitemap.xml` | Published creators and briefs only |
+| Route          | For                                                                                                        |
+| -------------- | ---------------------------------------------------------------------------------------------------------- |
+| `/health`      | A proxy or uptime check. Touches the database, because "Node is listening" is not the question being asked |
+| `/robots.txt`  | A route rather than a static file, so `Sitemap:` can be absolute                                           |
+| `/sitemap.xml` | Published creators and briefs only                                                                         |
 
 ---
 
 ## 11. Configuration reference
 
-| Variable | Required | Without it |
-|----------|----------|------------|
-| `DATABASE_URL` | Yes | Nothing starts |
-| `ORIGIN` | Yes | Every form POST is forbidden and cookies do not verify |
-| `BETTER_AUTH_SECRET` | Yes | Sessions cannot be signed. 32+ high-entropy characters in production |
-| `FILES_DIR` | Effectively | Defaults to `.tempFiles` beside the working directory — a deploy that replaces the application directory takes every upload with it. Point it outside the deploy |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | No | The app runs and sends nothing, warning once per process. In-app notifications are unaffected; password resets and address confirmations cannot complete |
-| `SMTP_FROM` | No | Defaults to `SMTP_USER`. The address must be one the mailbox may send as, or the server refuses the message even though it accepted the password |
-| `SMTP_TLS_SERVERNAME` | No | For shared hosting where `mail.<yourdomain>` answers with a certificate for the provider's domain. Set it to a name the certificate covers and verification stays fully on — rather than reaching for `rejectUnauthorized: false`, which accepts any certificate from anyone on the path |
-| `CHAPA_SECRET_KEY` | No | The pay button is not drawn and operators record deposits by hand |
-| `CHAPA_PUBLIC_KEY` | No | Unused — it belongs to the inline widget, which this app does not use |
-| `CHAPA_WEBHOOK_SECRET` | No | Signatures are not checked. Survivable, because the webhook body is never believed |
+| Variable                                               | Required    | Without it                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                         | Yes         | Nothing starts                                                                                                                                                                                                                                                                           |
+| `ORIGIN`                                               | Yes         | Every form POST is forbidden and cookies do not verify                                                                                                                                                                                                                                   |
+| `BETTER_AUTH_SECRET`                                   | Yes         | Sessions cannot be signed. 32+ high-entropy characters in production                                                                                                                                                                                                                     |
+| `FILES_DIR`                                            | Effectively | Defaults to `.tempFiles` beside the working directory — a deploy that replaces the application directory takes every upload with it. Point it outside the deploy                                                                                                                         |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | No          | The app runs and sends nothing, warning once per process. In-app notifications are unaffected; password resets and address confirmations cannot complete                                                                                                                                 |
+| `SMTP_FROM`                                            | No          | Defaults to `SMTP_USER`. The address must be one the mailbox may send as, or the server refuses the message even though it accepted the password                                                                                                                                         |
+| `SMTP_TLS_SERVERNAME`                                  | No          | For shared hosting where `mail.<yourdomain>` answers with a certificate for the provider's domain. Set it to a name the certificate covers and verification stays fully on — rather than reaching for `rejectUnauthorized: false`, which accepts any certificate from anyone on the path |
+| `CHAPA_SECRET_KEY`                                     | No          | The pay button is not drawn and operators record deposits by hand                                                                                                                                                                                                                        |
+| `CHAPA_PUBLIC_KEY`                                     | No          | Unused — it belongs to the inline widget, which this app does not use                                                                                                                                                                                                                    |
+| `CHAPA_WEBHOOK_SECRET`                                 | No          | Signatures are not checked. Survivable, because the webhook body is never believed                                                                                                                                                                                                       |
 
 `npm run mail:check` connects and authenticates; give it an address and it sends
 one message there as well. The two fail differently, which is the point — a
@@ -932,8 +939,8 @@ on. It is also the single most useful number a brand could see on a card.
 `social_accounts.followers` and `engagementRate` are typed in by a creator or
 imported from a scrape, and once written they look exactly as authoritative as a
 figure pulled from a platform API an hour ago. There is an `isVerified` flag per
-channel, but no record of *when* a number was last established or *where it came
-from*.
+channel, but no record of _when_ a number was last established or _where it came
+from_.
 
 Two columns — `measuredAt` and a `source` enum (`self_declared`, `imported`,
 `platform_api`) — let every figure be labelled where it is shown, let discovery
@@ -950,8 +957,8 @@ on; the schema does not need to change again.
 #### A5 · A real scheduler — **M**
 
 Trending has `autoRefresh` and `refreshIntervalMinutes`, and the comment in
-`trending-service.ts` is candid: *"There is no job runner in this deployment, so
-the public page that reads the board is what notices it has gone stale."* That
+`trending-service.ts` is candid: _"There is no job runner in this deployment, so
+the public page that reads the board is what notices it has gone stale."_ That
 works, but it means the board only refreshes when someone visits, and it puts a
 recompute on the same process serving the request.
 
@@ -1006,12 +1013,12 @@ a check.
 Reach is currently a raw number with a `minReach` filter. Buyers do not think in
 raw numbers; they think in tiers, and each tier is a different kind of buy:
 
-| Tier | Range | What it is bought for |
-|------|-------|----------------------|
-| Nano | under 10K | Highest engagement, closest to their audience |
-| Micro | 10K–100K | Real communities, still affordable |
-| Macro | 100K–1M | Serious reach with a clear niche |
-| Mega | 1M+ | Household names, national attention |
+| Tier  | Range     | What it is bought for                         |
+| ----- | --------- | --------------------------------------------- |
+| Nano  | under 10K | Highest engagement, closest to their audience |
+| Micro | 10K–100K  | Real communities, still affordable            |
+| Macro | 100K–1M   | Serious reach with a clear niche              |
+| Mega  | 1M+       | Household names, national attention           |
 
 Derive the tier from `totalReach`, expose it as a `group` filter (the builder
 already supports the type — `BOOKING_TABS` uses it), facet it so each tier
@@ -1021,7 +1028,7 @@ number line into four intelligible products.
 
 #### B2 · A campaign results report — **L**, and the largest gap in the product
 
-The lifecycle currently ends at *delivered and paid*. `submissions` records that
+The lifecycle currently ends at _delivered and paid_. `submissions` records that
 content was handed over and approved; nothing records **how it performed**. A
 brand's most important question — what did this buy me — is answered outside the
 platform, which is exactly where a marketplace loses the account.
@@ -1042,8 +1049,8 @@ declared engagement rate.
 
 #### B3 · Brand monitoring, as a subscription — **L**
 
-Discovery answers *who should I work with*. It does not answer *what is being
-said about me, and who is already saying it*. A monitoring product — a brand
+Discovery answers _who should I work with_. It does not answer _what is being
+said about me, and who is already saying it_. A monitoring product — a brand
 registers phrases and hashtags, the system watches the platforms that permit it,
 and the brand gets a feed, a volume-over-time chart and, most valuably, a list
 of the creators already mentioning them — is a second revenue line that runs on
@@ -1086,7 +1093,7 @@ subscriptions), with a rendered PDF, a paid/overdue state and a reminder
 schedule, is what makes the platform usable by an organisation with a finance
 department.
 
-Pair it with **payouts** (§8, *What is not connected*): bank or mobile-money
+Pair it with **payouts** (§8, _What is not connected_): bank or mobile-money
 details on creator profiles, Chapa Transfers, and a batched release run. Until
 that exists, `settle` releases escrow as a record and the interface has to keep
 saying so.
@@ -1107,7 +1114,7 @@ at their own imported page wants one of exactly two things.
 #### B7 · A roster application front door — **M**
 
 `/register` creates an account and then asks the person to build a profile.
-There is no way for a creator to *apply* — to say who they are and be reviewed
+There is no way for a creator to _apply_ — to say who they are and be reviewed
 before appearing. The verification queue is close, but it operates on a profile
 that is already published.
 
@@ -1119,16 +1126,16 @@ something to say about what being listed means. It reuses
 #### B8 · A creator earnings ledger — **S**
 
 `payments` holds every attempt and `bookings` holds the fee split, but a creator
-has no single page answering *what have I earned, what is owed, and when did it
-arrive*. One view over existing rows — settled, pending, in escrow, per deal,
+has no single page answering _what have I earned, what is owed, and when did it
+arrive_. One view over existing rows — settled, pending, in escrow, per deal,
 with a downloadable statement — needs no new tables and is the page a creator
 will open most often after the deal list.
 
 #### B9 · Saved searches and alerts — **S**
 
 Discovery state lives entirely in the URL, which means a saved search is a saved
-string. Persist those strings per user, and let one be subscribed to: *tell me
-when a creator matching this appears*. The same mechanism, pointed at
+string. Persist those strings per user, and let one be subscribed to: _tell me
+when a creator matching this appears_. The same mechanism, pointed at
 `campaigns` instead, gives creators a brief alert — which is what turns an
 occasional visitor into a weekly one.
 
@@ -1146,7 +1153,7 @@ workspace and is a handful of rows of code over machinery that already exists.
 
 `countries`, `regions` and `regions.majorCities` are already populated, and
 `sitemap.xml` already publishes creators and briefs. Generated pages for a
-market — *creators in Addis Ababa*, *food creators in Nairobi* — with the local
+market — _creators in Addis Ababa_, _food creators in Nairobi_ — with the local
 currency, the local payment rails from `countries.paymentRails`, and copy in the
 local language, are cheap to build over the existing query builder and are the
 single best source of unpaid demand-side traffic a marketplace has.
@@ -1154,7 +1161,7 @@ single best source of unpaid demand-side traffic a marketplace has.
 #### B12 · Usage rights in the frozen terms — **M**
 
 `termsSnapshot` freezes deliverables, price and revisions. It does not record
-what the brand may *do* with the content afterwards: how long, on which
+what the brand may _do_ with the content afterwards: how long, on which
 channels, whether it may be run as a paid advertisement, whether exclusivity
 applies in the category and for how long.
 
@@ -1165,12 +1172,12 @@ it on the deal is a contained change with a direct effect on transaction value.
 
 ### 12.3 Suggested sequencing
 
-| Phase | Items | Why this order |
-|-------|-------|----------------|
-| **1 — Make the existing product honest** | A1, A8, B6, B8, A10 | All small. Each closes a gap between what a page says and what the system does. A1 alone unlocks B9 and B10 |
-| **2 — Make the numbers real** | A3, A2, A5, B1 | Provenance first, then the score factor that depends on it, then the runner that keeps everything fresh, then the taxonomy that makes reach legible |
-| **3 — Close the loop on outcomes** | B2, B12, B10, B9 | Results reporting is the largest gap in the product; usage rights raise the value of every deal it applies to |
-| **4 — Serve the accounts that pay most** | B4, B5, B7, A7 | Managed service, invoicing, a vetted front door and real team seats are what an organisation with a procurement process needs |
+| Phase                                     | Items               | Why this order                                                                                                                                            |
+| ----------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 — Make the existing product honest**  | A1, A8, B6, B8, A10 | All small. Each closes a gap between what a page says and what the system does. A1 alone unlocks B9 and B10                                               |
+| **2 — Make the numbers real**             | A3, A2, A5, B1      | Provenance first, then the score factor that depends on it, then the runner that keeps everything fresh, then the taxonomy that makes reach legible       |
+| **3 — Close the loop on outcomes**        | B2, B12, B10, B9    | Results reporting is the largest gap in the product; usage rights raise the value of every deal it applies to                                             |
+| **4 — Serve the accounts that pay most**  | B4, B5, B7, A7      | Managed service, invoicing, a vetted front door and real team seats are what an organisation with a procurement process needs                             |
 | **5 — Grow demand and add a second line** | B11, B3, A4, A6, A9 | Landing pages first because they are cheap; monitoring is a product in its own right and should not be started until the marketplace's own loop is closed |
 
 ---
@@ -1231,50 +1238,50 @@ it on the deal is a contained change with a direct effect on transaction value.
 
 ### 13.2 Script index
 
-| Command | Does |
-|---------|------|
-| `npm run dev` | Dev server |
-| `npm run build` | Production build (node adapter) |
-| `npm run verify:build` | Fail if `build/` imports anything absent on the server |
-| `npm run deploy` | Build, verify, back up, ship, restart, check (`--dry-run` available) |
-| `npm run check` | svelte-check |
-| `npm run lint` / `format` | prettier + eslint |
-| `npm run test:unit` | vitest |
-| `npm run test:e2e` | Playwright, against a production build |
-| `npm test` | Both |
-| `npm run db:generate` | Write a migration for the current schema |
-| `npm run db:migrate` | Apply everything in `drizzle/` |
-| `npm run db:migrate:remote` | The same, against the server |
-| `npm run db:baseline` | Record migrations as applied — for a database `push` created |
-| `npm run db:push` | Rewrite the schema in place. **Not the deploy path** |
-| `npm run db:seed` | Reference data, 14 creators, 5 organisations, 6 campaigns — idempotent |
-| `npm run db:studio` | Drizzle Studio |
-| `npm run mail:check` | Connect and authenticate; `-- you@host.tld` also sends one |
-| `npm run import:creators` | Import the scraped creator CSV into the schema |
-| `npm run fetch:avatars` | Backfill creator avatars |
-| `npm run uploads:prune` | Find files no row points at (`-- --apply` to remove them) |
-| `npm run auth:schema` | Regenerate better-auth's tables |
+| Command                     | Does                                                                   |
+| --------------------------- | ---------------------------------------------------------------------- |
+| `npm run dev`               | Dev server                                                             |
+| `npm run build`             | Production build (node adapter)                                        |
+| `npm run verify:build`      | Fail if `build/` imports anything absent on the server                 |
+| `npm run deploy`            | Build, verify, back up, ship, restart, check (`--dry-run` available)   |
+| `npm run check`             | svelte-check                                                           |
+| `npm run lint` / `format`   | prettier + eslint                                                      |
+| `npm run test:unit`         | vitest                                                                 |
+| `npm run test:e2e`          | Playwright, against a production build                                 |
+| `npm test`                  | Both                                                                   |
+| `npm run db:generate`       | Write a migration for the current schema                               |
+| `npm run db:migrate`        | Apply everything in `drizzle/`                                         |
+| `npm run db:migrate:remote` | The same, against the server                                           |
+| `npm run db:baseline`       | Record migrations as applied — for a database `push` created           |
+| `npm run db:push`           | Rewrite the schema in place. **Not the deploy path**                   |
+| `npm run db:seed`           | Reference data, 14 creators, 5 organisations, 6 campaigns — idempotent |
+| `npm run db:studio`         | Drizzle Studio                                                         |
+| `npm run mail:check`        | Connect and authenticate; `-- you@host.tld` also sends one             |
+| `npm run import:creators`   | Import the scraped creator CSV into the schema                         |
+| `npm run fetch:avatars`     | Backfill creator avatars                                               |
+| `npm run uploads:prune`     | Find files no row points at (`-- --apply` to remove them)              |
+| `npm run auth:schema`       | Regenerate better-auth's tables                                        |
 
 ### 13.3 Glossary
 
-| Term | Means here |
-|------|-----------|
-| **Booking** | One deal between an organisation and a creator, with its own reference and lifecycle |
-| **Brief / campaign** | An organisation's published call, with exactly one compensation model |
-| **Claim** | A request by an account to take over a profile imported before they arrived. Grants nothing until approved |
-| **Escrow** | A recorded state on a booking — `unfunded`, `pending`, `held`, `released`, `refunded`. Money in is real; money out is still a record, not a transfer |
-| **Facet** | The count of what one filter choice would return, with every *other* filter applied |
-| **Fit / match score** | Deterministic campaign↔creator score across five weighted factors |
-| **Introduction** | A deal opened against a creator who has no account here. Badged everywhere, and queued for an operator |
-| **Masking** | Rewriting contact details out of deal messages |
-| **Score** | The creator's derived 0–100 number. Never entered, always recomputed |
-| **Terms snapshot** | The deal's terms, frozen once on mutual acceptance and never rewritten |
-| **Trending board** | The published set of slots, with each signal's contribution stored per slot |
+| Term                  | Means here                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Booking**           | One deal between an organisation and a creator, with its own reference and lifecycle                                                                 |
+| **Brief / campaign**  | An organisation's published call, with exactly one compensation model                                                                                |
+| **Claim**             | A request by an account to take over a profile imported before they arrived. Grants nothing until approved                                           |
+| **Escrow**            | A recorded state on a booking — `unfunded`, `pending`, `held`, `released`, `refunded`. Money in is real; money out is still a record, not a transfer |
+| **Facet**             | The count of what one filter choice would return, with every _other_ filter applied                                                                  |
+| **Fit / match score** | Deterministic campaign↔creator score across five weighted factors                                                                                    |
+| **Introduction**      | A deal opened against a creator who has no account here. Badged everywhere, and queued for an operator                                               |
+| **Masking**           | Rewriting contact details out of deal messages                                                                                                       |
+| **Score**             | The creator's derived 0–100 number. Never entered, always recomputed                                                                                 |
+| **Terms snapshot**    | The deal's terms, frozen once on mutual acceptance and never rewritten                                                                               |
+| **Trending board**    | The published set of slots, with each signal's contribution stored per slot                                                                          |
 
 ---
 
 <div align="center">
 
-*Creator Network · Product & Technical Documentation · September 2026*
+_Creator Network · Product & Technical Documentation · September 2026_
 
 </div>
