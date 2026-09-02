@@ -982,7 +982,15 @@ export const blogImageEdit = z.object({ ...blogImageFields, ...idSchema.shape })
  * a provider that would take the money and send it somewhere.
  */
 export const payoutAccountSchema = z.object({
-	bankCode: refId,
+	/*
+	 * `bank`, not `bankCode`, even though it holds Chapa's numeric bank id.
+	 *
+	 * `ComboboxComp` builds its own placeholder out of the field name, so the
+	 * column's name leaked into the interface as "Select bank Code". The value
+	 * is unchanged and still lands in the `bank_code` column; only what the
+	 * control calls itself is different.
+	 */
+	bank: refId,
 	accountName: name(180),
 	accountNumber: z
 		.string()

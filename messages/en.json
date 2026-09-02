@@ -1234,7 +1234,6 @@
 	"payo_awaiting_check": "Awaiting check",
 	"payo_awaiting_check_hint": "Someone here confirms these details before the first payment. Nothing is sent until then.",
 	"payo_bank": "Bank",
-	"payo_bank_placeholder": "Choose your bank",
 	"payo_banks_unavailable": "We cannot reach Chapa for the bank list right now. Try again in a minute.",
 	"payo_checked": "Checked",
 	"payo_completed_on": "Completed {date}",

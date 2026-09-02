@@ -31,7 +31,7 @@ export const load: PageServerLoad = async (event) => {
 	const form = await superValidate(
 		account
 			? {
-					bankCode: account.bankCode,
+					bank: account.bankCode,
 					accountName: account.accountName,
 					accountNumber: account.accountNumber
 				}
@@ -66,13 +66,13 @@ export const actions: Actions = {
 		/*
 		 * The bank has to be one Chapa named.
 		 *
-		 * `bankCode` arrives as a number from a select, and a select is a
+		 * `bank` arrives as a number from a select, and a select is a
 		 * suggestion. Sending an unknown code to the transfer endpoint is a
 		 * rejected transfer at best; the failure mode worth ruling out here is a
 		 * code that happens to be valid but is not the bank whose account number
 		 * format the creator typed against.
 		 */
-		const bank = bankList.banks.find((b) => b.id === form.data.bankCode);
+		const bank = bankList.banks.find((b) => b.id === form.data.bank);
 		if (!bank)
 			return message(form, { type: 'error', text: m.srv_invalid_request() }, { status: 400 });
 

@@ -28,7 +28,7 @@
 
 	/* Chapa publishes an account length per bank, so the hint under the number
 	   field can be specific once a bank is chosen. The server checks it too. */
-	const chosenBank = $derived(data.banks.find((bank) => bank.id === Number($form.bankCode)));
+	const chosenBank = $derived(data.banks.find((bank) => bank.id === Number($form.bank)));
 
 	const numberHint = $derived(
 		chosenBank && chosenBank.accountLength > 0
@@ -124,10 +124,9 @@
 
 				<InputComp
 					label={m.payo_bank()}
-					name="bankCode"
+					name="bank"
 					type="select"
 					items={bankItems}
-					placeholder={m.payo_bank_placeholder()}
 					{form}
 					{errors}
 					required

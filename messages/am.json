@@ -1234,7 +1234,6 @@
 	"payo_awaiting_check": "ማረጋገጫ በመጠበቅ ላይ",
 	"payo_awaiting_check_hint": "ከመጀመሪያው ክፍያ በፊት እነዚህን መረጃዎች እዚህ ያለ ሰው ያረጋግጣል። እስከዚያ ድረስ ምንም አይላክም።",
 	"payo_bank": "ባንክ",
-	"payo_bank_placeholder": "ባንክዎን ይምረጡ",
 	"payo_banks_unavailable": "አሁን የባንኮችን ዝርዝር ከቻፓ ማግኘት አልቻልንም። ከደቂቃ በኋላ እንደገና ይሞክሩ።",
 	"payo_checked": "ተረጋግጧል",
 	"payo_completed_on": "{date} ተጠናቋል",
