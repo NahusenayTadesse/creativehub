@@ -6,6 +6,7 @@
 import {
 	and,
 	asc,
+	count,
 	desc,
 	eq,
 	gt,
@@ -14,6 +15,7 @@ import {
 	like,
 	lte,
 	ne,
+	notInArray,
 	or,
 	sql,
 	type SQL
@@ -1932,4 +1934,187 @@ export async function listBlogTags(limit = 30): Promise<{ tag: string; count: nu
 		.map(([tag, count]) => ({ tag, count }))
 		.sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
 		.slice(0, limit);
+}
+
+/* ------------------------------------------------------------------ *
+ * Payouts
+ * ------------------------------------------------------------------ */
+
+const payoutColumns = {
+	id: t.payouts.id,
+	reference: t.payouts.reference,
+	status: t.payouts.status,
+	amount: t.payouts.amount,
+	currencyCode: t.payouts.currencyCode,
+	bankName: t.payouts.bankName,
+	accountName: t.payouts.accountName,
+	/* The last four are enough to match a bank statement; see `maskAccount`. */
+	accountNumber: t.payouts.accountNumber,
+	providerRef: t.payouts.providerRef,
+	mode: t.payouts.mode,
+	failureReason: t.payouts.failureReason,
+	verifiedAt: t.payouts.verifiedAt,
+	createdAt: t.payouts.createdAt,
+	bookingId: t.payouts.bookingId,
+	bookingReference: t.bookings.reference,
+	bookingTitle: t.bookings.title,
+	creatorId: t.payouts.creatorId,
+	creatorName: t.creators.fullName,
+	creatorUsername: t.creators.username,
+	creatorAvatar: t.creators.avatar
+};
+
+export const payoutQuery = defineQuery({
+	table: t.payouts,
+	columns: payoutColumns,
+	joins: (qb: any) =>
+		qb
+			.leftJoin(t.bookings, eq(t.bookings.id, t.payouts.bookingId))
+			.leftJoin(t.creators, eq(t.creators.id, t.payouts.creatorId)),
+	search: [t.payouts.reference, t.bookings.reference, t.creators.fullName, t.creators.username],
+	filters: {
+		status: { type: 'enum', column: t.payouts.status, values: t.payoutStatusEnum }
+	},
+	sort: {
+		newest: { column: t.payouts.createdAt, direction: 'desc' },
+		amount: { column: t.payouts.amount, direction: 'desc' }
+	},
+	defaultSort: 'newest',
+	tiebreaker: t.payouts.id
+});
+
+export type PayoutRow = RowOf<typeof payoutColumns>;
+
+/**
+ * Bookings whose creator is owed money and has not been sent it.
+ *
+ * Not a `defineQuery`, because "owed" is an absence: it is every completed paid
+ * booking that has no live payout against it, and the anti-join that expresses
+ * that is not a filter the query builder's vocabulary can hold. It is also a
+ * queue rather than a browsable table — an operator works it to empty — so the
+ * paging, sorting and faceting `defineQuery` exists to provide would go unused.
+ *
+ * The account is joined so the queue can say *why* a row cannot be paid yet
+ * without a second round trip per booking.
+ */
+export async function listOwedBookings(limit = 100) {
+	const live = db
+		.select({ bookingId: t.payouts.bookingId })
+		.from(t.payouts)
+		.where(inArray(t.payouts.status, ['pending', 'queued', 'success']));
+
+	const owed = and(
+		eq(t.bookings.compensationType, 'paid'),
+		eq(t.bookings.escrowStatus, 'released'),
+		gt(t.bookings.creatorPayout, 0),
+		notInArray(t.bookings.id, live)
+	);
+
+	const rows = await db
+		.select({
+			id: t.bookings.id,
+			reference: t.bookings.reference,
+			title: t.bookings.title,
+			price: t.bookings.price,
+			platformFee: t.bookings.platformFee,
+			creatorPayout: t.bookings.creatorPayout,
+			currencyCode: t.bookings.currencyCode,
+			completedAt: t.bookings.completedAt,
+			creatorId: t.bookings.creatorId,
+			creatorName: t.creators.fullName,
+			creatorUsername: t.creators.username,
+			creatorAvatar: t.creators.avatar,
+			organizationName: t.organizations.name,
+			accountId: t.payoutAccounts.id,
+			bankName: t.payoutAccounts.bankName,
+			accountName: t.payoutAccounts.accountName,
+			accountNumber: t.payoutAccounts.accountNumber,
+			accountCurrency: t.payoutAccounts.currencyCode,
+			accountVerified: t.payoutAccounts.isVerified
+		})
+		.from(t.bookings)
+		.leftJoin(t.creators, eq(t.creators.id, t.bookings.creatorId))
+		.leftJoin(t.organizations, eq(t.organizations.id, t.bookings.organizationId))
+		.leftJoin(t.payoutAccounts, eq(t.payoutAccounts.creatorId, t.bookings.creatorId))
+		.where(owed)
+		/* Oldest debt first: the queue is worked from the top, and the person
+		   who has waited longest should not be the one at the bottom. */
+		.orderBy(asc(t.bookings.completedAt), asc(t.bookings.id))
+		.limit(limit);
+
+	/*
+	 * The total is counted separately, and it is not decoration.
+	 *
+	 * `limit` exists so one page render stays bounded, but this is a list of
+	 * people waiting to be paid. A list that quietly stopped at its limit would
+	 * tell an operator the queue was 100 long when it was 214, and the hundred
+	 * oldest debts would be the only ones anybody ever saw.
+	 */
+	const counted = await db.select({ total: count() }).from(t.bookings).where(owed);
+
+	return { rows, total: counted.at(0)?.total ?? 0 };
+}
+
+export type OwedBooking = Awaited<ReturnType<typeof listOwedBookings>>['rows'][number];
+
+/** One creator's own payouts, newest first. Read by `/dashboard/payouts`. */
+export const listCreatorPayouts = (creatorId: number, limit = 50) =>
+	db
+		.select({
+			id: t.payouts.id,
+			reference: t.payouts.reference,
+			status: t.payouts.status,
+			amount: t.payouts.amount,
+			currencyCode: t.payouts.currencyCode,
+			bankName: t.payouts.bankName,
+			accountNumber: t.payouts.accountNumber,
+			failureReason: t.payouts.failureReason,
+			verifiedAt: t.payouts.verifiedAt,
+			createdAt: t.payouts.createdAt,
+			bookingId: t.payouts.bookingId,
+			bookingReference: t.bookings.reference,
+			bookingTitle: t.bookings.title
+		})
+		.from(t.payouts)
+		.leftJoin(t.bookings, eq(t.bookings.id, t.payouts.bookingId))
+		.where(eq(t.payouts.creatorId, creatorId))
+		.orderBy(desc(t.payouts.createdAt))
+		.limit(limit);
+
+export type CreatorPayoutRow = Awaited<ReturnType<typeof listCreatorPayouts>>[number];
+
+/**
+ * What one creator is owed but has not been sent.
+ *
+ * The same absence as `listOwedBookings`, narrowed to one creator, because the
+ * creator's own page has to be able to say "two deals, 24,000 birr, waiting to
+ * be sent" — otherwise a completed booking with no payout row looks to them
+ * like money that vanished.
+ */
+export async function creatorOwed(creatorId: number) {
+	const live = db
+		.select({ bookingId: t.payouts.bookingId })
+		.from(t.payouts)
+		.where(inArray(t.payouts.status, ['pending', 'queued', 'success']));
+
+	const rows = await db
+		.select({ amount: t.bookings.creatorPayout, currencyCode: t.bookings.currencyCode })
+		.from(t.bookings)
+		.where(
+			and(
+				eq(t.bookings.creatorId, creatorId),
+				eq(t.bookings.compensationType, 'paid'),
+				eq(t.bookings.escrowStatus, 'released'),
+				gt(t.bookings.creatorPayout, 0),
+				notInArray(t.bookings.id, live)
+			)
+		);
+
+	return {
+		count: rows.length,
+		/* Summed in JS rather than SQL: a creator can hold deals in more than one
+		   currency, and a single `SUM` would quietly add birr to dollars. */
+		total: rows.reduce((sum, row) => sum + row.amount, 0),
+		currencyCode: rows.at(0)?.currencyCode ?? 'ETB'
+	};
 }

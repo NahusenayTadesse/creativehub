@@ -967,3 +967,53 @@ export const blogImageAdd = z
 		error: () => m.val_image_required()
 	});
 export const blogImageEdit = z.object({ ...blogImageFields, ...idSchema.shape });
+
+/* ------------------------------------------------------------------ *
+ * Payouts
+ * ------------------------------------------------------------------ */
+
+/**
+ * Where a creator's money should go.
+ *
+ * The account number is digits only, and deliberately not length-checked here:
+ * Chapa publishes an `acct_length` per bank and the form checks against the
+ * chosen one, which is a rule this schema cannot see. What it can do is refuse
+ * the shapes no bank uses — spaces, dashes, a pasted IBAN — before they reach
+ * a provider that would take the money and send it somewhere.
+ */
+export const payoutAccountSchema = z.object({
+	bankCode: refId,
+	accountName: name(180),
+	accountNumber: z
+		.string()
+		.trim()
+		.min(4, { error: () => m.val_too_short() })
+		.max(60)
+		.regex(/^\d+$/, { error: () => m.val_digits_only() })
+});
+
+/** An operator sending one booking's money. The id is the booking, not a payout. */
+export const sendPayoutSchema = z.object({ bookingId: refId });
+
+/** An operator asking Chapa again what became of one attempt. */
+export const payoutRefSchema = z.object({ id: refId });
+
+/**
+ * An operator confirming a creator's bank details are really theirs.
+ *
+ * Separate from the creator's own form on purpose: the creator supplies the
+ * number, and somebody else has to agree it is right before money moves. A
+ * verification names the account it checked, so editing the account clears it.
+ */
+export const payoutAccountVerify = z.object({
+	id: refId,
+	/*
+	 * Not `z.coerce.boolean()`.
+	 *
+	 * That follows JS truthiness, so the string `"false"` a hidden input posts
+	 * is coerced to `true` — and the one form that posts it is the one that
+	 * withdraws a check on a bank account. A refusal that silently reads as an
+	 * approval is exactly the wrong direction for this particular field.
+	 */
+	isVerified: z.enum(['true', 'false']).transform((value) => value === 'true')
+});

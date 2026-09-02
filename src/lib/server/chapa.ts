@@ -3,9 +3,10 @@ import { env } from '$env/dynamic/private';
 /**
  * The Chapa API, and nothing else.
  *
- * This file knows how to start a checkout and how to ask what became of one. It
- * does not know what a booking is, does not touch the database, and does not
- * decide what a payment means — `server/payments.ts` does all three. Keeping
+ * This file knows how to start a checkout, how to send money to a bank account,
+ * and how to ask what became of either. It does not know what a booking is,
+ * does not touch the database, and does not decide what a payment or a payout
+ * means — `server/payments.ts` and `server/payouts.ts` do all three. Keeping
  * the boundary there is what makes the rules about money testable without a
  * network, and what stops provider-shaped concepts leaking into the lifecycle.
  *
@@ -76,8 +77,20 @@ async function call<T>(
 			return { ok: false, error: `Chapa returned ${response.status} (not JSON)` };
 		}
 
+		/*
+		 * Chapa's envelope is `{ status, message, data }` — except on `/banks`,
+		 * which answers `{ message, data }` and no `status` at all.
+		 *
+		 * Requiring `status === 'success'` therefore failed every bank lookup
+		 * while the request itself was a clean 200, which showed up as "we
+		 * cannot reach Chapa" on a page that had just reached it. So a `status`
+		 * that is present must say `success`, and an absent one falls back to
+		 * the HTTP code. The payment endpoints all send `status`, so nothing on
+		 * the way in is loosened by this.
+		 */
 		const envelope = body as { status?: string; message?: unknown };
-		if (envelope.status !== 'success') {
+		const failed = envelope.status ? envelope.status !== 'success' : !response.ok;
+		if (failed) {
 			/* `message` is a sentence on some failures and a field-errors object
 			   on others — flattened rather than rendered, since none of it is
 			   text a brand should be shown. */
@@ -85,7 +98,7 @@ async function call<T>(
 				typeof envelope.message === 'string'
 					? envelope.message
 					: JSON.stringify(envelope.message ?? {});
-			return { ok: false, error: detail.slice(0, 300) };
+			return { ok: false, error: detail.slice(0, 300) || `Chapa returned ${response.status}` };
 		}
 
 		return { ok: true, body: body as T };
@@ -203,6 +216,172 @@ export async function verify(txRef: string): Promise<{ ok: true; payment: Verifi
 			method: data.method ?? null,
 			reference: data.reference ?? null,
 			mode: data.mode ?? null
+		}
+	};
+}
+
+/* ------------------------------------------------------------------ *
+ * Sending money the other way
+ * ------------------------------------------------------------------ */
+
+/** One bank Chapa can transfer to. `id` is what a transfer calls `bank_code`. */
+export type Bank = {
+	id: number;
+	name: string;
+	/** How many digits an account number at this bank has. 0 when unspecified. */
+	accountLength: number;
+	currency: string;
+	isMobileMoney: boolean;
+};
+
+/** Chapa sends its flags as the strings `"1"` and `"0"`, and sometimes not at all. */
+const flag = (value: unknown): boolean => value === 1 || value === '1' || value === true;
+
+/**
+ * Every bank Chapa will send to, with the code a transfer must quote.
+ *
+ * Fetched rather than hard-coded: the list gains a bank every few months, and a
+ * stale copy shipped in the source is a creator who cannot be paid until the
+ * next deploy. The caller caches it — see `server/payouts.ts`.
+ */
+export async function listBanks(): Promise<{ ok: true; banks: Bank[] } | Failure> {
+	const result = await call<{
+		data?: Array<{
+			id?: number;
+			name?: string;
+			acct_length?: number | string;
+			currency?: string;
+			is_mobilemoney?: number | string | boolean | null;
+			can_process_payouts?: number | string | boolean | null;
+		}>;
+	}>('/banks');
+
+	if (!result.ok) return result;
+
+	const banks = (result.body.data ?? [])
+		.filter((row) => typeof row.id === 'number' && typeof row.name === 'string')
+		/* Chapa marks the banks it will not transfer to — one of the twenty-two,
+		   at the time of writing. Offering one to a creator buys a bank account
+		   that can never be paid, and a failed transfer to find that out. */
+		.filter((row) => flag(row.can_process_payouts))
+		.map((row) => ({
+			id: Number(row.id),
+			name: String(row.name),
+			accountLength: Number(row.acct_length ?? 0),
+			currency: String(row.currency ?? 'ETB'),
+			isMobileMoney: flag(row.is_mobilemoney)
+		}));
+
+	if (!banks.length) return { ok: false, error: 'Chapa returned no banks.' };
+
+	return { ok: true, banks };
+}
+
+export type TransferInput = {
+	amount: number;
+	currency: string;
+	accountNumber: string;
+	accountName: string;
+	bankCode: number;
+	/** Ours, unique per attempt. What every later question is asked about. */
+	reference: string;
+};
+
+/**
+ * Asks Chapa to send money from the merchant balance to a bank account.
+ *
+ * A `success` envelope here does **not** mean the creator has been paid. It
+ * means Chapa accepted the instruction and queued it; the transfer then waits
+ * on an approval, and after that on the receiving bank. Only `verifyTransfer`
+ * says what became of it, which is why the caller writes `queued` and not
+ * `success` when this returns.
+ *
+ * That approval is an **OTP** to the merchant's registered device, which is
+ * Chapa's default and needs nothing from us. Chapa also offers server approval,
+ * where it POSTs each transfer to an endpoint of ours that must answer 200 or
+ * 400 — this app does not expose one, so turning server approval on in the
+ * Chapa dashboard would leave every transfer waiting on a callback that never
+ * gets answered. Leave it off until that endpoint exists.
+ *
+ * There is no dry run for this. Chapa rejects a transfer that exceeds the
+ * available balance, and repeated rejections can have the account's transfer
+ * access suspended — so the caller checks what it can before getting here.
+ */
+export async function transfer(
+	input: TransferInput
+): Promise<{ ok: true; providerRef: string | null } | Failure> {
+	const result = await call<{ data?: unknown }>('/transfers', {
+		method: 'POST',
+		body: JSON.stringify({
+			account_number: input.accountNumber,
+			account_name: input.accountName,
+			amount: String(input.amount),
+			currency: input.currency,
+			bank_code: input.bankCode,
+			reference: input.reference
+		})
+	});
+
+	if (!result.ok) return result;
+
+	/* `data` is Chapa's own reference as a bare string on this endpoint, not the
+	   object every other endpoint returns. Absent on some responses, which is
+	   not a failure: ours is the reference that matters, and we chose it. */
+	const providerRef = typeof result.body.data === 'string' ? result.body.data : null;
+
+	return { ok: true, providerRef };
+}
+
+export type VerifiedTransfer = {
+	/** Chapa's own view: `success`, `pending`, `failed`. */
+	status: string;
+	amount: number;
+	currency: string;
+	/** Chapa's reference for the transfer. */
+	reference: string | null;
+	/** `test` or `live`. Recorded so a test transfer is never mistaken for money. */
+	mode: string | null;
+	/** Chapa's explanation when it failed. For the operator, not the creator. */
+	failureReason: string | null;
+};
+
+/**
+ * What Chapa says became of the transfer we referenced as `reference`.
+ *
+ * The same inversion as `verify`: this is the only thing the app believes about
+ * a payout. A transfer webhook is a claim made by whoever posted it.
+ */
+export async function verifyTransfer(
+	reference: string
+): Promise<{ ok: true; transfer: VerifiedTransfer } | Failure> {
+	const result = await call<{
+		data?: {
+			status?: string;
+			amount?: number | string;
+			currency?: string;
+			chapa_reference?: string | null;
+			reference?: string | null;
+			mode?: string | null;
+			failure_reason?: string | null;
+		};
+	}>(`/transfers/verify/${encodeURIComponent(reference)}`);
+
+	if (!result.ok) return result;
+
+	const data = result.body.data;
+	if (!data) return { ok: false, error: 'Chapa returned no transfer details.' };
+
+	return {
+		ok: true,
+		transfer: {
+			status: String(data.status ?? 'unknown'),
+			amount: Number(data.amount ?? 0),
+			currency: String(data.currency ?? ''),
+			/* `chapa_reference` is theirs; `reference` echoes ours back, so it is
+			   only a fallback and never overwrites a real provider reference. */
+			reference: data.chapa_reference ?? data.reference ?? null,
+			mode: data.mode ?? null,
+			failureReason: data.failure_reason ?? null
 		}
 	};
 }

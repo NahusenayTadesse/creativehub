@@ -24,7 +24,8 @@
 		UserRoundCog,
 		ScrollText,
 		UserRoundCheck,
-		SlidersHorizontal
+		SlidersHorizontal,
+		Banknote
 	} from '@lucide/svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
@@ -88,7 +89,8 @@
 							icon: Send,
 							counter: counts.applications
 						},
-						{ title: m.sb_reviews(), url: resolve('/dashboard/reviews'), icon: Star }
+						{ title: m.sb_reviews(), url: resolve('/dashboard/reviews'), icon: Star },
+						{ title: m.sb_payouts(), url: resolve('/dashboard/payouts'), icon: Banknote }
 					]
 				},
 				{
@@ -179,6 +181,7 @@
 						counter: counts.bookings
 					},
 					{ title: m.sb_all_campaigns(), url: resolve('/dashboard/campaigns'), icon: Megaphone },
+					{ title: m.sb_payouts(), url: resolve('/dashboard/admin/payouts'), icon: Banknote },
 					{ title: m.sb_audit_log(), url: resolve('/dashboard/admin/audit'), icon: ScrollText }
 				]
 			},

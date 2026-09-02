@@ -560,24 +560,82 @@ Payment _starts the work_: funding moves a booking from `booked` to
 the deal but left the creator unable to hand anything over would be a dead end
 that looked like success from both sides.
 
-Only ETB, and only the brand's deposit. A booking priced in anything else says
-so and falls back to the operator path rather than being converted at a rate an
-operator last touched months ago. The `payments` table keeps every attempt,
-including abandoned ones — the difference between "never tried" and "tried twice
-and gave up" only ever matters once, in a support conversation, after the fact.
+Only ETB. A booking priced in anything else says so and falls back to the
+operator path rather than being converted at a rate an operator last touched
+months ago. The `payments` table keeps every attempt, including abandoned
+ones — the difference between "never tried" and "tried twice and gave up" only
+ever matters once, in a support conversation, after the fact.
+
+## Paying the creator
+
+Money goes back out through Chapa Transfers, and the whole of it is deliberately
+slower and stricter than taking money in. A deposit that lands wrongly can be
+refunded and the payer has an account and a support thread; a transfer cannot be
+recalled, and the receiving bank matches on the account number rather than the
+name, so a mistyped digit pays a stranger.
+
+Three things have to be true before anything moves. The deal is settled —
+`escrow_status = 'released'`, which the booking's own `settle` action sets at
+completion, and not `held`, which is still the brand's money against work it can
+dispute. The creator has given bank details, on `/dashboard/payouts`, chosen from
+Chapa's live bank list so the account-number length can be checked against the
+bank they picked. And an operator has marked those details checked — a separate
+action from the creator's own form, cleared automatically whenever the creator
+edits any of it, because a check that survives an edit is a check of the person
+rather than of the numbers.
+
+Then an operator presses Send on `/dashboard/admin/payouts`. Nothing here is
+automatic: transfers draw on a funded merchant balance, Chapa suspends transfer
+access for accounts that repeatedly overdraw it, and the last step should be a
+person reading a name and an amount.
+
+Sending is not the end of it. Chapa holds every transfer for an approval, and
+the mode this deployment uses is **OTP** — a code to the merchant's registered
+device, which is Chapa's default and needs nothing from the app. Until someone
+approves it there, the payout sits at `queued` and the queue says so; "Ask
+Chapa" then records the outcome. Chapa also offers _server approval_, where it
+POSTs each transfer to an endpoint of ours that answers 200 or 400. That
+endpoint does not exist yet, so **leave server approval switched off in the
+Chapa dashboard** — turning it on would leave every transfer waiting on a
+callback nothing answers.
+
+`server/payouts.ts` mirrors `server/payments.ts` — the row is written `pending`
+before Chapa is called, so a transfer that was accepted but whose response was
+never seen is a recoverable record rather than a mystery in a bank statement.
+A queued transfer is `queued`, never `success`: Chapa accepting an instruction
+means a bank has it, not that anybody has been paid. Only `chapa.verifyTransfer`
+promotes a payout to `success`, and it is reached from two places — the webhook,
+and an operator pressing "Ask Chapa" — which is why `reconcile` carries the same
+`status = 'queued'` predicate that makes `settle` safe to run twice.
+
+Deposits and transfers arrive on the same webhook URL. Which one a reference is
+is decided by looking it up in `payouts`, not by reading the payload: Chapa sends
+an `event` field and our payout references carry a `-PO-` infix, and both of
+those are the body talking. The rules themselves — what may be paid, and why
+not — live in `domain/payout.ts`, with no database and no network, so they are
+tested against object literals.
+
+Bank details are held in their own `payout_accounts` table rather than on the
+creator row, which is read by the public profile, the discovery grid, the
+trending job and the score service, none of which have any business carrying an
+account number along for the ride. What was actually sent is frozen onto each
+`payouts` row the same way `terms_snapshot` is frozen onto a booking: a creator
+who changes banks next year must not rewrite where last year's money went. Every
+operator-facing screen shows the number through `maskAccount`; the creator's own
+page is the only place it is rendered whole.
 
 ## What is not connected
 
-**Payouts.** Money comes in through Chapa; it goes out by hand. `settle` releases
-escrow as a record, not a transfer, and the interface says so rather than
-implying a creator has been paid. Wiring the other direction needs Chapa
-Transfers, a funded balance, and bank details on creator profiles — none of
-which exist yet.
-
 **Recording a deposit by hand** remains, for money that genuinely moved outside
-the platform: a bank transfer, telebirr paid directly. It is operator-only now,
-and the `MANUAL-` payment reference is what tells the two kinds of deposit apart
-afterwards.
+the platform: a bank transfer, telebirr paid directly. It is operator-only, and
+the `MANUAL-` payment reference is what tells the two kinds of deposit apart
+afterwards. There is no equivalent on the way out — a payout made by hand is not
+recorded, so a transfer sent from the Chapa dashboard directly will leave the
+booking sitting in the owed queue.
+
+**Refunds.** `escrow_status` has a `refunded` state and nothing sets it. Money
+returned to a brand is a conversation and a manual transfer, and the app does
+not know it happened.
 
 ## Scripts
 
@@ -601,5 +659,3 @@ afterwards.
 | `npm run mail:check`    | Connect and authenticate; `-- you@host.tld` also sends one   |
 | `npm run db:studio`     | Drizzle Studio                                               |
 | `npm run uploads:prune` | Find files no row points at (`-- --apply` to remove them)    |
-
-# creativehub

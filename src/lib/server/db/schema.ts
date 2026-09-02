@@ -479,6 +479,18 @@ export const paymentMethodEnum = ['telebirr', 'chapa', 'cbe_birr', 'bank_transfe
  */
 export const paymentStatusEnum = ['pending', 'success', 'failed', 'cancelled'] as const;
 
+/**
+ * Where a single attempt to pay a creator stands.
+ *
+ * Separate from `paymentStatusEnum` because money leaving has a state money
+ * arriving does not: `queued`. A deposit is decided the moment the payer
+ * finishes at the provider, but a transfer is accepted by Chapa, then held for
+ * an OTP or a server approval, then settled by a bank on its own schedule.
+ * Collapsing that wait into `pending` would make "we have not sent this yet"
+ * and "the bank has it" the same row, and only one of those may be retried.
+ */
+export const payoutStatusEnum = ['pending', 'queued', 'success', 'failed', 'cancelled'] as const;
+
 /** The frozen copy of agreed terms. Written once, never edited (PRD FR-061). */
 export type TermsSnapshot = {
 	title: string;
@@ -612,6 +624,99 @@ export const payments = mysqlTable(
 	(t) => [
 		uniqueIndex('payments_tx_ref_idx').on(t.txRef),
 		index('payments_booking_idx').on(t.bookingId)
+	]
+);
+
+/**
+ * Where a creator's money goes.
+ *
+ * One per creator, and kept out of the `creators` row on purpose: that row is
+ * read by the public profile, the discovery grid, the trending job and the
+ * score service, and none of them have any business joining a bank account
+ * along for the ride. A separate table means the only queries that can see an
+ * account number are the ones that asked for it.
+ *
+ * `isVerified` is not a claim about the bank. It records that an operator
+ * matched the name and number against something — a screenshot, a first small
+ * transfer that landed — because Chapa will happily send money to a valid
+ * account number belonging to the wrong person, and it cannot be recalled.
+ */
+export const payoutAccounts = mysqlTable(
+	'payout_accounts',
+	{
+		id: id(),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		/** Chapa's own id for the bank, from `GET /v1/banks`. Sent as `bank_code`. */
+		bankCode: int('bank_code').notNull(),
+		/** Denormalised so a payout row reads without a call to the provider. */
+		bankName: varchar('bank_name', { length: 160 }).notNull(),
+		/** The name on the account, which the bank matches against the number. */
+		accountName: varchar('account_name', { length: 180 }).notNull(),
+		accountNumber: varchar('account_number', { length: 60 }).notNull(),
+		currencyCode: varchar('currency_code', { length: 8 }).default('ETB').notNull(),
+		isVerified: boolean('is_verified').default(false).notNull(),
+		verifiedBy: userRef('verified_by').references(() => user.id, { onDelete: 'set null' }),
+		verifiedAt: timestamp('verified_at', { fsp: 3 }),
+		...audit()
+	},
+	(t) => [uniqueIndex('payout_accounts_creator_idx').on(t.creatorId)]
+);
+
+/**
+ * One attempt to pay a creator for one booking.
+ *
+ * The mirror image of `payments`, and shaped like it for the same reason: a
+ * booking may take several attempts to pay out — a wrong account number, a
+ * bank that was down — and every one of them is worth keeping.
+ *
+ * The bank details are copied onto the row rather than read through
+ * `payoutAccountId`. This is the same rule as `termsSnapshot`: a creator who
+ * changes banks next year must not silently rewrite where last year's money
+ * went. The foreign key says which account was chosen; these four columns say
+ * what was actually sent, and they are never updated.
+ */
+export const payouts = mysqlTable(
+	'payouts',
+	{
+		id: id(),
+		bookingId: int('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		/** Which account was chosen. Nulled rather than blocking its deletion. */
+		payoutAccountId: int('payout_account_id').references(() => payoutAccounts.id, {
+			onDelete: 'set null'
+		}),
+		/** Ours, unique per attempt, and what Chapa is later asked about. */
+		reference: varchar('reference', { length: 100 }).notNull(),
+		provider: varchar('provider', { length: 30 }).default('chapa').notNull(),
+		status: mysqlEnum('status', payoutStatusEnum).default('pending').notNull(),
+		amount: int('amount').default(0).notNull(),
+		currencyCode: varchar('currency_code', { length: 8 }).default('ETB').notNull(),
+		/* Frozen at send. See the note above — these are deliberately not a join. */
+		bankCode: int('bank_code').notNull(),
+		bankName: varchar('bank_name', { length: 160 }).notNull(),
+		accountName: varchar('account_name', { length: 180 }).notNull(),
+		accountNumber: varchar('account_number', { length: 60 }).notNull(),
+		/** Chapa's own reference for the transfer, for a support conversation. */
+		providerRef: varchar('provider_ref', { length: 120 }),
+		/** `test` or `live`. A test transfer must never read as money sent. */
+		mode: varchar('mode', { length: 10 }),
+		failureReason: varchar('failure_reason', { length: 300 }),
+		/** When the provider was last asked, and answered, about this attempt. */
+		verifiedAt: timestamp('verified_at', { fsp: 3 }),
+		...audit()
+	},
+	(t) => [
+		uniqueIndex('payouts_reference_idx').on(t.reference),
+		index('payouts_booking_idx').on(t.bookingId),
+		index('payouts_creator_idx').on(t.creatorId),
+		/* The operator queue opens on what is unresolved, so it reads this alone. */
+		index('payouts_status_idx').on(t.status)
 	]
 );
 
@@ -1492,11 +1597,26 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
 	proposals: many(termProposals),
 	submissions: many(submissions),
 	messages: many(messages),
-	reviews: many(reviews)
+	reviews: many(reviews),
+	payouts: many(payouts)
 }));
 
 export const termProposalsRelations = relations(termProposals, ({ one }) => ({
 	booking: one(bookings, { fields: [termProposals.bookingId], references: [bookings.id] })
+}));
+
+export const payoutAccountsRelations = relations(payoutAccounts, ({ one, many }) => ({
+	creator: one(creators, { fields: [payoutAccounts.creatorId], references: [creators.id] }),
+	payouts: many(payouts)
+}));
+
+export const payoutsRelations = relations(payouts, ({ one }) => ({
+	booking: one(bookings, { fields: [payouts.bookingId], references: [bookings.id] }),
+	creator: one(creators, { fields: [payouts.creatorId], references: [creators.id] }),
+	account: one(payoutAccounts, {
+		fields: [payouts.payoutAccountId],
+		references: [payoutAccounts.id]
+	})
 }));
 
 export const submissionsRelations = relations(submissions, ({ one }) => ({
