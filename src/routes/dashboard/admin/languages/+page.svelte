@@ -31,6 +31,7 @@
 	addForm={data.addForm}
 	editForm={data.editForm}
 	deleteForm={data.deleteForm}
+	canDelete={data.canDelete}
 >
 	{#snippet row(language)}
 		<div class="flex items-center justify-between gap-3">

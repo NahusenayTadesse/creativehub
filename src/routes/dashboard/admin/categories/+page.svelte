@@ -39,6 +39,7 @@
 	addForm={data.addForm}
 	editForm={data.editForm}
 	deleteForm={data.deleteForm}
+	canDelete={data.canDelete}
 >
 	{#snippet row(category)}
 		<div class="space-y-2">

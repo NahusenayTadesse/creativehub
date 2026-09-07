@@ -111,6 +111,37 @@
 			]);
 		}
 
+		/* The reference tables, shared by the operator and the data encoder whose
+		   whole job they are — one list, so the two cannot drift apart. */
+		const referenceData = [
+			{
+				title: m.sb_countries(),
+				url: resolve('/dashboard/admin/countries'),
+				icon: Globe,
+				items: [
+					{ title: m.sb_countries(), url: resolve('/dashboard/admin/countries') },
+					{ title: m.sb_regions(), url: resolve('/dashboard/admin/regions') }
+				]
+			},
+			{ title: m.sb_categories(), url: resolve('/dashboard/admin/categories'), icon: Tags },
+			{ title: m.sb_platforms(), url: resolve('/dashboard/admin/platforms'), icon: Radio },
+			{ title: m.sb_languages(), url: resolve('/dashboard/admin/languages'), icon: Languages },
+			{
+				title: m.sb_gallery(),
+				url: resolve('/dashboard/admin/gallery'),
+				icon: GalleryHorizontal
+			}
+		];
+
+		/*
+		 * The data encoder keeps the reference tables and sees nothing else. There
+		 * is no overview entry because /dashboard has nothing to show an account
+		 * with neither a profile nor an organisation — it sends them here instead.
+		 */
+		if (role === 'encoder') {
+			return withAccount([{ section: m.sb_reference_data(), items: referenceData }]);
+		}
+
 		if (role === 'business') {
 			return withAccount([
 				overview,
@@ -214,23 +245,7 @@
 			{
 				section: m.sb_reference_data(),
 				items: [
-					{
-						title: m.sb_countries(),
-						url: resolve('/dashboard/admin/countries'),
-						icon: Globe,
-						items: [
-							{ title: m.sb_countries(), url: resolve('/dashboard/admin/countries') },
-							{ title: m.sb_regions(), url: resolve('/dashboard/admin/regions') }
-						]
-					},
-					{ title: m.sb_categories(), url: resolve('/dashboard/admin/categories'), icon: Tags },
-					{ title: m.sb_platforms(), url: resolve('/dashboard/admin/platforms'), icon: Radio },
-					{ title: m.sb_languages(), url: resolve('/dashboard/admin/languages'), icon: Languages },
-					{
-						title: m.sb_gallery(),
-						url: resolve('/dashboard/admin/gallery'),
-						icon: GalleryHorizontal
-					},
+					...referenceData,
 					{ title: m.sb_site_settings(), url: resolve('/dashboard/admin/settings'), icon: Settings }
 				]
 			}
@@ -247,7 +262,9 @@
 			? m.sb_role_operator()
 			: role === 'business'
 				? m.sb_role_brand()
-				: m.sb_role_creator()
+				: role === 'encoder'
+					? m.sb_role_encoder()
+					: m.sb_role_creator()
 	);
 </script>
 

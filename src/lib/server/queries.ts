@@ -20,6 +20,7 @@ import {
 	sql,
 	type SQL
 } from 'drizzle-orm';
+import { ROLES } from '$lib/roles';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { user } from '$lib/server/db/auth.schema';
@@ -1510,7 +1511,7 @@ export const usersQuery = defineQuery({
 		role: {
 			type: 'enum',
 			column: t.user.role,
-			values: ['creator', 'business', 'admin'],
+			values: ROLES,
 			/* `role` is nullable with a default of 'creator'. A row written
 			   outside sign-up has NULL, which means 'creator' everywhere else in
 			   the app — so it has to mean that here too, or the account is

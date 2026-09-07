@@ -1,0 +1,2 @@
+ALTER TABLE `social_accounts` ADD `link_status` enum('unchecked','found','not_found','unknown') DEFAULT 'unchecked' NOT NULL;--> statement-breakpoint
+ALTER TABLE `social_accounts` ADD `link_checked_at` timestamp(3);

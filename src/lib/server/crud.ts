@@ -10,11 +10,22 @@ import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { and, eq, getTableColumns, isNull, type SQL } from 'drizzle-orm';
 import { z } from 'zod/v4';
-import type { RequestEvent } from '@sveltejs/kit';
+import { error, type RequestEvent } from '@sveltejs/kit';
 import type { MySqlTable } from 'drizzle-orm/mysql-core';
 import { db } from '$lib/server/db';
 import { deleteUploadedFile, saveUploadedFile, UploadError } from '$lib/server/upload';
 import { defineQuery } from '$lib/server/query';
+
+/**
+ * Thrown by `beforeWrite` to refuse a write, carrying the sentence the form
+ * shows. Anything else thrown from there is a fault and is logged as one.
+ */
+export class CrudRefusal extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'CrudRefusal';
+	}
+}
 
 /** A rejected upload is the user's to correct, so it gets its own message. */
 export const uploadErrorText = (err: unknown): string | null => {
@@ -87,6 +98,19 @@ interface CrudOptions {
 	/** Runs after a successful write, e.g. to recalculate a derived score. */
 	afterWrite?: (event: RequestEvent) => Promise<void> | void;
 	/**
+	 * Runs on add and on edit, after the payload has validated and before the row
+	 * is written. Whatever it returns is merged into the row, so a check that
+	 * costs a network call — is this social handle a real account? — can record
+	 * its own verdict in the same write rather than in a second one.
+	 *
+	 * Throw `CrudRefusal` to turn the write down with a sentence the form shows.
+	 */
+	beforeWrite?: (
+		event: RequestEvent,
+		values: Record<string, any>,
+		action: 'add' | 'edit'
+	) => Promise<Record<string, unknown> | void> | Record<string, unknown> | void;
+	/**
 	 * Runs before every action, and must throw to refuse.
 	 *
 	 * Authorisation cannot live in the route's `load`: SvelteKit runs a form
@@ -95,6 +119,17 @@ interface CrudOptions {
 	 * or a session passes it here instead.
 	 */
 	guard?: (event: RequestEvent) => unknown | Promise<unknown>;
+	/**
+	 * Whether this actor may *remove* a row, when that is narrower than who may
+	 * write one — a data encoder adds countries and corrects them, but taking one
+	 * out from under every row that points at it is the operator's call.
+	 *
+	 * The same predicate answers both halves of the question: `load` returns it
+	 * so the listing can leave the delete button out, and the delete action asks
+	 * it again before touching anything. The hidden button is a courtesy; the
+	 * check in the action is the rule.
+	 */
+	canDelete?: (event: RequestEvent) => boolean;
 }
 
 /**
@@ -124,7 +159,9 @@ export function contentCrud({
 	excludeDeleted = true,
 	defaults = {},
 	afterWrite,
-	guard
+	beforeWrite,
+	guard,
+	canDelete
 }: CrudOptions) {
 	/** Resolved at call time so a localised label picks up the request's locale. */
 	const labelText = () => (typeof label === 'function' ? label() : label);
@@ -231,7 +268,9 @@ export function contentCrud({
 			editForm,
 			deleteForm,
 			rows: list.rows as Record<string, any>[],
-			list
+			list,
+			/* Read by `CrudSection`, which drops the delete button when it is false. */
+			canDelete: canDelete ? canDelete(event) : true
 		};
 	};
 
@@ -246,9 +285,11 @@ export function contentCrud({
 
 			try {
 				const values = await toRow(form.data as FormData);
+				const derived = (await beforeWrite?.(event, values, 'add')) ?? {};
 				await db.insert(table).values({
 					...values,
 					...defaults,
+					...derived,
 					// The owner is stamped from the session, never taken from the form.
 					...(scope ? { [scope.key]: scope.value } : {}),
 					createdBy: locals.user?.id
@@ -256,6 +297,9 @@ export function contentCrud({
 				await afterWrite?.(event);
 				return message(form, { type: 'success', text: m.srv_crud_added({ label: labelText() }) });
 			} catch (err) {
+				if (err instanceof CrudRefusal) {
+					return message(form, { type: 'error', text: err.message }, { status: 400 });
+				}
 				const upload = uploadErrorText(err);
 				if (upload) return message(form, { type: 'error', text: upload }, { status: 400 });
 				console.error(`Failed to add ${labelText()}:`, err);
@@ -296,11 +340,13 @@ export function contentCrud({
 					: undefined;
 
 				const values = await toRow(data);
+				const derived = (await beforeWrite?.(event, values, 'edit')) ?? {};
 				const result: any = await db
 					.update(table)
 					.set({
 						...values,
 						...defaults,
+						...derived,
 						// Re-stamped, never taken from the form: `guards()` proves the row
 						// is currently this actor's, but without this a posted owner id
 						// would hand it to someone else on the way through.
@@ -332,6 +378,9 @@ export function contentCrud({
 				await afterWrite?.(event);
 				return message(form, { type: 'success', text: m.srv_crud_updated({ label: labelText() }) });
 			} catch (err) {
+				if (err instanceof CrudRefusal) {
+					return message(form, { type: 'error', text: err.message }, { status: 400 });
+				}
 				const upload = uploadErrorText(err);
 				if (upload) return message(form, { type: 'error', text: upload }, { status: 400 });
 				console.error(`Failed to update ${labelText()}:`, err);
@@ -345,6 +394,10 @@ export function contentCrud({
 
 		delete: async (event: RequestEvent) => {
 			await guard?.(event);
+			/* Narrower than `guard` where a role may write but not remove. Checked
+			   here rather than only in the markup: the button being absent stops
+			   nobody from posting to `?/delete`. */
+			if (canDelete && !canDelete(event)) error(403, m.srv_no_permission());
 			const form = await superValidate(event.request, zod4(idSchema));
 			if (!form.valid) {
 				return message(form, { type: 'error', text: m.srv_invalid_request() }, { status: 400 });

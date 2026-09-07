@@ -49,7 +49,7 @@ Three conventions run through it:
 - **Only what is built.** Nothing here is planned, stubbed or half-wired unless
   the entry says so in as many words. Where the platform stops — payouts, for
   one — there is an explicit entry saying it stops.
-- **Roles are named as the system names them.** `admin`, `creator`, `brand`.
+- **Roles are named as the system names them.** `admin`, `creator`, `brand`, `encoder`.
   A person may hold a creator profile and an organisation membership at once;
   the dashboard adapts rather than forcing a choice.
 - **A feature is listed once, in the place it is used from,** and
@@ -215,6 +215,33 @@ Social accounts, added, edited and removed: platform, handle, profile URL,
 follower count, engagement rate, and whether the account is verified on its own
 platform. One channel is the primary, and drives the platform-fit factor in the
 match score.
+
+**The handle is looked up at the platform before the row is written.** A
+fabricated handle makes every other figure on the row meaningless, so the check
+runs on add and on edit — on edit too, because a check on create alone is one
+anybody could walk past by saving a real account and then editing it. A "Check
+this account" button in the dialog runs the same lookup while the handle can
+still be corrected, and a nightly `npm run verify:socials` re-checks rows that
+have gone stale, because an account that was real in March can be gone by June.
+
+Only an unambiguous _not found_ refuses a save. What each platform will tell an
+anonymous server was measured, not assumed:
+
+| Platform                      | How it is checked                            |
+| ----------------------------- | -------------------------------------------- |
+| TikTok                        | its own oEmbed endpoint — 200 against 400    |
+| YouTube, X                    | the profile page — 200 against 404           |
+| Telegram                      | `t.me`, reading the og:title                 |
+| Instagram, Facebook, LinkedIn | not checkable — recorded as _could not tell_ |
+
+Instagram serves the same Javascript shell for a real profile and a fabricated
+one, its profile API answers 401 without a session, and unavatar's Instagram
+provider is pro-only; Facebook and LinkedIn refuse anything that is not a
+browser they like. Those record `unknown`, which saves and is never a mark
+against a creator — telling "missing" from "cannot tell" apart is the whole
+point of having three answers rather than two. The verdict and its date are
+stored on the row, and nothing is hidden or removed on the strength of one:
+acting on it is a person's job.
 
 ### 4.4 Packages — `/dashboard/packages`
 
@@ -641,11 +668,18 @@ drawn from the audit log.
 
 ### 12.2 Roles and scoping
 
-Three roles — `admin`, `creator`, `brand` — checked in a guard rather than in
-each route. Ownership is a separate argument from filtering everywhere it
-matters, so a crafted URL cannot widen a scope: a creator cannot reach another
-creator's package by changing an id in a form, and a posted id is re-checked
-against the session's own rows before anything is written.
+Four roles — `admin`, `creator`, `brand`, `encoder` — checked in a guard rather
+than in each route. Ownership is a separate argument from filtering everywhere
+it matters, so a crafted URL cannot widen a scope: a creator cannot reach
+another creator's package by changing an id in a form, and a posted id is
+re-checked against the session's own rows before anything is written.
+
+`encoder` is the data-entry account. It reaches the five reference-data tables
+and the homepage gallery and nothing else under `/dashboard/admin`, from an
+allowlist in the guard — a page added later is operator-only until it is named
+there. It may add rows and correct them; removing one stays with the operator,
+which the listing reflects by leaving the delete button out and the action
+re-checks before it writes.
 
 ### 12.3 Account settings — `/dashboard/settings`
 

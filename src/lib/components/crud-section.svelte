@@ -40,7 +40,8 @@
 		layout = 'grid',
 		extraActions = undefined,
 		editValues = undefined,
-		fileFields = []
+		fileFields = [],
+		canDelete = true
 	}: {
 		eyebrow: string;
 		title: string;
@@ -68,6 +69,13 @@
 		editValues?: (row: any) => Record<string, any>;
 		/** Field names holding a stored filename, so the dialog can preview it. */
 		fileFields?: string[];
+		/**
+		 * Whether this reader may remove a row. `contentCrud` returns it from
+		 * `load`, so a role that may add and correct but not delete — the data
+		 * encoder on the reference tables — is not shown a button that would be
+		 * refused. The action checks the same thing again.
+		 */
+		canDelete?: boolean;
 	} = $props();
 
 	const valuesFor = (record: any) => {
@@ -160,7 +168,9 @@
 							variant="outline"
 							trigger={m.crud_edit_short()}
 						/>
-						<CrudDelete data={deleteForm} id={record.id} name={record[nameKey] ?? ''} />
+						{#if canDelete}
+							<CrudDelete data={deleteForm} id={record.id} name={record[nameKey] ?? ''} />
+						{/if}
 					</div>
 				</div>
 			{/each}

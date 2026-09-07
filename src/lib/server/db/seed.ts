@@ -1977,6 +1977,9 @@ async function seed() {
 
 	console.log('→ accounts');
 	const adminId = await ensureUser('admin@creatornetwork.et', 'Platform Operator', 'admin');
+	/* A data-entry account, so the encoder's narrower view of /dashboard/admin is
+	   something anyone can sign in and see. */
+	await ensureUser('encoder@creatornetwork.et', 'Data Encoder', 'encoder');
 
 	console.log(`→ ${BLOG_POSTS.length} blog posts`);
 	const sectionIds = new Map<string, number>();

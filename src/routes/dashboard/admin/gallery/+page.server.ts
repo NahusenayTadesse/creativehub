@@ -1,6 +1,6 @@
 import * as m from '$lib/paraglide/messages';
 import { contentCrud } from '$lib/server/crud';
-import { requireRole } from '$lib/server/guards';
+import { referenceDataGuard, adminOnlyDelete } from '$lib/server/guards';
 import * as t from '$lib/server/db/schema';
 import { gallerySlideAdd, gallerySlideEdit } from '$lib/schemas';
 
@@ -12,5 +12,7 @@ export const { load, actions } = contentCrud({
 	/* An upload is stored on disk and the row keeps the file name it was given. */
 	fileFields: ['image'],
 	/* Actions run before any `load`, so the admin layout guard cannot cover them. */
-	guard: (event) => requireRole(event, 'admin')
+	guard: referenceDataGuard,
+	/* An encoder writes here; only an operator removes a row. */
+	canDelete: adminOnlyDelete
 });

@@ -81,6 +81,7 @@ tone for the whole codebase:
 | **Creator**              | Sign-up, or claiming a profile imported for them | Profile, channels, packages, portfolio, applications, bookings, reviews                             |
 | **Brand / organisation** | Sign-up and creating an organisation             | Campaigns, discovery, shortlist, bookings, reviews                                                  |
 | **Operator (admin)**     | Assigned role                                    | Reference data, verification, claims, introductions, trending, gallery, users, audit, site settings |
+| **Data encoder**         | Assigned role                                    | Reference data and the homepage gallery only — adding and correcting rows, not removing them        |
 | **Visitor**              | No account                                       | Homepage, discovery, creator profiles, open briefs, terms, privacy                                  |
 
 ---
@@ -1260,6 +1261,7 @@ it on the deal is a contained change with a direct effect on transaction value.
 | `npm run import:creators`   | Import the scraped creator CSV into the schema                         |
 | `npm run fetch:avatars`     | Backfill creator avatars                                               |
 | `npm run uploads:prune`     | Find files no row points at (`-- --apply` to remove them)              |
+| `npm run verify:socials`    | Ask each platform whether the handles on file are real accounts        |
 | `npm run auth:schema`       | Regenerate better-auth's tables                                        |
 
 ### 13.3 Glossary

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
-	import { CircleCheckBig, ExternalLink } from '@lucide/svelte';
+	import { CircleCheckBig, CircleAlert, CircleHelp, ExternalLink } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 
 	let { data } = $props();
@@ -19,7 +20,11 @@
 			name: 'handle',
 			label: m.ch_handle(),
 			required: true,
-			placeholder: m.ch_handle_placeholder()
+			placeholder: m.ch_handle_placeholder(),
+			/* Asks the platform whether this account exists before the form is
+			   saved. The save runs the same check itself — this one is so the
+			   answer arrives while the handle can still be corrected. */
+			check: { endpoint: resolve('/dashboard/channels/check'), label: m.ch_check() }
 		},
 		{ name: 'followers', label: m.ch_followers(), type: 'number', required: true },
 		{
@@ -46,6 +51,13 @@
 
 	const platformName = (id: number) =>
 		data.platforms.find((p) => p.id === id)?.name ?? m.ch_fallback_name();
+
+	/* When the platform was last asked about this handle, in the reader's
+	   language. `unchecked` shows nothing: a row written before this existed has
+	   no verdict, and an empty space says that better than a label would. */
+	const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
+	const checkedOn = (value: string | Date | null) =>
+		value ? dateFormat.format(new Date(value)) : '';
 
 	const totalReach = $derived(
 		data.rows.filter((r) => r.isActive).reduce((sum, r) => sum + r.followers, 0)
@@ -90,6 +102,31 @@
 						>
 							<CircleCheckBig class="h-3 w-3" />
 							{m.ch_confirmed()}
+						</span>
+					{/if}
+					{#if account.linkStatus === 'not_found'}
+						<span
+							class="inline-flex items-center gap-1 rounded-md bg-danger-soft px-2 py-0.5 text-[10px] font-bold text-danger-fg"
+							title={m.ch_link_checked_on({ date: checkedOn(account.linkCheckedAt) })}
+						>
+							<CircleAlert class="h-3 w-3" />
+							{m.ch_link_missing()}
+						</span>
+					{:else if account.linkStatus === 'found'}
+						<span
+							class="inline-flex items-center gap-1 rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-bold text-ink-soft"
+							title={m.ch_link_checked_on({ date: checkedOn(account.linkCheckedAt) })}
+						>
+							<CircleCheckBig class="h-3 w-3" />
+							{m.ch_link_live()}
+						</span>
+					{:else if account.linkStatus === 'unknown'}
+						<span
+							class="inline-flex items-center gap-1 rounded-md border border-edge-mid bg-well px-2 py-0.5 text-[10px] font-bold text-ink-dim"
+							title={m.ch_link_checked_on({ date: checkedOn(account.linkCheckedAt) })}
+						>
+							<CircleHelp class="h-3 w-3" />
+							{m.ch_link_unknown()}
 						</span>
 					{/if}
 					{#if !account.isActive}

@@ -1,4 +1,5 @@
 import { desc } from 'drizzle-orm';
+import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
@@ -12,6 +13,7 @@ import {
 	countPendingVerifications,
 	unfiltered
 } from '$lib/server/queries';
+import { ENCODER_HOME } from '$lib/server/guards';
 
 /** The overview shows a handful of the newest rows, not a browsable list. */
 const RECENT = 6;
@@ -29,6 +31,14 @@ export const load: PageServerLoad = async ({ parent }) => {
 	const url = unfiltered();
 
 	const { role, creator, organization } = await parent();
+
+	/*
+	 * A data encoder has neither a profile nor an organisation, so every view
+	 * below would fall through to the onboarding one and invite them to create a
+	 * creator profile they are not there to have. Their work starts at the first
+	 * reference table instead.
+	 */
+	if (role === 'encoder') redirect(303, ENCODER_HOME);
 
 	if (role === 'admin') {
 		const [stats, spend, bookings, verifications, recentAudit] = await Promise.all([

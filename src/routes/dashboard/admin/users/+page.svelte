@@ -8,7 +8,7 @@
 	import PageHeader from '$lib/components/page-header.svelte';
 	import PaginationBar from '$lib/components/pagination-bar.svelte';
 	import SearchInput from '$lib/components/search-input.svelte';
-	import { ShieldCheck, Briefcase, UserCheck } from '@lucide/svelte';
+	import { ShieldCheck, Briefcase, Database, UserCheck } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { withParams } from '$lib/query';
 
@@ -17,6 +17,7 @@
 	const ROLE_ITEMS = $derived([
 		{ value: 'creator', name: m.au_role_creator() },
 		{ value: 'business', name: m.au_role_brand() },
+		{ value: 'encoder', name: m.au_role_encoder() },
 		{ value: 'admin', name: m.au_role_operator() }
 	]);
 
@@ -43,12 +44,14 @@
 		{ key: 'all', label: m.bl_tab_all() },
 		{ key: 'creator', label: m.au_tab_creators() },
 		{ key: 'business', label: m.au_tab_brands() },
+		{ key: 'encoder', label: m.au_tab_encoders() },
 		{ key: 'admin', label: m.au_tab_operators() }
 	]);
 
 	const roleTone: Record<string, string> = {
 		admin: 'border-tint-violet-edge bg-tint-violet text-tint-violet-fg',
 		business: 'border-info-edge bg-info-soft text-info-fg',
+		encoder: 'border-edge-mid bg-well text-ink-soft',
 		creator: 'border-brand-edge bg-brand-soft text-brand-soft-fg'
 	};
 </script>
@@ -134,6 +137,8 @@
 									<ShieldCheck class="h-3 w-3" />
 								{:else if user.role === 'business'}
 									<Briefcase class="h-3 w-3" />
+								{:else if user.role === 'encoder'}
+									<Database class="h-3 w-3" />
 								{:else}
 									<UserCheck class="h-3 w-3" />
 								{/if}
@@ -141,7 +146,9 @@
 									? m.au_role_operator()
 									: user.role === 'business'
 										? m.au_role_brand()
-										: m.au_role_creator()}
+										: user.role === 'encoder'
+											? m.au_role_encoder()
+											: m.au_role_creator()}
 							</span>
 						</td>
 						<td class="px-4 py-3">

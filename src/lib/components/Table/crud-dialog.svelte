@@ -12,6 +12,27 @@
 		placeholder?: string;
 		rows?: number;
 		items?: Item[];
+		/**
+		 * Marks this field as one that can be checked against the outside world
+		 * before the form is saved — today, whether a social handle names a real
+		 * account. The dialog stays generic: it knows only that there is an
+		 * endpoint to POST the form's current values to, and that the answer is
+		 * `{ status, text, url }`. What the statuses mean is the endpoint's
+		 * business.
+		 */
+		check?: {
+			/** POST target. Receives every field's current value as JSON. */
+			endpoint: string;
+			/** Button label, e.g. "Check this account". */
+			label: string;
+		};
+	};
+
+	/** The shape a `check` endpoint answers with. */
+	export type CheckResult = {
+		status: 'found' | 'not_found' | 'unknown';
+		text: string;
+		url?: string | null;
 	};
 </script>
 
@@ -23,7 +44,15 @@
 	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
-	import { Save, Plus, SquarePen } from '@lucide/svelte';
+	import {
+		Save,
+		Plus,
+		SquarePen,
+		Search,
+		CircleCheck,
+		CircleAlert,
+		CircleHelp
+	} from '@lucide/svelte';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
 	import * as m from '$lib/paraglide/messages';
@@ -98,6 +127,37 @@
 			open = false;
 		}
 	});
+
+	/* One verdict per checkable field, keyed by field name, cleared as soon as
+	   the value it was about changes — a tick beside an edited handle would be
+	   describing the handle before it. */
+	let checks = $state<Record<string, CheckResult | undefined>>({});
+	let checking = $state<Record<string, boolean>>({});
+	let checkedValue: Record<string, string> = {};
+
+	async function runCheck(field: CrudField) {
+		if (!field.check || checking[field.name]) return;
+		checking[field.name] = true;
+		checks[field.name] = undefined;
+		try {
+			const response = await fetch(field.check.endpoint, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify($form)
+			});
+			if (!response.ok) throw new Error(String(response.status));
+			checks[field.name] = (await response.json()) as CheckResult;
+			checkedValue[field.name] = String($form[field.name] ?? '');
+		} catch {
+			toast.error(m.crud_check_failed());
+		} finally {
+			checking[field.name] = false;
+		}
+	}
+
+	/* The verdict is only about the value that was checked. */
+	const verdictFor = (field: CrudField) =>
+		checkedValue[field.name] === String($form[field.name] ?? '') ? checks[field.name] : undefined;
 </script>
 
 <Dialog.Root bind:open>
@@ -155,6 +215,60 @@
 							items={field.items ?? []}
 							image={existing[field.name] ?? ''}
 						/>
+
+						{#if field.check}
+							{@const verdict = verdictFor(field)}
+							<div class="-mt-1 flex flex-wrap items-center gap-2">
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									disabled={checking[field.name] || !$form[field.name]}
+									onclick={() => runCheck(field)}
+								>
+									{#if checking[field.name]}
+										<LoadingBtn name={m.crud_checking()} />
+									{:else}
+										<Search class="size-4" />
+										{field.check.label}
+									{/if}
+								</Button>
+
+								{#if verdict}
+									<span
+										class="inline-flex items-center gap-1.5 text-[11px] font-bold {verdict.status ===
+										'found'
+											? 'text-brand-soft-fg'
+											: verdict.status === 'not_found'
+												? 'text-danger-fg'
+												: 'text-ink-soft'}"
+									>
+										{#if verdict.status === 'found'}
+											<CircleCheck class="size-3.5" />
+										{:else if verdict.status === 'not_found'}
+											<CircleAlert class="size-3.5" />
+										{:else}
+											<CircleHelp class="size-3.5" />
+										{/if}
+										{verdict.text}
+										{#if verdict.url}
+											<!-- The address the check looked up, on the platform itself. Never a
+											     route on this site, so `resolve` has nothing to say about it. -->
+											<!-- eslint-disable svelte/no-navigation-without-resolve -->
+											<a
+												href={verdict.url}
+												target="_blank"
+												rel="noopener noreferrer nofollow"
+												class="underline underline-offset-2"
+											>
+												{m.crud_check_open()}
+											</a>
+											<!-- eslint-enable svelte/no-navigation-without-resolve -->
+										{/if}
+									</span>
+								{/if}
+							</div>
+						{/if}
 					{/each}
 
 					<Button type="submit" form={formId} class="mt-4">

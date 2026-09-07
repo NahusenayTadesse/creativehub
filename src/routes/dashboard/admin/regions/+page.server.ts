@@ -1,7 +1,7 @@
 import * as m from '$lib/paraglide/messages';
 import { asc } from 'drizzle-orm';
 import { contentCrud } from '$lib/server/crud';
-import { requireRole } from '$lib/server/guards';
+import { referenceDataGuard, adminOnlyDelete } from '$lib/server/guards';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { regionAdd, regionEdit } from '$lib/schemas';
@@ -14,7 +14,9 @@ const crud = contentCrud({
 	editSchema: regionEdit,
 	listFields: ['majorCities'],
 	/* Actions run before any `load`, so the admin layout guard cannot cover them. */
-	guard: (event) => requireRole(event, 'admin')
+	guard: referenceDataGuard,
+	/* An encoder writes here; only an operator removes a row. */
+	canDelete: adminOnlyDelete
 });
 
 /** Regions need their country list so the form can offer a dropdown. */

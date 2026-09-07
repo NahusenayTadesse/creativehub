@@ -284,6 +284,11 @@ export const creatorLanguages = mysqlTable(
 	(t) => [uniqueIndex('creator_language_unique').on(t.creatorId, t.languageId)]
 );
 
+/* The verdicts `$lib/server/social-check.ts` returns; `unchecked` is a row
+   nobody has looked at yet, which is not the same as one that could not be
+   checked. Kept in step with LINK_STATUSES in $lib/domain/social-link.ts. */
+export const linkStatusEnum = ['unchecked', 'found', 'not_found', 'unknown'] as const;
+
 export const socialAccounts = mysqlTable(
 	'social_accounts',
 	{
@@ -299,6 +304,18 @@ export const socialAccounts = mysqlTable(
 		engagementRate: double('engagement_rate').default(0).notNull(),
 		profileUrl: varchar('profile_url', { length: 500 }),
 		isVerified: boolean('is_verified').default(false).notNull(),
+		/**
+		 * What the last look at the platform found — see `$lib/server/social-check`.
+		 *
+		 * Deliberately separate from `isVerified`, which is a claim of *ownership*
+		 * somebody made about themselves. This is a much smaller statement: on
+		 * that date, the platform served this profile, or said there was none, or
+		 * would not say. `unknown` covers both a site that was down and a platform
+		 * nobody can check anonymously, so it must never be read as a mark
+		 * against a creator.
+		 */
+		linkStatus: mysqlEnum('link_status', linkStatusEnum).default('unchecked').notNull(),
+		linkCheckedAt: timestamp('link_checked_at', { fsp: 3 }),
 		...publishable(),
 		...audit()
 	},

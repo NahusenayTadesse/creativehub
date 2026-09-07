@@ -7,12 +7,10 @@ import { getRequestEvent } from '$app/server';
 import { db } from '$lib/server/db';
 import { sendSecurityMail } from '$lib/server/notify';
 
-/**
- * Access roles. A user holds exactly one at a time; organisation permissions are
- * layered on top through `organizationMembers`, never through this field alone.
- */
-export const ROLES = ['creator', 'business', 'admin'] as const;
-export type Role = (typeof ROLES)[number];
+/* The role names themselves live in $lib/roles, which the browser can import
+   too; they are re-exported here so the auth config remains the obvious place
+   to look for them. */
+export { ROLES, type Role } from '$lib/roles';
 
 /**
  * Whether "Continue with Google" is on.

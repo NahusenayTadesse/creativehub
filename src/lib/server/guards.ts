@@ -4,7 +4,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { RequestEvent } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
-import type { Role } from '$lib/server/auth';
+import type { Role } from '$lib/roles';
 
 /**
  * The `?next=` destination, if it is somewhere on this site.
@@ -42,6 +42,59 @@ export function requireRole(event: RequestEvent, ...roles: Role[]) {
 }
 
 export const isAdmin = (user?: { role?: string | null } | null) => user?.role === 'admin';
+
+/**
+ * The admin pages a data encoder may open.
+ *
+ * An encoder keeps the reference tables — the countries, regions, categories,
+ * platforms, languages and home-page slides every other page reads from — and
+ * has no business anywhere else under /dashboard/admin: the audit log, the
+ * payouts, the disputes and the users listing are all operator work.
+ *
+ * It is an allowlist rather than a list of refusals so that a page added
+ * tomorrow is operator-only until somebody says otherwise, which is the way
+ * round that fails safely.
+ */
+const ENCODER_PAGES = [
+	'/dashboard/admin/countries',
+	'/dashboard/admin/regions',
+	'/dashboard/admin/categories',
+	'/dashboard/admin/platforms',
+	'/dashboard/admin/languages',
+	'/dashboard/admin/gallery'
+] as const;
+
+/** Where an encoder lands, and what the sidebar's first entry points at. */
+export const ENCODER_HOME = ENCODER_PAGES[0];
+
+const isEncoderPage = (pathname: string) =>
+	ENCODER_PAGES.some((page) => pathname === page || pathname.startsWith(`${page}/`));
+
+/**
+ * The guard on /dashboard/admin as a whole: an operator anywhere, an encoder on
+ * the pages above.
+ *
+ * This is a `load` guard, so it covers reading. It cannot cover writing — a
+ * form action runs to completion before any `load` — which is why every route
+ * below it still passes its own `guard` to `contentCrud`.
+ */
+export function requireAdminArea(event: RequestEvent) {
+	const user = requireUser(event);
+	const role = (user.role ?? 'creator') as Role;
+	if (role === 'admin') return user;
+	if (role === 'encoder' && isEncoderPage(event.url.pathname)) return user;
+	error(403, m.srv_no_permission());
+}
+
+/** Who may write to a reference table: an operator, or an encoder. */
+export const referenceDataGuard = (event: RequestEvent) => requireRole(event, 'admin', 'encoder');
+
+/**
+ * Who may remove a row from one. An encoder corrects the data and adds to it;
+ * taking a country or a platform out from under every row that points at it is
+ * the operator's call.
+ */
+export const adminOnlyDelete = (event: RequestEvent) => isAdmin(event.locals.user);
 
 /**
  * The creator profile owned by this user. Business and admin accounts have

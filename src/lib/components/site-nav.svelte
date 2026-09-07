@@ -9,6 +9,7 @@
 		LayoutDashboard,
 		ShieldCheck,
 		Briefcase,
+		Database,
 		UserCheck,
 		LogOut
 	} from '@lucide/svelte';
@@ -34,7 +35,9 @@
 			? m.nav_admin_hub()
 			: user?.role === 'business'
 				? m.nav_brand_hub()
-				: m.nav_creator_studio()
+				: user?.role === 'encoder'
+					? m.nav_encoder_desk()
+					: m.nav_creator_studio()
 	);
 
 	const locale = $derived(getLocale());
@@ -144,7 +147,7 @@
 						class="flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-colors {user.role ===
 						'admin'
 							? 'bg-tint-violet-solid text-white hover:bg-tint-violet-solid-hover'
-							: user.role === 'business'
+							: user.role === 'business' || user.role === 'encoder'
 								? 'bg-inverse text-inverse-ink hover:bg-inverse-hover'
 								: 'bg-brand text-brand-ink hover:bg-brand-strong'}"
 					>
@@ -152,6 +155,8 @@
 							<ShieldCheck class="h-3.5 w-3.5" />
 						{:else if user.role === 'business'}
 							<Briefcase class="h-3.5 w-3.5" />
+						{:else if user.role === 'encoder'}
+							<Database class="h-3.5 w-3.5" />
 						{:else}
 							<LayoutDashboard class="h-3.5 w-3.5" />
 						{/if}
@@ -280,6 +285,8 @@
 						<ShieldCheck class="h-4 w-4" />
 					{:else if user.role === 'business'}
 						<Briefcase class="h-4 w-4" />
+					{:else if user.role === 'encoder'}
+						<Database class="h-4 w-4" />
 					{:else}
 						<LayoutDashboard class="h-4 w-4" />
 					{/if}

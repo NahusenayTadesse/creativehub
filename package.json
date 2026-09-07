@@ -28,7 +28,8 @@
 		"import:creators": "tsx scripts/import-creators.ts",
 		"fetch:avatars": "tsx scripts/fetch-avatars.ts",
 		"uploads:prune": "tsx scripts/prune-uploads.ts",
-		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes"
+		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
+		"verify:socials": "tsx scripts/verify-socials.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

@@ -18,6 +18,7 @@
  * public, and those columns are an operator's working notes about a scrape.
  */
 import { calculateScore } from './score';
+import { profileUrlFor } from './social-link';
 
 export type CsvRow = Record<string, string>;
 
@@ -396,27 +397,10 @@ export function categoriesFor(bio: string): { slugs: string[]; unmapped: string[
 	return { slugs, unmapped };
 }
 
-/** Where a handle lives, for the platforms whose URL shape is unambiguous. */
-export function profileUrlFor(platform: string, handle: string): string | null {
-	const bare = handle.trim().replace(/^@/, '');
-	if (!bare) return null;
-	switch (platform) {
-		case 'Instagram':
-			return `https://www.instagram.com/${bare}/`;
-		case 'TikTok':
-			return `https://www.tiktok.com/@${bare}`;
-		case 'YouTube':
-			return `https://www.youtube.com/@${bare}`;
-		case 'Facebook':
-			return `https://www.facebook.com/${bare}`;
-		case 'Telegram':
-			return `https://t.me/${bare}`;
-		case 'X':
-			return `https://x.com/${bare}`;
-		default:
-			return null;
-	}
-}
+/* Where a handle lives. Moved to `$lib/domain/social-link.ts`, which the
+   channels form and the link checker share with this importer, and re-exported
+   here because the mapping below and its tests have always asked for it here. */
+export { profileUrlFor } from './social-link';
 
 /* ------------------------------------------------------------------ *
  * Row mapping

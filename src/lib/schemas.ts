@@ -3,6 +3,7 @@ import { z } from 'zod/v4';
 import { idSchema, sortOrderField } from '$lib/server/crud';
 /* Declared in `$lib/blog.ts`, which components can import; see the note there. */
 import { BLOG_ACCENTS, BLOG_STATUSES } from '$lib/blog';
+import { ROLES } from '$lib/roles';
 
 export { idSchema, sortOrderField };
 export { BLOG_ACCENTS, BLOG_STATUSES };
@@ -730,7 +731,10 @@ export const savedCreatorSchema = z.object({ creatorId: refId });
 
 export const userRoleUpdate = z.object({
 	userId: z.string().min(1),
-	role: z.enum(['creator', 'business', 'admin'])
+	/* Every role an operator can assign, taken from the one list rather than
+	   spelled out again — a role the users page offers but this refuses is a
+	   button that fails, and the two drifting apart is how that happens. */
+	role: z.enum(ROLES)
 });
 
 export const settingsSchema = z.object({

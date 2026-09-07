@@ -40,7 +40,9 @@
 							? m.dash_platform_operations()
 							: data.role === 'business'
 								? (data.organization?.name ?? m.dash_brand())
-								: (data.creator?.fullName ?? m.dash_creator_studio())}
+								: data.role === 'encoder'
+									? m.dash_data_encoding()
+									: (data.creator?.fullName ?? m.dash_creator_studio())}
 					</span>
 					<h1 class="text-sm font-black text-ink">{crumb}</h1>
 				</div>
