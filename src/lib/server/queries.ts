@@ -62,27 +62,95 @@ const live = <T extends { isActive: any; deletedAt: any }>(table: T) =>
  * `await parent()` rather than calling `getReferenceData` a second time.
  * ------------------------------------------------------------------ */
 
+/*
+ * Named columns rather than `select()`, and the reason is not query cost.
+ *
+ * These five lists are loaded by the root layout for *every* page and returned
+ * from it, which means every column they carry is serialised into the HTML of
+ * every public page on the site. `select()` was therefore publishing, on the
+ * homepage, the `created_by` and `updated_by` account ids of whichever
+ * operator last edited a country, alongside its soft-delete state and the
+ * payment rails it settles on. None of it was rendered anywhere; all of it was
+ * one "view source" away.
+ *
+ * What remains is what a filter panel, a currency conversion or a badge
+ * actually reads. The admin screens that edit these tables load their own rows
+ * through `$lib/server/crud.ts` and are unaffected — they ask for the columns
+ * they edit, which is the same principle from the other side.
+ */
 export const listCountries = () =>
-	db.select().from(t.countries).where(live(t.countries)).orderBy(asc(t.countries.sortOrder));
+	db
+		.select({
+			id: t.countries.id,
+			name: t.countries.name,
+			code: t.countries.code,
+			flag: t.countries.flag,
+			currencyCode: t.countries.currencyCode,
+			currencySymbol: t.countries.currencySymbol,
+			usdRate: t.countries.usdRate
+		})
+		.from(t.countries)
+		.where(live(t.countries))
+		.orderBy(asc(t.countries.sortOrder));
 
 export const listRegions = () =>
-	db.select().from(t.regions).where(live(t.regions)).orderBy(asc(t.regions.sortOrder));
+	db
+		.select({
+			id: t.regions.id,
+			name: t.regions.name,
+			countryId: t.regions.countryId,
+			/* The public footer lists the cities each region covers. */
+			majorCities: t.regions.majorCities
+		})
+		.from(t.regions)
+		.where(live(t.regions))
+		.orderBy(asc(t.regions.sortOrder));
 
 export const listCategories = () =>
-	db.select().from(t.categories).where(live(t.categories)).orderBy(asc(t.categories.sortOrder));
+	db
+		.select({
+			id: t.categories.id,
+			name: t.categories.name,
+			slug: t.categories.slug,
+			icon: t.categories.icon,
+			/* The homepage prints this under each category tile. */
+			description: t.categories.description
+		})
+		.from(t.categories)
+		.where(live(t.categories))
+		.orderBy(asc(t.categories.sortOrder));
 
 export const listPlatforms = () =>
-	db.select().from(t.platforms).where(live(t.platforms)).orderBy(asc(t.platforms.sortOrder));
+	db
+		.select({ id: t.platforms.id, name: t.platforms.name, color: t.platforms.color })
+		.from(t.platforms)
+		.where(live(t.platforms))
+		.orderBy(asc(t.platforms.sortOrder));
 
 export const listLanguages = () =>
-	db.select().from(t.languages).where(live(t.languages)).orderBy(asc(t.languages.sortOrder));
+	db
+		.select({ id: t.languages.id, name: t.languages.name, code: t.languages.code })
+		.from(t.languages)
+		.where(live(t.languages))
+		.orderBy(asc(t.languages.sortOrder));
 
 export const getSettings = async () => (await db.select().from(t.siteSettings).limit(1)).at(0);
 
-/** The homepage gallery, in the order an admin arranged it. */
+/**
+ * The homepage gallery, in the order an admin arranged it. Named columns
+ * because this reaches the homepage's markup; the admin screen that edits
+ * these slides loads its own rows through `$lib/server/crud.ts`.
+ */
 export const listGallerySlides = () =>
 	db
-		.select()
+		.select({
+			id: t.gallerySlides.id,
+			title: t.gallerySlides.title,
+			subtitle: t.gallerySlides.subtitle,
+			image: t.gallerySlides.image,
+			linkUrl: t.gallerySlides.linkUrl,
+			linkLabel: t.gallerySlides.linkLabel
+		})
 		.from(t.gallerySlides)
 		.where(live(t.gallerySlides))
 		.orderBy(asc(t.gallerySlides.sortOrder));
@@ -1694,10 +1762,21 @@ export const countPendingVerifications = async () => {
  * session, never by anything in the query string.
  * ------------------------------------------------------------------ */
 
-/** Sections an operator has left visible, in the order they arranged them. */
+/**
+ * Sections an operator has left visible, in the order they arranged them.
+ *
+ * Named columns: this list is rendered on the public blog index, and the row
+ * carries the account id of whichever operator created the section.
+ */
 export const listBlogCategories = () =>
 	db
-		.select()
+		.select({
+			id: t.blogCategories.id,
+			name: t.blogCategories.name,
+			slug: t.blogCategories.slug,
+			description: t.blogCategories.description,
+			accent: t.blogCategories.accent
+		})
 		.from(t.blogCategories)
 		.where(live(t.blogCategories))
 		.orderBy(asc(t.blogCategories.sortOrder), asc(t.blogCategories.name));
@@ -1722,8 +1801,12 @@ const blogPostColumns = {
 	categoryName: t.blogCategories.name,
 	categorySlug: t.blogCategories.slug,
 	categoryAccent: t.blogCategories.accent,
-	authorId: t.blogPosts.authorId,
-	/* The stored byline wins; the account's name is what an older post that
+	/* The author's *account id* is deliberately not selected. Nothing renders
+	   it, and an article page is public — a byline does not require publishing
+	   the identifier of the account that wrote it. The join below still uses
+	   the column; it simply does not travel to the browser.
+
+	   The stored byline wins; the account's name is what an older post that
 	   never set one falls back to. Neither is required, so a post can be
 	   published before anyone has decided whose name goes on it. */
 	authorName: sql<string | null>`coalesce(${t.blogPosts.authorName}, ${user.name})`,

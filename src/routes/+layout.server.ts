@@ -20,6 +20,23 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				}
 			: null,
 		reference,
-		settings: settings ?? null
+		/*
+		 * The named fields rather than the row, for the same reason the
+		 * reference lists above are narrowed: this is returned from the root
+		 * layout, so whatever it holds is written into the markup of every page
+		 * on the site. The row carries audit columns — which operator last
+		 * changed the take rate, and when — and those have no reader.
+		 */
+		settings: settings
+			? {
+					siteName: settings.siteName,
+					tagline: settings.tagline,
+					heroTitle: settings.heroTitle,
+					heroSubtitle: settings.heroSubtitle,
+					platformFeePercent: settings.platformFeePercent,
+					supportEmail: settings.supportEmail,
+					supportPhone: settings.supportPhone
+				}
+			: null
 	};
 };

@@ -430,6 +430,60 @@ written has to refer to them already — through `POST /dashboard/admin/blog/upl
 which re-checks the role itself, because a layout `load` never runs for a
 request that renders no page.
 
+### The directory is public, and is not a public API
+
+Who the creators are, what they reach and what they charge is the product. Laid
+out over a paginated grid with one URL per profile, it is also a database with a
+slow API in front of it, and that is how a competitor or a dataset builder reads
+it. Nothing below makes the site unscrapable — nothing does, short of not
+publishing. What it does is change the arithmetic, so taking the whole thing
+costs days of obviously abnormal traffic rather than one afternoon of
+`for page in range(1, 400)`.
+
+- **Declared bulk collectors are refused.** `$lib/server/bots.ts` names the LLM
+  training crawlers, the dataset builders and the off-the-shelf scraping frames;
+  `handleBotDefence` answers them 403 before any `load` runs. This only works on
+  crawlers honest enough to say what they are, which is usefully most of the
+  ones that take everything. `robots.txt` is generated from the same array, so
+  nobody is turned away at the door without having been asked politely first.
+- **Search engines and link unfurlers are not touched.** Googlebot, Bing and the
+  rest send readers back, and a profile pasted into a chat should still unfurl.
+  They get no _elevated_ budget either, which is deliberate: a raised limit
+  keyed on a user agent is a raised limit for anyone willing to type
+  `-A Googlebot`.
+- **Everyone else is rate limited by behaviour, not by name.** A token bucket
+  per address, in three tiers — see the budgets in `bot-defence.ts`. A request
+  carrying neither `Sec-Fetch-*` nor `Accept-Language` is charged as automation
+  and gets a small allowance. A browser navigation gets an allowance sized for
+  the worst honest case rather than the average one, because a carrier in this
+  market puts a great many subscribers behind one address.
+- **Signed-in readers are counted as themselves.** The limits key on the account
+  id rather than the address, so nobody spends a colleague's — or a stranger's —
+  allowance. It also means a scraper cannot dilute itself by signing in: an
+  account is a name, and a name that harvests the directory can be suspended.
+- **Reads only, and never the traffic that is meant to look robotic.** Form
+  posts are not counted at all: throttling a `GET` costs a reader a page they can
+  ask for again, while throttling the `POST` that accepts a booking's terms costs
+  somebody a deal. `/health`, `/files` and the Chapa webhook are exempt outright.
+- **A public loader returns the fields its template names.** `select()` on a row
+  that reaches a `load` publishes every column in the page's markup, whether or
+  not anything renders it — which is how the account id behind a claimed profile,
+  the operator ids on every audit column and a country's USD rate came to be one
+  "view source" away on every page. The public loaders and the reference lists
+  now select columns explicitly. Adding a column to a table should not silently
+  publish it.
+
+Set `XFF_DEPTH` to the number of proxies in front of the app. The client address
+is read from the right of `X-Forwarded-For` and from nowhere else, because that
+is the only part of it a client cannot write. If no such header arrives, the app
+cannot tell readers apart and stops limiting rather than throttling everyone as
+one caller — which is also what `vite dev` looks like.
+
+What is deliberately absent: obfuscated markup, text rendered to canvas, fields
+split across elements to defeat a selector. Each costs a screen-reader user the
+page and a search engine the listing, and costs a determined scraper about
+twenty minutes.
+
 ## Tests
 
 ```bash

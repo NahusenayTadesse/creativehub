@@ -26,12 +26,64 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const organization = locals.user ? await getOrganizationFor(locals.user.id) : undefined;
 
 	return {
-		creator,
+		creator: publicView(creator),
 		canBook: Boolean(organization),
 		organizationName: organization?.name ?? null,
 		bookingForm: await superValidate(zod4(bookingCreate))
 	};
 };
+
+/**
+ * The profile as the page draws it, and nothing besides.
+ *
+ * `getCreatorByUsername` hands back the whole row plus whole rows for the
+ * country, region and platform it joins — which is what the checks above want,
+ * and far more than a reader wants. Everything a `load` returns is serialised
+ * into the HTML of a public page, so the difference between the row and this
+ * projection was being published on every profile: the account id behind a
+ * claimed profile, who imported it and when, whether it is flagged as trending
+ * or featured, the operator ids on every audit column, the currency's USD rate.
+ *
+ * None of that was ever rendered. It was simply there, in the markup, for
+ * anybody who thought to read past the parts that look like a page — which,
+ * for a scraper, is the first thing you do and the cheapest thing you find.
+ *
+ * The rule this encodes: a public loader returns the fields its template names,
+ * chosen deliberately, rather than a row minus whatever somebody remembered to
+ * remove. Adding a column to `creators` should not silently publish it.
+ */
+function publicView(creator: NonNullable<Awaited<ReturnType<typeof getCreatorByUsername>>>) {
+	return {
+		id: creator.id,
+		username: creator.username,
+		fullName: creator.fullName,
+		avatar: creator.avatar,
+		cover: creator.cover,
+		bio: creator.bio,
+		city: creator.city,
+		totalReach: creator.totalReach,
+		startingPrice: creator.startingPrice,
+		currencyCode: creator.currencyCode,
+		score: creator.score,
+		verificationLevel: creator.verificationLevel,
+		availability: creator.availability,
+		reviewsCount: creator.reviewsCount,
+		averageRating: creator.averageRating,
+		completedBookings: creator.completedBookings,
+		/* Whether anyone is on the other side of a booking. The badge says so. */
+		isClaimed: creator.isClaimed,
+		country: creator.country && { name: creator.country.name, flag: creator.country.flag },
+		region: creator.region && { name: creator.region.name },
+		platform: creator.platform && { name: creator.platform.name },
+		categories: creator.categories,
+		languages: creator.languages,
+		socialAccounts: creator.socialAccounts,
+		packages: creator.packages,
+		portfolio: creator.portfolio,
+		reviews: creator.reviews,
+		ratingBreakdown: creator.ratingBreakdown
+	};
+}
 
 export const actions: Actions = {
 	/**

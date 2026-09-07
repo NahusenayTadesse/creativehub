@@ -2,6 +2,7 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { building, dev } from '$app/environment';
 import { randomUUID } from 'node:crypto';
 import { auth } from '$lib/server/auth';
+import { handleBotDefence } from '$lib/server/bot-defence';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { getTextDirection } from '$lib/paraglide/runtime';
@@ -56,7 +57,21 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	return svelteKitHandler({ event, resolve, auth, building });
 };
 
-export const handle: Handle = sequence(handleSecurityHeaders, handleParaglide, handleBetterAuth);
+/**
+ * Outermost first. `handleSecurityHeaders` wraps everything so that the
+ * refusals `handleBotDefence` writes carry the same headers as a real page,
+ * and `handleBotDefence` sits innermost so that `locals.user` is already
+ * resolved when it decides whose allowance a request spends — see the note on
+ * signing in there. Everything it turns away is turned away before a single
+ * `load` runs, which is the point: the database work is the cost worth not
+ * paying.
+ */
+export const handle: Handle = sequence(
+	handleSecurityHeaders,
+	handleParaglide,
+	handleBetterAuth,
+	handleBotDefence
+);
 
 /**
  * What happens when something throws that nobody expected.
