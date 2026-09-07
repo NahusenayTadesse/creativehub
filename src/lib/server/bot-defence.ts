@@ -130,10 +130,67 @@ export function clientKey(event: Parameters<Handle>[0]['event']): string | null 
 	try {
 		peer = event.getClientAddress();
 	} catch {
+		reportUnkeyable(event.request.headers, 'getClientAddress() threw');
 		return null;
 	}
 
-	return isLocal(peer) ? null : normaliseAddress(peer);
+	if (isLocal(peer)) {
+		reportUnkeyable(event.request.headers, `peer is ${peer}`);
+		return null;
+	}
+
+	return normaliseAddress(peer);
+}
+
+/** Whether this process has already said it cannot tell callers apart. */
+let reportedUnkeyable = false;
+
+/**
+ * Say so, once, when the limits have quietly stopped applying.
+ *
+ * This is the failure mode that matters most and shows least. If the proxy in
+ * front stops forwarding `X-Forwarded-For` — a vhost rewritten, a CDN added, a
+ * CyberPanel upgrade regenerating a config — every request arrives from the
+ * loopback, `clientKey` returns null, and the whole scraping defence turns
+ * itself off. Nothing breaks. Nothing 500s. The site simply serves the
+ * directory to anyone who asks, at any rate, and the only way anyone finds out
+ * is by noticing an absence.
+ *
+ * So it announces itself, and it names every header the request did carry.
+ * That is the answer to "then which header should I be reading?", which is
+ * otherwise a deploy-and-guess loop against a proxy config the deploying user
+ * cannot read.
+ *
+ * Once per process, at warn level: `vite dev` hits this on every request by
+ * design, and a line per request would be noise in development and a log flood
+ * in production.
+ */
+function reportUnkeyable(headers: Headers, why: string) {
+	if (reportedUnkeyable) return;
+	reportedUnkeyable = true;
+
+	/* Values only for the headers that plausibly carry an address; the rest by
+	   name, because a request's full headers can hold a session cookie. */
+	const forwarding: Record<string, string> = {};
+	const seen: string[] = [];
+	for (const [name, value] of headers) {
+		seen.push(name);
+		if (/forwarded|client-ip|real-ip|remote|via/.test(name)) forwarding[name] = value;
+	}
+
+	console.warn(
+		JSON.stringify({
+			level: 'warn',
+			at: new Date().toISOString(),
+			message:
+				'bot-defence: cannot identify the caller, so rate limiting is OFF for anonymous traffic',
+			why,
+			xffDepth: XFF_DEPTH,
+			forwardingHeaders: forwarding,
+			headersSeen: seen,
+			hint: 'Expected X-Forwarded-For from the reverse proxy. If another header carries the client address, read that one; if this is `vite dev` or a loopback call, nothing is wrong.'
+		})
+	);
 }
 
 const isLocal = (address: string) =>
