@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
+	import { PAYMENT_GATEWAY_ENABLED } from '$lib/payment-gateway';
 	import {
 		LayoutDashboard,
 		Users,
@@ -91,7 +92,12 @@
 							counter: counts.applications
 						},
 						{ title: m.sb_reviews(), url: resolve('/dashboard/reviews'), icon: Star },
-						{ title: m.sb_payouts(), url: resolve('/dashboard/payouts'), icon: Banknote }
+						/* Both payout pages 404 while the gateway is off — a creator has
+						   nowhere to be paid from, so there is nothing to collect bank
+						   details for. The entries come back with the switch. */
+						...(PAYMENT_GATEWAY_ENABLED
+							? [{ title: m.sb_payouts(), url: resolve('/dashboard/payouts'), icon: Banknote }]
+							: [])
 					]
 				},
 				{
@@ -213,7 +219,9 @@
 						counter: counts.bookings
 					},
 					{ title: m.sb_all_campaigns(), url: resolve('/dashboard/campaigns'), icon: Megaphone },
-					{ title: m.sb_payouts(), url: resolve('/dashboard/admin/payouts'), icon: Banknote },
+					...(PAYMENT_GATEWAY_ENABLED
+						? [{ title: m.sb_payouts(), url: resolve('/dashboard/admin/payouts'), icon: Banknote }]
+						: []),
 					{ title: m.sb_disputes(), url: resolve('/dashboard/admin/disputes'), icon: Gavel },
 					{ title: m.sb_audit_log(), url: resolve('/dashboard/admin/audit'), icon: ScrollText }
 				]

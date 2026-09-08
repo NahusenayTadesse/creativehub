@@ -9,6 +9,7 @@ import * as t from '$lib/server/db/schema';
 import { getBookingDetail, getSettings } from '$lib/server/queries';
 import { notify } from '$lib/server/notify';
 import { chapaEnabled } from '$lib/server/chapa';
+import { PAYMENT_GATEWAY_ENABLED } from '$lib/payment-gateway';
 import * as payments from '$lib/server/payments';
 import * as disputes from '$lib/server/disputes';
 import * as refunds from '$lib/server/refunds';
@@ -91,8 +92,12 @@ export const load: PageServerLoad = async (event) => {
 	 * entirely on a host that cannot receive it. Resolving the reference here
 	 * too means the reader sees the outcome on the page they were returned to,
 	 * and `settle` is written so that whichever arrives second changes nothing.
+	 *
+	 * Nobody is sent to that page while the gateway is off, so a `?payment=`
+	 * in the query is a stale link or a guess. It is not looked up: `settle`
+	 * would ask the provider about a reference this deployment never issued.
 	 */
-	const returned = event.url.searchParams.get('payment');
+	const returned = PAYMENT_GATEWAY_ENABLED ? event.url.searchParams.get('payment') : null;
 	const payment = returned ? await payments.settle(returned) : null;
 
 	/* Re-read only when this request is the one that changed something, so the
@@ -138,7 +143,11 @@ export const load: PageServerLoad = async (event) => {
 		   provider is configured at all, and whether this booking is one it can
 		   take money for. */
 		canPayOnline: chapaEnabled && payments.payableProblem(current.booking) === null,
-		payProblem: payments.payableProblem(current.booking)
+		payProblem: payments.payableProblem(current.booking),
+		/* The operator's manual deposit is drawn from this rather than from
+		   `canPayOnline`: it records money that moved outside the platform, so
+		   it belongs to the gateway being on, not to Chapa being reachable. */
+		paymentsEnabled: PAYMENT_GATEWAY_ENABLED
 	};
 };
 
@@ -487,6 +496,10 @@ export const actions: Actions = {
 		 * two kinds of deposit apart afterwards.
 		 */
 		if (side !== 'admin') return fail(403, { message: m.srv_manual_deposit_operator() });
+		/* The button is not drawn while the gateway is off, so reaching this is a
+		   page held open across the switch. Refused rather than honoured: a deal
+		   that needs no deposit to complete should not collect one either. */
+		if (!PAYMENT_GATEWAY_ENABLED) return fail(503, { message: m.srv_payments_unavailable() });
 		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 		/* There is no deposit to record against barter or an event pass, and
 		   `settle` only requires one for a paid booking. */
@@ -545,19 +558,43 @@ export const actions: Actions = {
 		if (side === 'creator') return fail(403, { message: m.srv_only_brand_settles() });
 		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 
-		/* PRD FR-083: completion requires the compensation obligation to be met. */
-		if (booking.compensationType === 'paid' && booking.escrowStatus !== 'held') {
-			return fail(409, {
-				message: m.srv_record_deposit_first()
-			});
+		/*
+		 * PRD FR-083: completion requires the compensation obligation to be met.
+		 *
+		 * Only while there is a way to meet it. With the gateway off there is no
+		 * deposit to take and no button that would have taken one, so holding a
+		 * paid deal at `delivered` would strand it on a step that cannot be
+		 * performed — the compensation is settled between the parties instead,
+		 * exactly as a barter deal's always was.
+		 */
+		if (
+			PAYMENT_GATEWAY_ENABLED &&
+			booking.compensationType === 'paid' &&
+			booking.escrowStatus !== 'held'
+		) {
+			return fail(409, { message: m.srv_record_deposit_first() });
 		}
+
+		/*
+		 * `released` is only true of a deposit that was actually held.
+		 *
+		 * Writing it onto a booking nobody funded would be a lie the payout
+		 * queue believes: `payoutProblem` reads `released` as permission to send
+		 * money, and every paid deal completed while the gateway was off would
+		 * turn up in that queue the day it is switched back on. Left as it was,
+		 * such a booking reads `unfunded` — which is what happened.
+		 */
+		const escrowPatch =
+			booking.compensationType !== 'paid' || booking.escrowStatus === 'held'
+				? { escrowStatus: 'released' as const }
+				: {};
 
 		const result = await transition(
 			event,
 			id,
 			booking.status as BookingStatus,
 			'completed',
-			{ escrowStatus: 'released', completedAt: new Date() },
+			{ ...escrowPatch, completedAt: new Date() },
 			'Compensation marked fulfilled'
 		);
 		if (!result.ok) return fail(409, { message: result.text });

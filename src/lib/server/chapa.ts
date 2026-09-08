@@ -1,4 +1,5 @@
 import { env } from '$env/dynamic/private';
+import { PAYMENT_GATEWAY_ENABLED } from '$lib/payment-gateway';
 
 /**
  * The Chapa API, and nothing else.
@@ -22,13 +23,18 @@ const secretKey = env.CHAPA_SECRET_KEY;
 /**
  * Whether payments can be taken at all.
  *
- * Only the secret key matters here: the public key belongs to an inline
- * checkout widget this app does not use — it redirects to Chapa's hosted page
- * instead, which is authorised entirely by the secret key from the server. An
- * environment with only the public key can take no money, and the booking page
- * asks this before drawing a pay button.
+ * Two conditions, and the first is currently false: the gateway is switched
+ * off in `lib/payment-gateway.ts` while the deal lifecycle runs without a
+ * payment step. Everything below still works and is still tested; nothing
+ * calls it.
+ *
+ * The second is the secret key, and only the secret key: the public key
+ * belongs to an inline checkout widget this app does not use — it redirects to
+ * Chapa's hosted page instead, which is authorised entirely by the secret key
+ * from the server. An environment with only the public key can take no money,
+ * and the booking page asks this before drawing a pay button.
  */
-export const chapaEnabled = Boolean(secretKey);
+export const chapaEnabled = PAYMENT_GATEWAY_ENABLED && Boolean(secretKey);
 
 /**
  * The currencies this integration will charge in.

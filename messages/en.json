@@ -441,6 +441,7 @@
 	"bk_booking_completed": "Booking completed",
 	"bk_compensation": "Compensation",
 	"bk_compensation_note": "Compensation is confirmed against this record before the booking can complete. The status above reflects that confirmation, and it is kept separate from the delivery status.",
+	"bk_compensation_note_offline": "Online payment is switched off for now, so the two of you settle this amount between yourselves and the booking completes without waiting on it. The status above records what the platform has seen, which is nothing.",
 	"bk_contact_hidden": "Contact details hidden",
 	"bk_content_url": "Published content URL",
 	"bk_content_url_placeholder": "https://www.tiktok.com/@you/video/…",

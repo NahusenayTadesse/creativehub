@@ -1,8 +1,10 @@
 import * as m from '$lib/paraglide/messages';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
+import { error } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
+import { PAYMENT_GATEWAY_ENABLED } from '$lib/payment-gateway';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { requireCreator, recordAudit } from '$lib/server/guards';
@@ -20,6 +22,16 @@ import { payoutAccountSchema } from '$lib/schemas';
  */
 export const load: PageServerLoad = async (event) => {
 	const { creator } = await requireCreator(event);
+
+	/*
+	 * Nothing to show while the gateway is off.
+	 *
+	 * The bank list this form is built from comes from Chapa, and no transfer
+	 * can be sent even once it is filled in — so the page would collect an
+	 * account number it has no use for, which is worse than not asking. Gone
+	 * from the sidebar too; this is for anyone holding the link.
+	 */
+	if (!PAYMENT_GATEWAY_ENABLED) error(404, m.srv_payouts_unavailable());
 
 	const [account, history, owed, bankList] = await Promise.all([
 		payouts.accountFor(creator.id),
@@ -54,6 +66,7 @@ export const load: PageServerLoad = async (event) => {
 export const actions: Actions = {
 	saveAccount: async (event) => {
 		const { creator, user } = await requireCreator(event);
+		if (!PAYMENT_GATEWAY_ENABLED) error(404, m.srv_payouts_unavailable());
 		const form = await superValidate(event.request, zod4(payoutAccountSchema));
 		if (!form.valid)
 			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });

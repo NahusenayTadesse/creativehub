@@ -1,5 +1,5 @@
 import * as m from '$lib/paraglide/messages';
-import { fail } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { eq } from 'drizzle-orm';
@@ -12,6 +12,7 @@ import { requireRole, recordAudit } from '$lib/server/guards';
 import * as payouts from '$lib/server/payouts';
 import { maskAccount, payoutProblemLabel } from '$lib/domain/payout';
 import { payoutAccountVerify, payoutRefSchema, sendPayoutSchema } from '$lib/schemas';
+import { PAYMENT_GATEWAY_ENABLED } from '$lib/payment-gateway';
 
 /**
  * The operator's payout queue.
@@ -27,6 +28,16 @@ import { payoutAccountVerify, payoutRefSchema, sendPayoutSchema } from '$lib/sch
  */
 export const load: PageServerLoad = async (event) => {
 	requireRole(event, 'admin');
+
+	/*
+	 * The whole queue is gone while the gateway is off.
+	 *
+	 * A banner over an empty queue would be the milder choice, but with no
+	 * deposits taken there is nothing owed and no creator with an account to
+	 * send it to — the page would be a list of zeroes next to a button that
+	 * refuses. The rows and the rules are all still here for the switch back.
+	 */
+	if (!PAYMENT_GATEWAY_ENABLED) error(404, m.srv_payouts_unavailable());
 
 	const [owed, history] = await Promise.all([listOwedBookings(), payoutQuery.run(event.url)]);
 
@@ -64,6 +75,7 @@ export const actions: Actions = {
 	/** Sends one booking's money. The one action here that moves anything. */
 	send: async (event) => {
 		const user = requireRole(event, 'admin');
+		if (!PAYMENT_GATEWAY_ENABLED) return fail(503, { message: m.srv_payouts_unavailable() });
 		const form = await superValidate(event.request, zod4(sendPayoutSchema));
 		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 		if (!chapaEnabled) return fail(503, { message: m.srv_payouts_unavailable() });
@@ -103,6 +115,7 @@ export const actions: Actions = {
 	/** Asks Chapa again what became of one attempt, and applies the answer. */
 	refresh: async (event) => {
 		requireRole(event, 'admin');
+		if (!PAYMENT_GATEWAY_ENABLED) return fail(503, { message: m.srv_payouts_unavailable() });
 		const form = await superValidate(event.request, zod4(payoutRefSchema));
 		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 
@@ -127,6 +140,7 @@ export const actions: Actions = {
 	 */
 	verifyAccount: async (event) => {
 		const user = requireRole(event, 'admin');
+		if (!PAYMENT_GATEWAY_ENABLED) return fail(503, { message: m.srv_payouts_unavailable() });
 		const form = await superValidate(event.request, zod4(payoutAccountVerify));
 		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 

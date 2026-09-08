@@ -441,6 +441,7 @@
 	"bk_booking_completed": "ስምምነቱ ተጠናቋል",
 	"bk_compensation": "ክፍያ",
 	"bk_compensation_note": "ስምምነቱ ከመጠናቀቁ በፊት ክፍያው በዚህ መዝገብ ላይ ተመሥርቶ ይረጋገጣል። ከላይ ያለው ሁኔታ ያንን ማረጋገጫ ያሳያል፤ ከሥራ አፈጻጸም ሁኔታ ተለይቶም ይያዛል።",
+	"bk_compensation_note_offline": "የመስመር ላይ ክፍያ ለጊዜው ጠፍቷል፤ ስለዚህ ይህን ክፍያ እርስ በርሳችሁ ትፈጻጸማላችሁ፣ ስምምነቱም ክፍያውን ሳይጠብቅ ይጠናቀቃል። ከላይ ያለው ሁኔታ መድረኩ ያየውን ብቻ ይመዘግባል፤ ያም ምንም የለም።",
 	"bk_contact_hidden": "የአድራሻ መረጃ ተሰውሯል",
 	"bk_content_url": "የታተመ የይዘት አገናኝ",
 	"bk_content_url_placeholder": "https://www.tiktok.com/@you/video/…",

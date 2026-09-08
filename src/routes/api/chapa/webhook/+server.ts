@@ -4,6 +4,7 @@ import { settle } from '$lib/server/payments';
 import { isPayoutReference, reconcile } from '$lib/server/payouts';
 import * as refunds from '$lib/server/refunds';
 import type { RequestHandler } from './$types';
+import { PAYMENT_GATEWAY_ENABLED } from '$lib/payment-gateway';
 
 /**
  * Where Chapa says a payment, a payout or a refund resolved.
@@ -49,6 +50,18 @@ function signatureOk(raw: string, request: Request): boolean {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
+	/*
+	 * Closed while the gateway is off.
+	 *
+	 * This deployment has issued no references, so every reference posted here
+	 * is one of two things: a callback for a payment taken before the switch,
+	 * or a guess. Neither should start a verification round trip — the first
+	 * would settle a booking against rules the app is no longer running, and
+	 * the second is the free work the endpoint exists not to do. 404 rather
+	 * than 503 so Chapa retires the delivery instead of retrying it.
+	 */
+	if (!PAYMENT_GATEWAY_ENABLED) return new Response('not found', { status: 404 });
+
 	const raw = await request.text();
 
 	if (!signatureOk(raw, request)) {

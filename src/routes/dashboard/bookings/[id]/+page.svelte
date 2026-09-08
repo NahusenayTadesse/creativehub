@@ -609,8 +609,10 @@
 
 				<!-- The manual path is what remains for money that moved outside the
 				     platform — a bank transfer, telebirr paid directly. Operators only;
-				     the server refuses it from anyone else. -->
-				{#if booking.status === 'booked' && isOperator && booking.escrowStatus !== 'held'}
+				     the server refuses it from anyone else, and refuses it from
+				     everyone while the gateway is off, since a deal that completes
+				     without a deposit should not be collecting one. -->
+				{#if data.paymentsEnabled && booking.status === 'booked' && isOperator && booking.escrowStatus !== 'held'}
 					<form method="POST" action="?/fund" use:enhance={actionEnhance(m.bk_deposit_recorded())}>
 						<input type="hidden" name="bookingId" value={booking.id} />
 						<input type="hidden" name="paymentMethod" value="bank_transfer" />
@@ -1096,7 +1098,10 @@
 				<p
 					class="mt-2 rounded-xl border border-warn-edge bg-warn-soft p-2 text-[10px] leading-relaxed font-medium text-warn-fg"
 				>
-					{m.bk_compensation_note()}
+					<!-- With the gateway off the badge above says `unfunded` on deals that
+					     completed perfectly well, so the note has to explain that rather
+					     than promise a confirmation step that no longer runs. -->
+					{data.paymentsEnabled ? m.bk_compensation_note() : m.bk_compensation_note_offline()}
 				</p>
 			</div>
 
