@@ -6,8 +6,12 @@
 	import ThemeToggle from '$lib/components/theme-toggle.svelte';
 	import { LogOut, ExternalLink } from '@lucide/svelte';
 	import { page } from '$app/state';
+	import { resolveLogos } from '$lib/brand';
 
 	let { data, children } = $props();
+
+	/* `settings` comes from the root layout, so it is on every page's data. */
+	const logos = $derived(resolveLogos(page.data.settings));
 
 	/**
 	 * Turns /dashboard/admin/countries into "Countries". A record page ends in an
@@ -26,7 +30,7 @@
 </script>
 
 <Sidebar.Provider>
-	<AppSidebar role={data.role} counts={data.counts} />
+	<AppSidebar role={data.role} counts={data.counts} {logos} />
 
 	<Sidebar.Inset class="bg-[var(--bento-ground)]">
 		<header

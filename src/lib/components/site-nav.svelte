@@ -17,13 +17,15 @@
 	import * as m from '$lib/paraglide/messages';
 	import ThemeToggle from './theme-toggle.svelte';
 	import ThemeChoice from './theme-choice.svelte';
+	import SiteLogo from './site-logo.svelte';
+	import type { Logos } from '$lib/brand';
 
 	let {
 		user = null,
-		tagline = null
+		logos = null
 	}: {
 		user?: { name: string; role: string } | null;
-		tagline?: string | null;
+		logos?: Logos | null;
 	} = $props();
 
 	let mobileOpen = $state(false);
@@ -63,29 +65,28 @@
 		<!-- Shorter on a phone: this bar is sticky, so every pixel it takes is a
 		     pixel of the page nobody can scroll into view. -->
 		<div class="flex h-16 items-center justify-between sm:h-20">
+			<!--
+				The tagline used to be typeset under the name here. It is not any
+				more: the wide logo carries its own strapline as part of the
+				artwork, and a second one beneath it read as two competing
+				subtitles. `settings.tagline` is still what the homepage hero and
+				the page metadata use.
+			-->
 			<a href={resolve('/')} class="flex min-w-0 items-center gap-2 sm:gap-3">
-				<div
-					class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border-2 border-edge bg-inverse text-lg font-black text-inverse-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow-accent))] sm:h-11 sm:w-11 sm:text-xl"
-				>
-					ET
-				</div>
-				<div class="min-w-0">
-					<div class="flex items-center gap-2">
-						<span class="truncate text-lg font-black tracking-tight text-ink sm:text-xl"
-							>{m.brand_name()}</span
-						>
-						<!-- The mark already says ET. On a phone the name needs the room
-						     more than the badge needs to repeat it. -->
-						<span
-							class="hidden rounded-full border border-edge bg-tile-mint px-2 py-0.5 text-[10px] font-black tracking-widest text-brand-soft-fg uppercase sm:inline-block"
-						>
-							ET
-						</span>
-					</div>
-					<p class="hidden text-[10px] font-bold tracking-wider text-ink-dim uppercase sm:block">
-						{tagline ?? m.tagline()}
-					</p>
-				</div>
+				<!--
+					No name beside the mark on a phone.
+
+					`m.brand_name()` is "Creator Network" and the artwork says
+					"influencer Ethiopia" — setting the two side by side reads as two
+					brands rather than one. The mark alone is the whole logo, which is
+					what a textless mark is for.
+				-->
+				<SiteLogo
+					{logos}
+					heightClass="h-9 sm:h-11"
+					markClass="h-10 w-10"
+					showNameWithMark={false}
+				/>
 			</a>
 
 			<nav class="hidden items-center gap-2 lg:flex">

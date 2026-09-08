@@ -2,14 +2,20 @@
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import { ShieldCheck, Heart, MapPin, Sparkles, CircleCheckBig } from '@lucide/svelte';
+	import SiteLogo from './site-logo.svelte';
+	import { DEFAULT_LOGOS, type Logos } from '$lib/brand';
 
 	let {
 		categories = [],
-		regions = []
+		regions = [],
+		logos = null
 	}: {
 		categories?: { name: string; slug: string }[];
 		regions?: { name: string; majorCities: string[] }[];
+		logos?: Logos | null;
 	} = $props();
+
+	const partners = $derived(logos?.partners ?? DEFAULT_LOGOS.partners);
 </script>
 
 <!--
@@ -120,16 +126,28 @@
 			</div>
 		</div>
 
+		<!--
+			The co-branding, on a light plate.
+
+			Half of this artwork is Digital Construct's logo, and the slab is dark
+			— their navy wordmark sits at about 1.5:1 against it. Recolouring
+			somebody else's mark to fix that is not ours to do, so the plate comes
+			to the logo instead. It is also why this is the one brand asset with no
+			dark variant; see scripts/build-brand-assets.sh.
+		-->
+		<div class="mb-10 flex justify-center">
+			<div class="rounded-2xl bg-white px-6 py-4 shadow-sm">
+				<img src={partners} alt={m.footer_partners_alt()} class="h-12 w-auto sm:h-14" />
+			</div>
+		</div>
+
 		<div
 			class="flex flex-col items-center justify-between gap-4 border-t border-slab-edge pt-8 md:flex-row"
 		>
-			<div class="flex items-center gap-2">
-				<div
-					class="flex h-6 w-6 items-center justify-center rounded-md bg-brand text-xs font-bold text-brand-ink"
-				>
-					ET
-				</div>
-				<span class="font-semibold text-slab-ink">{m.footer_brand_full()}</span>
+			<div class="flex items-center gap-3">
+				<!-- `onSlab`, because this band is dark in both themes: the wordmark
+				     here must not follow the reader's theme the way the header's does. -->
+				<SiteLogo {logos} variant="wordmark" heightClass="h-8" onSlab />
 				<span class="text-slab-ink-dim">|</span>
 				<span class="text-slab-ink-dim">{m.footer_location()}</span>
 			</div>

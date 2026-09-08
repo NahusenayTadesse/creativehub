@@ -737,12 +737,29 @@ export const userRoleUpdate = z.object({
 	role: z.enum(ROLES)
 });
 
+/** The four brand slots, named once so the schema, the form and the action
+    cannot drift apart on a spelling. */
+export const LOGO_SLOTS = ['logoWordmark', 'logoWordmarkDark', 'logoMark', 'logoPartners'] as const;
+export type LogoSlot = (typeof LOGO_SLOTS)[number];
+
+/** Putting one slot back to the mark that ships with the app. Its own action,
+    so a reset is one click rather than a checkbox that only takes effect on the
+    next save of the whole settings form. */
+export const logoResetSchema = z.object({ slot: z.enum(LOGO_SLOTS) });
+
 export const settingsSchema = z.object({
 	id: z.coerce.number().optional(),
 	siteName: name(180),
 	tagline: z.string().trim().max(250),
 	heroTitle: z.string().trim().max(250),
 	heroSubtitle: optionalText,
+	/* Four pickers rather than one. Each is optional, and an empty one means
+	   "keep whatever is stored" — the settings action reads a cleared checkbox,
+	   not an empty picker, as the instruction to go back to the shipped mark. */
+	logoWordmark: uploadOrUrl,
+	logoWordmarkDark: uploadOrUrl,
+	logoMark: uploadOrUrl,
+	logoPartners: uploadOrUrl,
 	platformFeePercent: z.coerce.number().int().min(0).max(50).default(15),
 	/* Capped at a year: a window longer than that is not a dispute window, it is
 	   an unfinishable deal. Zero switches it off and makes completion final. */

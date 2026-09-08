@@ -32,13 +32,17 @@
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
 	import NavMain from './NavMain.svelte';
+	import SiteLogo from './site-logo.svelte';
+	import type { Logos } from '$lib/brand';
 	import type { ComponentProps } from 'svelte';
 
 	let {
 		role = 'creator',
 		counts = {},
+		logos = null,
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
+		logos?: Logos | null;
 		role?: string;
 		counts?: Record<string, number>;
 	} = $props();
@@ -281,17 +285,13 @@
 		class="thin-scroll z-[9999] flex h-full flex-col overflow-y-auto bg-surface pt-0"
 	>
 		<div class="sticky top-0 z-10 border-b-2 border-edge bg-surface px-4 py-4">
-			<a href={resolve('/')} title={m.sb_go_public_site()} class="flex flex-row items-center gap-2">
-				<div
-					class="flex h-8 w-8 items-center justify-center rounded-xl border-2 border-edge bg-inverse text-sm font-black text-inverse-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow-accent))]"
-				>
-					ET
-				</div>
-				<div>
-					<div class="text-[13px] font-black tracking-tight text-ink">{m.brand_name()}</div>
-					<div class="text-[10px] font-bold tracking-widest text-ink-dim uppercase">
-						{m.sb_role_dashboard({ role: roleLabel })}
-					</div>
+			<!-- `wordmark` and not `responsive`: the sidebar is a fixed 16rem panel
+			     at every width, so there is no phone case to fall back for — the
+			     panel is off-canvas on a phone and full width when it is open. -->
+			<a href={resolve('/')} title={m.sb_go_public_site()} class="flex flex-col items-start gap-1">
+				<SiteLogo {logos} variant="wordmark" heightClass="h-8" />
+				<div class="text-[10px] font-bold tracking-widest text-ink-dim uppercase">
+					{m.sb_role_dashboard({ role: roleLabel })}
 				</div>
 			</a>
 		</div>

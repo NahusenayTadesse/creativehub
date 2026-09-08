@@ -33,6 +33,13 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 					tagline: settings.tagline,
 					heroTitle: settings.heroTitle,
 					heroSubtitle: settings.heroSubtitle,
+					/* The four brand slots, forwarded raw. `resolveLogos` turns them
+					   into URLs at the point of use, so a page that draws no logo
+					   pays nothing for them. */
+					logoWordmark: settings.logoWordmark,
+					logoWordmarkDark: settings.logoWordmarkDark,
+					logoMark: settings.logoMark,
+					logoPartners: settings.logoPartners,
 					platformFeePercent: settings.platformFeePercent,
 					supportEmail: settings.supportEmail,
 					supportPhone: settings.supportPhone

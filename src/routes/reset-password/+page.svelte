@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
+	import SiteLogo from '$lib/components/site-logo.svelte';
+	import { resolveLogos } from '$lib/brand';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
 	import { TriangleAlert } from '@lucide/svelte';
@@ -10,6 +13,8 @@
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 
 	let { data } = $props();
+
+	const logos = $derived(resolveLogos(page.data.settings));
 
 	const { form, errors, enhance, delayed, allErrors, message } = superForm(
 		untrack(() => data.form)
@@ -24,13 +29,10 @@
 
 <div class="flex min-h-screen items-center justify-center px-4 py-12">
 	<div class="w-full max-w-md space-y-6">
-		<a href={resolve('/')} class="flex items-center justify-center gap-3">
-			<div
-				class="flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-edge bg-inverse text-xl font-black text-inverse-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow-accent))]"
-			>
-				ET
-			</div>
-			<span class="text-xl font-black tracking-tight text-ink">{m.brand_name()}</span>
+		<!-- The auth pages sit outside the app shell, so the logo comes from
+		     `page.data` — the root layout's settings, which every route carries. -->
+		<a href={resolve('/')} class="flex items-center justify-center">
+			<SiteLogo {logos} variant="wordmark" heightClass="h-12" />
 		</a>
 
 		<div class="bento-card bento-card-static space-y-5">

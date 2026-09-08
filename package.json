@@ -7,6 +7,7 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"verify:build": "tsx scripts/verify-build.ts",
+		"brand:assets": "bash scripts/build-brand-assets.sh",
 		"deploy": "bash scripts/deploy.sh",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",

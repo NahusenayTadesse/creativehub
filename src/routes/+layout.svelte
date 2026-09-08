@@ -24,10 +24,18 @@
 
 <svelte:head>
 	<!--
-		An empty data URL claims the icon slot, so the browser renders a blank tab
-		icon instead of falling back to a request for /favicon.ico.
+		The tab icon is the textless square, which is the only one of the three
+		marks that survives being drawn at 16px.
+
+		It is a static path rather than the operator's uploaded `logoMark`: this
+		is the root layout, and reading settings here would put a `<link>` that
+		changes per install into the head of every page including the ones that
+		render before any database call. An operator who replaces the mark on the
+		settings page changes it everywhere it is drawn on a page; the browser
+		chrome keeps the shipped one.
 	-->
-	<link rel="icon" href="data:," />
+	<link rel="icon" href="/favicon.png" type="image/png" />
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 </svelte:head>
 
 <!--

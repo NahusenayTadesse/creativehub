@@ -1173,6 +1173,33 @@ export const siteSettings = mysqlTable('site_settings', {
 		.default('Find the right creator. Build the right campaign.')
 		.notNull(),
 	heroSubtitle: text('hero_subtitle'),
+	/*
+	 * The brand marks, each empty until an operator uploads one.
+	 *
+	 * Empty is not "no logo": it means "use the one in `static/brand/`, which
+	 * `lib/brand.ts` supplies. So a fresh database renders the shipped identity
+	 * rather than a gap, and clearing a field here is how an operator undoes an
+	 * upload rather than a way to end up with nothing drawn.
+	 *
+	 * Four slots and not one, because a single image cannot serve all four
+	 * jobs: the wide mark is unreadable at a phone's width, the dark-theme copy
+	 * of it is a different file rather than a CSS filter (a filter that lifts
+	 * black text also turns the red mark cyan), and the partner lockup is
+	 * co-branding that belongs in the footer and nowhere else.
+	 *
+	 * Each holds an uploaded file name that `/files/[name]` serves, or an
+	 * absolute URL — `assetUrl` in $lib/assets accepts both, as with
+	 * `gallery_slides.image`.
+	 */
+	logoWordmark: varchar('logo_wordmark', { length: 500 }).default('').notNull(),
+	/** Falls back to `logoWordmark` when empty, which suits a mark that reads
+	    on either ground. */
+	logoWordmarkDark: varchar('logo_wordmark_dark', { length: 500 }).default('').notNull(),
+	/** The textless square. Drawn where the wide one will not fit — a phone
+	    header, a collapsed sidebar, the tab icon. */
+	logoMark: varchar('logo_mark', { length: 500 }).default('').notNull(),
+	/** The co-branded lockup, footer only. */
+	logoPartners: varchar('logo_partners', { length: 500 }).default('').notNull(),
 	/** Take rate in percent. Used when a booking is created. */
 	platformFeePercent: int('platform_fee_percent').default(15).notNull(),
 	/**
