@@ -3,7 +3,8 @@ import { z } from 'zod/v4';
 import { idSchema, sortOrderField } from '$lib/server/crud';
 /* Declared in `$lib/blog.ts`, which components can import; see the note there. */
 import { BLOG_ACCENTS, BLOG_STATUSES } from '$lib/blog';
-import { ROLES } from '$lib/roles';
+import { ROLES, STAFF_ROLES } from '$lib/roles';
+import { BAN_DURATIONS } from '$lib/bans';
 
 export { idSchema, sortOrderField };
 export { BLOG_ACCENTS, BLOG_STATUSES };
@@ -736,6 +737,62 @@ export const userRoleUpdate = z.object({
 	   button that fails, and the two drifting apart is how that happens. */
 	role: z.enum(ROLES)
 });
+
+/**
+ * Barring an account.
+ *
+ * The reason is optional to the schema and required in practice: better-auth
+ * stores "No reason" when none is given, and a ban nobody can account for six
+ * months later is a ban nobody dares lift. The audit log gets it either way.
+ */
+export const userBan = z.object({
+	userId: z.string().min(1),
+	reason: z.string().trim().max(500).optional(),
+	duration: z.enum(BAN_DURATIONS)
+});
+
+/** Lifting one. */
+export const userUnban = z.object({ userId: z.string().min(1) });
+
+/**
+ * Offering somebody a staff account.
+ *
+ * Two fields, because that is all an operator knows at this point: where to
+ * write, and what the account will be able to do. The name and the password
+ * belong to the person accepting, and are typed by them on the invite page —
+ * an operator who chose a colleague's password would be an operator who knows
+ * it.
+ */
+export const staffInvite = z.object({
+	email: z.email({ error: () => m.val_valid_email() }),
+	/* Read from `STAFF_ROLES` rather than spelled out: creator and business are
+	   self-service, and an invite that could mint either would be a way round
+	   the sign-up flow that owns them. */
+	role: z.enum(STAFF_ROLES)
+});
+
+/** Withdrawing one. The row is kept; only the link stops working. */
+export const staffInviteRevoke = z.object({ inviteId: refId });
+
+/**
+ * Collecting one.
+ *
+ * The token is not here: it is in the path, which is where the link put it, so
+ * a restored tab posts to the same address it was opened at and there is no
+ * hidden field to keep in step with the URL. The address is not here either —
+ * it is the invite's, and letting the form carry it would let the form change
+ * it.
+ */
+export const inviteAccept = z
+	.object({
+		name: name(),
+		password: z.string().min(8, { error: () => m.val_min_8() }),
+		confirm: z.string()
+	})
+	.refine((data) => data.password === data.confirm, {
+		error: () => m.val_passwords_mismatch(),
+		path: ['confirm']
+	});
 
 /** The four brand slots, named once so the schema, the form and the action
     cannot drift apart on a spelling. */

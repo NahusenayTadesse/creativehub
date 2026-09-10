@@ -13,3 +13,15 @@
  */
 export const ROLES = ['creator', 'business', 'encoder', 'admin'] as const;
 export type Role = (typeof ROLES)[number];
+
+/**
+ * The roles that are handed out by invitation rather than claimed.
+ *
+ * A creator or a brand signs itself up; nobody signs themselves up as staff. An
+ * operator names the address and the role, the invite mail carries the only
+ * link that can produce the account, and these two are the whole of what that
+ * link may create — the invite form, the invite schema and the accept page all
+ * read the list from here so none of them can offer a role the others refuse.
+ */
+export const STAFF_ROLES = ['encoder', 'admin'] as const;
+export type StaffRole = (typeof STAFF_ROLES)[number];

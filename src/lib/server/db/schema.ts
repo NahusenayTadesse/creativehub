@@ -1163,6 +1163,54 @@ export const auditLog = mysqlTable(
 	(t) => [index('audit_entity_idx').on(t.entity, t.entityId)]
 );
 
+/**
+ * A staff account that has been offered but not yet created.
+ *
+ * Operators and data encoders are the two roles nobody may claim: the users
+ * page hands out the first half — an address and a role — and this row is the
+ * other half waiting to be collected. Until somebody opens the link there is no
+ * account, no password and nothing to sign in with, which is what makes an
+ * invite safe to send to an address that turns out to be wrong.
+ *
+ * Only the SHA-256 of the token is kept. The token itself exists in exactly one
+ * place, the mail, so a copy of this table is not a set of working links — the
+ * same reason better-auth keeps no plain reset tokens either.
+ *
+ * Rows are never deleted. A revoked invite, a spent one and an expired one are
+ * all part of how staff access came to be granted, and that is the question the
+ * audit log exists to answer.
+ */
+export const staffInvites = mysqlTable(
+	'staff_invites',
+	{
+		id: id(),
+		/** Lower-cased on the way in, so one address cannot hold two live invites. */
+		email: varchar('email', { length: 255 }).notNull(),
+		/** `encoder` or `admin` — the list is `STAFF_ROLES` in $lib/roles. */
+		role: varchar('role', { length: 32 }).notNull(),
+		/** SHA-256 hex of the token in the mail. 64 characters, always. */
+		tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+		expiresAt: timestamp('expires_at', { fsp: 3 }).notNull(),
+		/** Set once, when the account is created. A second visit finds it spent. */
+		acceptedAt: timestamp('accepted_at', { fsp: 3 }),
+		/** Withdrawn by an operator, or superseded by a fresh invite to the same
+		    address. Either way the link stops working from that moment. */
+		revokedAt: timestamp('revoked_at', { fsp: 3 }),
+		/** The account the invite created, once it has one. */
+		acceptedUserId: userRef('accepted_user_id'),
+		invitedBy: userRef('invited_by'),
+		createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { fsp: 3 })
+			.defaultNow()
+			.$onUpdate(() => new Date())
+			.notNull()
+	},
+	(t) => [
+		uniqueIndex('staff_invites_token_idx').on(t.tokenHash),
+		index('staff_invites_email_idx').on(t.email)
+	]
+);
+
 export const siteSettings = mysqlTable('site_settings', {
 	id: id(),
 	siteName: varchar('site_name', { length: 180 }).default('Creator Network').notNull(),
@@ -1906,6 +1954,11 @@ export const blogPostsRelations = relations(blogPosts, ({ one, many }) => ({
 
 export const blogPostImagesRelations = relations(blogPostImages, ({ one }) => ({
 	post: one(blogPosts, { fields: [blogPostImages.postId], references: [blogPosts.id] })
+}));
+
+export const staffInvitesRelations = relations(staffInvites, ({ one }) => ({
+	invitedByUser: one(user, { fields: [staffInvites.invitedBy], references: [user.id] }),
+	acceptedUser: one(user, { fields: [staffInvites.acceptedUserId], references: [user.id] })
 }));
 
 export * from './auth.schema';

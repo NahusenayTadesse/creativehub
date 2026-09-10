@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { creatorAdd, creatorSelfEdit, gallerySlideEdit } from './schemas';
+import {
+	creatorAdd,
+	creatorSelfEdit,
+	gallerySlideEdit,
+	inviteAccept,
+	staffInvite
+} from './schemas';
 
 /**
  * The picture columns, which hold three unrelated kinds of value.
@@ -68,5 +74,65 @@ describe('creator picture columns', () => {
 		expect(gallerySlideEdit.safeParse({ id: 1, title: 'Hero', image: 'hero.webp' }).success).toBe(
 			true
 		);
+	});
+});
+
+/**
+ * Staff invitations.
+ *
+ * The role field is the interesting one. It is the only place in the app where
+ * an `admin` account can be brought into existence, so what it refuses matters
+ * as much as what it accepts: an invitation that could mint a creator or a
+ * brand would be a second sign-up form, one that skips the profile step and
+ * arrives pre-trusted.
+ */
+describe('staff invitations', () => {
+	it('accepts the two roles nobody may claim for themselves', () => {
+		expect(staffInvite.safeParse({ email: 'ops@example.test', role: 'admin' }).success).toBe(true);
+		expect(staffInvite.safeParse({ email: 'ops@example.test', role: 'encoder' }).success).toBe(
+			true
+		);
+	});
+
+	it('refuses the two that sign themselves up', () => {
+		expect(staffInvite.safeParse({ email: 'ops@example.test', role: 'creator' }).success).toBe(
+			false
+		);
+		expect(staffInvite.safeParse({ email: 'ops@example.test', role: 'business' }).success).toBe(
+			false
+		);
+	});
+
+	it('refuses an address that is not one', () => {
+		expect(staffInvite.safeParse({ email: 'ops', role: 'admin' }).success).toBe(false);
+	});
+
+	it("carries no address or role on the accepting side — both are the invitation's", () => {
+		const accepted = inviteAccept.safeParse({
+			name: 'Sara T',
+			password: 'a-long-enough-one',
+			confirm: 'a-long-enough-one',
+			email: 'someone-else@example.test',
+			role: 'admin'
+		});
+		expect(accepted.success).toBe(true);
+		expect(accepted.success && accepted.data).toEqual({
+			name: 'Sara T',
+			password: 'a-long-enough-one',
+			confirm: 'a-long-enough-one'
+		});
+	});
+
+	it('refuses a password that was typed twice and differently', () => {
+		expect(
+			inviteAccept.safeParse({ name: 'Sara T', password: 'first-password', confirm: 'second-one' })
+				.success
+		).toBe(false);
+	});
+
+	it('refuses a password shorter than the account will demand at sign-in', () => {
+		expect(
+			inviteAccept.safeParse({ name: 'Sara T', password: 'short', confirm: 'short' }).success
+		).toBe(false);
 	});
 });

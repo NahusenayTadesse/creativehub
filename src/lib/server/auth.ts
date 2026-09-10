@@ -3,9 +3,12 @@ import { env } from '$env/dynamic/private';
 import { betterAuth } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
+import { admin as adminPlugin } from 'better-auth/plugins/admin';
 import { getRequestEvent } from '$app/server';
 import { db } from '$lib/server/db';
 import { sendSecurityMail } from '$lib/server/notify';
+import { consumeInviteSignUp } from '$lib/server/invites';
+import { adminPluginRoles } from '$lib/server/admin-access';
 
 /* The role names themselves live in $lib/roles, which the browser can import
    too; they are re-exported here so the auth config remains the obvious place
@@ -100,6 +103,14 @@ export const auth = betterAuth({
 		autoSignInAfterVerification: true,
 		expiresIn: 86_400,
 		sendVerificationEmail: async ({ user, url }) => {
+			/* An invited colleague opened a link in this inbox to get here, and
+			   the accept page marks the address confirmed on the strength of
+			   that. Asking them to confirm it a second time, in a message that
+			   arrives alongside the one they just used, would be asking about
+			   something already settled. `consumeInviteSignUp` is true once,
+			   for the sign-up the invite page is in the middle of. */
+			if (consumeInviteSignUp(user.email)) return;
+
 			await sendSecurityMail(user.email, {
 				subject: m.mail_verify_subject(),
 				body: [m.mail_verify_greeting({ name: user.name }), m.mail_verify_body()],
@@ -195,6 +206,31 @@ export const auth = betterAuth({
 		}
 	},
 	plugins: [
+		/**
+		 * Barring an account.
+		 *
+		 * Only the ban half of the plugin is reachable — see `$lib/server/admin-access`.
+		 * What it buys over a column of our own is the enforcement: the plugin
+		 * hooks session creation, so a banned account is refused at sign-in by
+		 * better-auth itself rather than by a check every route would have to
+		 * remember. Banning also deletes the sessions the account already has,
+		 * which is the difference between "cannot sign in again" and "is out".
+		 *
+		 * `defaultRole` is this app's, not the plugin's `user`: the plugin
+		 * stamps a role on accounts created without one, and a role outside
+		 * $lib/roles is an account no page knows how to treat.
+		 *
+		 * `bannedUserMessage` is deliberately a plain English sentence rather
+		 * than a translated one — it is built once at start-up, where there is
+		 * no request and so no locale. Nobody reads it: the login page turns
+		 * the `BANNED_USER` code that accompanies it into a translated line.
+		 */
+		adminPlugin({
+			defaultRole: 'creator',
+			adminRoles: ['admin'],
+			roles: adminPluginRoles,
+			bannedUserMessage: 'This account has been banned.'
+		}),
 		sveltekitCookies(getRequestEvent) // make sure this is the last plugin in the array
 	]
 });

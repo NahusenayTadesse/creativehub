@@ -1490,6 +1490,9 @@ export const usersQuery = defineQuery({
 		email: t.user.email,
 		role: t.user.role,
 		emailVerified: t.user.emailVerified,
+		banned: t.user.banned,
+		banReason: t.user.banReason,
+		banExpires: t.user.banExpires,
 		createdAt: t.user.createdAt,
 		/* Aggregated because the joins below can match more than once. Without
 		   this, an account owning two organisations is one row in the total and
@@ -1517,7 +1520,11 @@ export const usersQuery = defineQuery({
 			   the app — so it has to mean that here too, or the account is
 			   reachable only from "All". */
 			nullAs: 'creator'
-		}
+		},
+		/* `?banned=1` — barred accounts only. A flag rather than an enum, so
+		   there is no "not banned" tab: the unbanned are the list itself, and
+		   an account with NULL here has never been banned. */
+		banned: { type: 'flag', column: t.user.banned }
 	},
 	sort: {
 		newest: { column: t.user.createdAt, direction: 'desc' },

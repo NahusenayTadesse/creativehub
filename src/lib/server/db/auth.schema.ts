@@ -13,7 +13,26 @@ export const user = mysqlTable('user', {
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull(),
 	role: text('role').default('creator'),
-	phone: text('phone')
+	phone: text('phone'),
+	/*
+	 * The three columns better-auth's admin plugin writes when an operator
+	 * bars an account. They are the plugin's, not ours: `banUser` sets all
+	 * three and `unbanUser` clears them, and the session hook the plugin
+	 * installs reads `banned` on every sign-in — which is what actually keeps
+	 * a barred account out, since the row is what is consulted rather than
+	 * anything this app remembers to check.
+	 *
+	 * Nullable rather than `notNull`, like `role` above: every account that
+	 * existed before this migration has NULL here, and NULL means "not
+	 * banned" in the one place it is read.
+	 *
+	 * `banExpires` NULL alongside `banned` true is a ban with no end. A ban
+	 * that has one is lifted lazily, by the plugin, on the first sign-in
+	 * after the date passes.
+	 */
+	banned: boolean('banned').default(false),
+	banReason: text('ban_reason'),
+	banExpires: timestamp('ban_expires', { fsp: 3 })
 });
 
 export const session = mysqlTable(

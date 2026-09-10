@@ -19,6 +19,10 @@ import { safeNext } from '$lib/server/guards';
  */
 function oauthErrorText(code: string | null) {
 	if (!code) return null;
+	/* A suspended account gets the same sentence whichever door it came to, so
+	   the code better-auth's admin plugin raises is named here as well as in
+	   the password action below. */
+	if (code === 'BANNED_USER') return m.srv_account_banned();
 	return code === 'account_not_linked' ? m.srv_google_not_linked() : m.srv_google_failed();
 }
 
@@ -44,8 +48,16 @@ export const actions: Actions = {
 				headers: event.request.headers
 			});
 		} catch (err) {
-			// Deliberately vague: a precise error tells an attacker which half was right.
 			if (err instanceof APIError) {
+				/* The one refusal worth naming. Vagueness protects an account
+				   whose password was guessed at; here the password was right and
+				   the account is suspended, so "email and password do not match"
+				   would send somebody to the reset form for no reason. Nothing is
+				   disclosed that the owner does not already know. */
+				if (err.body?.code === 'BANNED_USER') {
+					return message(form, { type: 'error', text: m.srv_account_banned() }, { status: 403 });
+				}
+				// Deliberately vague: a precise error tells an attacker which half was right.
 				return message(form, { type: 'error', text: m.srv_bad_credentials() }, { status: 401 });
 			}
 			console.error('Sign-in failed:', err);

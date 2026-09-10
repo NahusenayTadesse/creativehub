@@ -5,8 +5,8 @@
  * OpenLiteSpeed's reverse proxy forwards the client's `Origin` header *and*
  * appends a second copy of its own:
  *
- *     origin: https://srv1912542.hstgr.cloud      <- sent by the browser
- *     Origin: https://srv1912542.hstgr.cloud      <- added by LiteSpeed
+ *     origin: https://influencerethiopia.com      <- sent by the browser
+ *     Origin: https://influencerethiopia.com      <- added by LiteSpeed
  *
  * Node collapses duplicate headers into one comma-joined value, so SvelteKit's
  * CSRF guard compares "https://site, https://site" against url.origin, never
