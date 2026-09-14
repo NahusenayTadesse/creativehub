@@ -41,11 +41,14 @@ import mysql from 'mysql2/promise';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { and, eq } from 'drizzle-orm';
 import * as t from '../src/lib/server/db/schema';
+import { recalcCreatorReach, recalcCreatorScore } from '../src/lib/server/db/creator-score';
+import { isConfirmedSource } from '../src/lib/domain/stat-source';
 import {
 	AVATAR_COLUMNS,
 	EXPECTED_COLUMNS,
 	IMPORT_COUNTRIES,
 	mapCreatorRows,
+	parseSourceDate,
 	type CsvRow,
 	type ImportResult
 } from '../src/lib/domain/creator-import';
@@ -244,7 +247,11 @@ async function importToDatabase(result: ImportResult) {
 		let updated = 0;
 		let skipped = 0;
 
-		for (const { creator, categories, socials } of result.creators) {
+		for (const { creator, categories, socials, source } of result.creators) {
+			/* The figures below are labelled with when the research was done, not
+			   with when this script happened to run. */
+			const researchedAt = parseSourceDate(source.sourceUpdated) ?? new Date();
+
 			/* `creators_username_idx` is unique, so this is also what stops a second
 			   run from duplicating anyone: matched, they are updated or skipped. */
 			const existing = await db
@@ -313,17 +320,25 @@ async function importToDatabase(result: ImportResult) {
 
 			/* Accounts are matched per platform rather than replaced wholesale: a
 			   platform the CSV does not know about was added by hand and stays. */
+			let confirmedChannel = false;
 			for (const social of socials) {
 				const platformId = platformIds[social.platform];
-				const values = {
-					handle: social.handle,
+				const researched = {
 					followers: social.followers,
+					followersSource: 'imported' as const,
+					followersUpdatedAt: researchedAt
+				};
+				const researchedEngagement = {
 					engagementRate: social.engagementRate,
-					profileUrl: social.profileUrl,
-					sortOrder: social.sortOrder
+					engagementSource: 'imported' as const,
+					engagementUpdatedAt: social.engagementRate > 0 ? researchedAt : null
 				};
 				const account = await db
-					.select({ id: t.socialAccounts.id })
+					.select({
+						id: t.socialAccounts.id,
+						followersSource: t.socialAccounts.followersSource,
+						engagementSource: t.socialAccounts.engagementSource
+					})
 					.from(t.socialAccounts)
 					.where(
 						and(
@@ -334,13 +349,30 @@ async function importToDatabase(result: ImportResult) {
 					.limit(1);
 
 				if (account.length) {
+					/* A figure the platform returned or an operator checked against the
+					   creator's analytics is newer and better than a spreadsheet, so a
+					   re-run leaves it alone — each figure judged on its own source. */
+					const [row] = account;
+					const keepFollowers = isConfirmedSource(row.followersSource);
+					const keepEngagement = isConfirmedSource(row.engagementSource);
+					confirmedChannel ||= keepFollowers;
 					await db
 						.update(t.socialAccounts)
-						.set(values)
-						.where(eq(t.socialAccounts.id, account[0].id));
+						.set({
+							handle: social.handle,
+							profileUrl: social.profileUrl,
+							sortOrder: social.sortOrder,
+							...(keepFollowers ? {} : researched),
+							...(keepEngagement ? {} : researchedEngagement)
+						})
+						.where(eq(t.socialAccounts.id, row.id));
 				} else {
 					await db.insert(t.socialAccounts).values({
-						...values,
+						handle: social.handle,
+						profileUrl: social.profileUrl,
+						sortOrder: social.sortOrder,
+						...researched,
+						...researchedEngagement,
 						creatorId,
 						platformId,
 						isVerified: social.isVerified,
@@ -348,6 +380,14 @@ async function importToDatabase(result: ImportResult) {
 					});
 				}
 			}
+
+			/* The CSV's combined audience is a researcher's estimate. Once any
+			   channel carries a confirmed count, the sum of channels is the better
+			   number and the estimate would overwrite it with an older one. */
+			if (confirmedChannel) await recalcCreatorReach(db, creatorId);
+			/* Scored from the database rather than the CSV row, so reviews, measured
+			   response figures and confirmed engagement all count. */
+			await recalcCreatorScore(db, creatorId);
 		}
 
 		console.log(

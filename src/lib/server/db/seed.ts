@@ -22,6 +22,7 @@ import { slugify } from '../../slug';
 import { calculateScore } from '../../domain/score';
 import { splitFee } from '../../domain/booking';
 import { recalcCreatorAggregates } from './rollups';
+import { measureCreatorMetrics, recalcCreatorScore } from './creator-score';
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
 const pool = mysql.createPool(process.env.DATABASE_URL);
@@ -2050,7 +2051,12 @@ async function seed() {
 			portfolioCount: seedCreator.portfolio.length,
 			verificationLevel: seedCreator.verificationLevel,
 			engagementRate: engagement,
+			engagementConfirmed: false,
+			/* Measured from the seeded deals once they exist — see the pass below. */
+			responseRate: null,
+			onTimeRate: null,
 			averageRating: seedCreator.rating,
+			reviewsCount: seedCreator.reviews,
 			completedBookings: seedCreator.completed
 		});
 
@@ -2108,6 +2114,8 @@ async function seed() {
 				handle: social.handle,
 				followers: social.followers,
 				engagementRate: social.engagement,
+				followersUpdatedAt: new Date(),
+				engagementUpdatedAt: new Date(),
 				isVerified: social.verified,
 				sortOrder: order,
 				createdBy: adminId
@@ -2629,43 +2637,13 @@ async function seed() {
 	console.log('→ recomputing ratings, review counts and completed bookings');
 	await recalcCreatorAggregates(db);
 
+	/* The score and the measured figures behind it go through the same code the
+	   app runs, so a seeded profile scores exactly as a real one would. */
 	for (const seedCreator of CREATORS) {
 		const creatorId = creatorIds[seedCreator.username];
 		if (!creatorId) continue;
-		const row = (
-			await db
-				.select({
-					averageRating: t.creators.averageRating,
-					completedBookings: t.creators.completedBookings
-				})
-				.from(t.creators)
-				.where(eq(t.creators.id, creatorId))
-				.limit(1)
-		).at(0);
-		if (!row) continue;
-
-		const engagement =
-			seedCreator.socials.reduce((sum, s) => sum + s.engagement, 0) / seedCreator.socials.length;
-
-		await db
-			.update(t.creators)
-			.set({
-				score: calculateScore({
-					fullName: seedCreator.fullName,
-					bio: seedCreator.bio,
-					avatar: seedCreator.avatar,
-					cover: seedCreator.cover,
-					categoryCount: seedCreator.categories.length,
-					languageCount: seedCreator.languages.length,
-					packageCount: seedCreator.packages.length,
-					portfolioCount: seedCreator.portfolio.length,
-					verificationLevel: seedCreator.verificationLevel,
-					engagementRate: engagement,
-					averageRating: row.averageRating,
-					completedBookings: row.completedBookings
-				})
-			})
-			.where(eq(t.creators.id, creatorId));
+		await measureCreatorMetrics(db, creatorId);
+		await recalcCreatorScore(db, creatorId);
 	}
 
 	console.log('→ verification queue');

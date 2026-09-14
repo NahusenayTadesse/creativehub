@@ -1,12 +1,91 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { superForm } from 'sveltekit-superforms';
+	import { toast } from 'svelte-sonner';
 	import CrudSection from '$lib/components/crud-section.svelte';
+	import StatSourceNote from '$lib/components/stat-source-note.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
-	import { CircleCheckBig, CircleAlert, CircleHelp, ExternalLink } from '@lucide/svelte';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import InputComp from '$lib/formComponents/InputComp.svelte';
+	import Errors from '$lib/formComponents/Errors.svelte';
+	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
+	import {
+		CircleCheckBig,
+		CircleAlert,
+		CircleHelp,
+		ExternalLink,
+		Clock,
+		ChartNoAxesColumnIncreasing
+	} from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
+	import { getLocale } from '$lib/paraglide/runtime';
 
 	let { data } = $props();
+
+	/* ---------------------------------------------------------------- *
+	 * Proof of figures — a screenshot of the creator's own analytics,
+	 * for an operator to compare against the numbers they state.
+	 * ---------------------------------------------------------------- */
+
+	let proofOpen = $state(false);
+	let proofAccount = $state<{ id: number; platform: string; handle: string } | null>(null);
+
+	const {
+		form: proofForm,
+		errors: proofErrors,
+		enhance: proofEnhance,
+		delayed: proofDelayed,
+		allErrors: proofAllErrors,
+		message: proofMessage
+	} = superForm(
+		untrack(() => data.proofForm),
+		{
+			id: 'stat-proof',
+			onUpdated: ({ form }) => {
+				if (form.valid && form.message?.type === 'success') proofOpen = false;
+			}
+		}
+	);
+
+	$effect(() => {
+		if (!$proofMessage) return;
+		if ($proofMessage.type === 'error') toast.error($proofMessage.text);
+		else toast.success($proofMessage.text);
+	});
+
+	type ChannelRow = {
+		id: number;
+		platformId: number;
+		handle: string;
+		followers: number;
+		engagementRate: number;
+	};
+
+	function openProof(account: ChannelRow) {
+		proofAccount = {
+			id: account.id,
+			platform: platformName(account.platformId),
+			handle: account.handle
+		};
+		/* Prefilled with what the channel says now: most proofs confirm the number
+		   already there, and the creator corrects it if the screenshot differs. */
+		$proofForm.socialAccountId = account.id;
+		$proofForm.followers = account.followers;
+		$proofForm.engagementRate = account.engagementRate > 0 ? account.engagementRate : undefined;
+		proofOpen = true;
+	}
+
+	/** The newest proof sent for a channel, if any — the only one its row describes. */
+	const proofOf = (accountId: number) => data.latestProof[accountId];
+
+	const formatDate = (value: string | Date) =>
+		new Date(value).toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric'
+		});
 
 	const fields: CrudField[] = $derived([
 		{
@@ -154,6 +233,39 @@
 				</div>
 			</div>
 
+			<StatSourceNote
+				platform={platformName(account.platformId)}
+				followersSource={account.followersSource}
+				followersUpdatedAt={account.followersUpdatedAt}
+				engagementSource={account.engagementSource}
+				engagementUpdatedAt={account.engagementUpdatedAt}
+				engagementRate={account.engagementRate}
+			/>
+
+			{#if proofOf(account.id)?.status === 'pending'}
+				<p
+					class="inline-flex items-center gap-1 rounded-md border border-warn-edge bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn-fg"
+				>
+					<Clock class="h-3 w-3" />
+					{m.ch_proof_pending({ date: formatDate(proofOf(account.id).createdAt) })}
+				</p>
+			{:else if account.followersSource !== 'platform'}
+				{#if proofOf(account.id)?.status === 'rejected' && proofOf(account.id).adminNotes}
+					<p class="rounded-lg bg-danger-soft p-2 text-[11px] font-medium text-danger-fg">
+						<strong class="font-black">{m.ch_proof_rejected_note()}</strong>
+						{proofOf(account.id).adminNotes}
+					</p>
+				{/if}
+				<button
+					type="button"
+					onclick={() => openProof(account)}
+					class="inline-flex items-center gap-1 rounded-lg border-2 border-edge bg-surface px-2.5 py-1 text-[11px] font-black text-ink hover:bg-well"
+				>
+					<ChartNoAxesColumnIncreasing class="h-3.5 w-3.5" />
+					{m.ch_proof_button()}
+				</button>
+			{/if}
+
 			{#if account.profileUrl}
 				<a
 					href={account.profileUrl}
@@ -168,3 +280,73 @@
 		</div>
 	{/snippet}
 </CrudSection>
+
+<Dialog.Root bind:open={proofOpen}>
+	<Dialog.Content class="w-lg! max-w-[95vw]!">
+		<Dialog.Header>
+			<Dialog.Title class="text-base font-black">
+				{m.ch_proof_title({ platform: proofAccount?.platform ?? '' })}
+			</Dialog.Title>
+			<Dialog.Description class="text-xs font-medium text-ink-soft">
+				{m.ch_proof_description()}
+			</Dialog.Description>
+		</Dialog.Header>
+
+		<form
+			method="POST"
+			action="?/proof"
+			enctype="multipart/form-data"
+			use:proofEnhance
+			class="space-y-3 text-xs"
+		>
+			<Errors allErrors={$proofAllErrors} />
+			<input type="hidden" name="socialAccountId" value={proofAccount?.id ?? ''} />
+
+			<InputComp
+				form={proofForm}
+				errors={proofErrors}
+				name="screenshot"
+				type="file"
+				label={m.ch_proof_screenshot()}
+				placeholder={m.ch_proof_screenshot_hint()}
+				required
+			/>
+
+			<div class="grid grid-cols-2 gap-2">
+				<InputComp
+					form={proofForm}
+					errors={proofErrors}
+					name="followers"
+					type="number"
+					min="1"
+					label={m.ch_followers()}
+					required
+				/>
+				<InputComp
+					form={proofForm}
+					errors={proofErrors}
+					name="engagementRate"
+					type="number"
+					min="0"
+					max="100"
+					label={m.ch_engagement_rate()}
+					placeholder={m.ch_proof_engagement_optional()}
+				/>
+			</div>
+
+			<p class="text-[11px] font-medium text-ink-dim">{m.ch_proof_privacy()}</p>
+
+			<button
+				type="submit"
+				disabled={$proofDelayed}
+				class="w-full rounded-2xl border-2 border-edge bg-brand py-3 text-xs font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
+			>
+				{#if $proofDelayed}
+					<LoadingBtn name={m.bk_submitting()} />
+				{:else}
+					{m.bk_submit_for_review()}
+				{/if}
+			</button>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>

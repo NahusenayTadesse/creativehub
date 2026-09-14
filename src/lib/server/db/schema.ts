@@ -234,6 +234,21 @@ export const creators = mysqlTable(
 		reviewsCount: int('reviews_count').default(0).notNull(),
 		averageRating: double('average_rating').default(0).notNull(),
 		completedBookings: int('completed_bookings').default(0).notNull(),
+		/**
+		 * Measured, never entered — see `$lib/domain/track-record`.
+		 *
+		 * `responseRate` is the share of brand messages and booking requests
+		 * answered within two days; `onTimeRate` the share of deadlines met by a
+		 * first submission. Both 0–100, and both null until there is enough to
+		 * judge by: null is "no evidence yet", which is not the same as 0.
+		 */
+		responseRate: int('response_rate'),
+		responseSample: int('response_sample').default(0).notNull(),
+		medianResponseMinutes: int('median_response_minutes'),
+		onTimeRate: int('on_time_rate'),
+		onTimeSample: int('on_time_sample').default(0).notNull(),
+		/** When the figures above were last measured. The nightly pass reads it. */
+		metricsMeasuredAt: timestamp('metrics_measured_at', { fsp: 3 }),
 		/** Imported profiles stay unpublished until an operator releases them. */
 		isPublished: boolean('is_published').default(false).notNull(),
 		isClaimed: boolean('is_claimed').default(false).notNull(),
@@ -289,6 +304,10 @@ export const creatorLanguages = mysqlTable(
    checked. Kept in step with LINK_STATUSES in $lib/domain/social-link.ts. */
 export const linkStatusEnum = ['unchecked', 'found', 'not_found', 'unknown'] as const;
 
+/* Where a follower count or an engagement rate came from. Kept in step with
+   STAT_SOURCES in $lib/domain/stat-source.ts. */
+export const statSourceEnum = ['self_reported', 'imported', 'proof', 'platform'] as const;
+
 export const socialAccounts = mysqlTable(
 	'social_accounts',
 	{
@@ -302,6 +321,31 @@ export const socialAccounts = mysqlTable(
 		handle: varchar('handle', { length: 160 }).notNull(),
 		followers: int('followers').default(0).notNull(),
 		engagementRate: double('engagement_rate').default(0).notNull(),
+		/**
+		 * Where each figure came from, and when it was last set from there.
+		 *
+		 * Two figures, two sources: the Telegram refresh can confirm a member count
+		 * and has nothing to say about engagement, so one label for the row would
+		 * put "confirmed" on a number the platform never gave us. See
+		 * `$lib/domain/stat-source` for what each value means and what it is
+		 * worth to the score.
+		 */
+		followersSource: mysqlEnum('followers_source', statSourceEnum)
+			.default('self_reported')
+			.notNull(),
+		followersUpdatedAt: timestamp('followers_updated_at', { fsp: 3 }),
+		engagementSource: mysqlEnum('engagement_source', statSourceEnum)
+			.default('self_reported')
+			.notNull(),
+		engagementUpdatedAt: timestamp('engagement_updated_at', { fsp: 3 }),
+		/**
+		 * When the scheduled refresh last asked the platform, whatever it said, and
+		 * a word for what came back — `ok`, `subscribers_hidden`, `chat_not_found`.
+		 * Separate from the `*UpdatedAt` columns because a failed ask changes no
+		 * figure, but still must not be repeated every hour.
+		 */
+		statsFetchedAt: timestamp('stats_fetched_at', { fsp: 3 }),
+		statsFetchDetail: varchar('stats_fetch_detail', { length: 80 }),
 		profileUrl: varchar('profile_url', { length: 500 }),
 		isVerified: boolean('is_verified').default(false).notNull(),
 		/**
@@ -1055,6 +1099,46 @@ export const creatorClaims = mysqlTable(
 		...audit()
 	},
 	(t) => [index('claim_status_idx').on(t.status), index('claim_creator_idx').on(t.creatorId)]
+);
+
+export const statProofStatusEnum = ['pending', 'approved', 'rejected'] as const;
+
+/**
+ * A creator showing an operator where their numbers come from.
+ *
+ * Instagram and TikTok will not give a follower count to an anonymous server,
+ * so for those two the evidence is a screenshot of the creator's own analytics
+ * beside the figures they read off it. The row is a request: the figures on
+ * `social_accounts` change only when an operator approves it, and then carry
+ * `proof` as their source.
+ */
+export const statProofs = mysqlTable(
+	'stat_proofs',
+	{
+		id: id(),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		socialAccountId: int('social_account_id')
+			.notNull()
+			.references(() => socialAccounts.id, { onDelete: 'cascade' }),
+		/** `private/<name>` — served by /files/private/[name] to the creator and operators. */
+		screenshot: varchar('screenshot', { length: 500 }).notNull(),
+		followers: int('followers').notNull(),
+		/** Null when the screenshot shows no engagement figure. */
+		engagementRate: double('engagement_rate'),
+		status: mysqlEnum('status', statProofStatusEnum).default('pending').notNull(),
+		/** Required on rejection — the creator reads it. */
+		adminNotes: text('admin_notes'),
+		reviewedBy: userRef('reviewed_by').references(() => user.id, { onDelete: 'set null' }),
+		reviewedAt: timestamp('reviewed_at', { fsp: 3 }),
+		...publishable(),
+		...audit()
+	},
+	(t) => [
+		index('stat_proof_status_idx').on(t.status),
+		index('stat_proof_social_idx').on(t.socialAccountId)
+	]
 );
 
 export const savedCreators = mysqlTable(
@@ -1908,6 +1992,14 @@ export const verificationRequestsRelations = relations(verificationRequests, ({ 
 	organization: one(organizations, {
 		fields: [verificationRequests.organizationId],
 		references: [organizations.id]
+	})
+}));
+
+export const statProofsRelations = relations(statProofs, ({ one }) => ({
+	creator: one(creators, { fields: [statProofs.creatorId], references: [creators.id] }),
+	socialAccount: one(socialAccounts, {
+		fields: [statProofs.socialAccountId],
+		references: [socialAccounts.id]
 	})
 }));
 

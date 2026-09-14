@@ -6,7 +6,8 @@ import { getCreatorFor, getOrganizationFor, isAdmin } from '$lib/server/guards';
 import { PRIVATE_DIR, serveStoredFile } from '$lib/server/serveFile';
 
 /**
- * Uploads that carry an authorisation check — today, verification evidence.
+ * Uploads that carry an authorisation check — verification evidence, and the
+ * analytics screenshots behind a channel's figures.
  *
  * An identity document used to sit in the same directory as avatars and be
  * served by the public file route to anyone holding the URL: unguessable in
@@ -21,16 +22,26 @@ export const GET: RequestHandler = async ({ params, request, locals }) => {
 	/* The stored column holds the path relative to the upload root. */
 	const stored = `private/${params.name}`;
 
-	const rows = await db
-		.select({
-			creatorId: t.verificationRequests.creatorId,
-			organizationId: t.verificationRequests.organizationId
-		})
-		.from(t.verificationRequests)
-		.where(eq(t.verificationRequests.documentUrl, stored))
-		.limit(1);
+	/* Whichever row names this file says whose it is. */
+	const [verification, proof] = await Promise.all([
+		db
+			.select({
+				creatorId: t.verificationRequests.creatorId,
+				organizationId: t.verificationRequests.organizationId
+			})
+			.from(t.verificationRequests)
+			.where(eq(t.verificationRequests.documentUrl, stored))
+			.limit(1),
+		db
+			.select({ creatorId: t.statProofs.creatorId })
+			.from(t.statProofs)
+			.where(eq(t.statProofs.screenshot, stored))
+			.limit(1)
+	]);
 
-	const owner = rows.at(0);
+	const owner =
+		verification.at(0) ??
+		(proof.at(0) ? { creatorId: proof[0].creatorId, organizationId: null } : undefined);
 	if (!owner) return new Response('not found', { status: 404 });
 
 	if (!isAdmin(user)) {

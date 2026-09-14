@@ -27,7 +27,8 @@
 		UserRoundCheck,
 		SlidersHorizontal,
 		Banknote,
-		Gavel
+		Gavel,
+		ChartNoAxesColumnIncreasing
 	} from '@lucide/svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
@@ -215,6 +216,12 @@
 						url: resolve('/dashboard/admin/claims'),
 						icon: UserRoundCheck,
 						counter: counts.claims
+					},
+					{
+						title: m.sb_stat_proofs(),
+						url: resolve('/dashboard/admin/figure-proofs'),
+						icon: ChartNoAxesColumnIncreasing,
+						counter: counts.statProofs
 					},
 					{
 						title: m.sb_all_bookings(),

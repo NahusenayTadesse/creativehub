@@ -328,6 +328,33 @@ export const socialAdd = z.object({
 });
 export const socialEdit = socialAdd.extend(idSchema.shape);
 
+/**
+ * A creator backing a channel's figures with a screenshot of their analytics.
+ *
+ * The screenshot is required and is checked as an upload by the action — type,
+ * size and magic number — because a `File` that validates here is only what the
+ * browser claimed. The engagement rate is optional: plenty of analytics screens
+ * show a follower count and nothing that reads as a rate.
+ */
+export const statProofSubmit = z.object({
+	socialAccountId: refId,
+	screenshot: z
+		.instanceof(File, { error: () => m.val_screenshot_required() })
+		.refine((file) => file.size > 0, { error: () => m.val_screenshot_required() }),
+	followers: z.coerce
+		.number()
+		.int()
+		.min(1, { error: () => m.val_greater_than_zero() }),
+	engagementRate: z.coerce.number().min(0).max(100).optional()
+});
+
+/** An operator's answer to one proof. Rejecting needs a note; the action checks it. */
+export const statProofDecision = z.object({
+	id: refId,
+	status: z.enum(['approved', 'rejected']),
+	adminNotes: optionalText
+});
+
 export const packageAdd = z.object({
 	title: name(200),
 	platformId: optionalRefId,

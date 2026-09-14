@@ -15,7 +15,9 @@
 		ArrowLeft,
 		CircleCheckBig,
 		Hand,
-		Loader
+		Loader,
+		MessageCircleReply,
+		CalendarCheck
 	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
@@ -25,6 +27,7 @@
 	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import { formatReach } from '$lib/domain/money';
 	import { scoreWeights } from '$lib/domain/score';
+	import StatSourceNote from '$lib/components/stat-source-note.svelte';
 
 	let { data } = $props();
 
@@ -357,6 +360,27 @@
 					<span class="text-lg font-extrabold text-ink">{creator.completedBookings}</span>
 				</div>
 			</div>
+
+			<!-- Measured, not stated: shown only once there is enough to go on. -->
+			{#if creator.responseRate !== null || creator.onTimeRate !== null}
+				<ul class="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs font-bold text-ink-soft">
+					{#if creator.responseRate !== null}
+						<li class="flex items-center gap-1.5">
+							<MessageCircleReply class="h-3.5 w-3.5 text-brand-fg" aria-hidden="true" />
+							{m.profile_response_rate({
+								rate: creator.responseRate,
+								count: creator.responseSample
+							})}
+						</li>
+					{/if}
+					{#if creator.onTimeRate !== null}
+						<li class="flex items-center gap-1.5">
+							<CalendarCheck class="h-3.5 w-3.5 text-brand-fg" aria-hidden="true" />
+							{m.profile_on_time_rate({ rate: creator.onTimeRate, count: creator.onTimeSample })}
+						</li>
+					{/if}
+				</ul>
+			{/if}
 		</div>
 	</div>
 
@@ -398,6 +422,16 @@
 									>{account.engagementRate.toFixed(1)}%</span
 								>
 							</div>
+						</div>
+						<div class="mt-2">
+							<StatSourceNote
+								platform={account.platformName ?? ''}
+								followersSource={account.followersSource}
+								followersUpdatedAt={account.followersUpdatedAt}
+								engagementSource={account.engagementSource}
+								engagementUpdatedAt={account.engagementUpdatedAt}
+								engagementRate={account.engagementRate}
+							/>
 						</div>
 					</div>
 				{/each}
