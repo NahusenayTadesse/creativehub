@@ -536,6 +536,10 @@ async function hydrateCreator(creator: typeof t.creators.$inferSelect) {
 					handle: t.socialAccounts.handle,
 					followers: t.socialAccounts.followers,
 					engagementRate: t.socialAccounts.engagementRate,
+					followersSource: t.socialAccounts.followersSource,
+					followersUpdatedAt: t.socialAccounts.followersUpdatedAt,
+					engagementSource: t.socialAccounts.engagementSource,
+					engagementUpdatedAt: t.socialAccounts.engagementUpdatedAt,
 					isVerified: t.socialAccounts.isVerified,
 					profileUrl: t.socialAccounts.profileUrl,
 					platformId: t.socialAccounts.platformId,
@@ -1217,6 +1221,66 @@ export const verificationQuery = defineQuery({
 });
 
 export const listVerificationRequests = (url: URL) => verificationQuery.run(url);
+
+/**
+ * The queue at /dashboard/admin/figure-proofs: screenshots of a creator's own
+ * analytics, offered as the source of a channel's figures.
+ *
+ * Carries the channel as it stands beside what the proof claims, so an operator
+ * reads the difference without opening the profile.
+ */
+export const statProofQuery = defineQuery({
+	table: t.statProofs,
+	columns: {
+		id: t.statProofs.id,
+		status: t.statProofs.status,
+		screenshot: t.statProofs.screenshot,
+		followers: t.statProofs.followers,
+		engagementRate: t.statProofs.engagementRate,
+		adminNotes: t.statProofs.adminNotes,
+		createdAt: t.statProofs.createdAt,
+		reviewedAt: t.statProofs.reviewedAt,
+		socialAccountId: t.statProofs.socialAccountId,
+		handle: t.socialAccounts.handle,
+		profileUrl: t.socialAccounts.profileUrl,
+		currentFollowers: t.socialAccounts.followers,
+		currentEngagementRate: t.socialAccounts.engagementRate,
+		followersSource: t.socialAccounts.followersSource,
+		platformName: t.platforms.name,
+		creatorId: t.statProofs.creatorId,
+		creatorName: t.creators.fullName,
+		creatorUsername: t.creators.username,
+		creatorAvatar: t.creators.avatar
+	},
+	joins: (qb: any) =>
+		qb
+			.innerJoin(t.socialAccounts, eq(t.socialAccounts.id, t.statProofs.socialAccountId))
+			.leftJoin(t.platforms, eq(t.platforms.id, t.socialAccounts.platformId))
+			.innerJoin(t.creators, eq(t.creators.id, t.statProofs.creatorId)),
+	search: [t.creators.fullName, t.creators.username, t.socialAccounts.handle],
+	filters: {
+		status: {
+			type: 'enum',
+			column: t.statProofs.status,
+			values: t.statProofStatusEnum
+		}
+	},
+	sort: {
+		oldest: { column: t.statProofs.createdAt, direction: 'asc' },
+		newest: { column: t.statProofs.createdAt, direction: 'desc' }
+	},
+	/* A queue is worked from the front: whoever has waited longest goes first. */
+	defaultSort: 'oldest',
+	tiebreaker: t.statProofs.id
+});
+
+export const countPendingStatProofs = async () => {
+	const rows = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(t.statProofs)
+		.where(eq(t.statProofs.status, 'pending'));
+	return Number(rows[0]?.count ?? 0);
+};
 
 /**
  * The queue at /dashboard/admin/claims: people asking for a profile that was

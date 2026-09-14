@@ -25,11 +25,32 @@ export type ScoreInput = {
 	packageCount: number;
 	portfolioCount: number;
 	verificationLevel: string;
+	/** Percent. 0 means none on file. */
 	engagementRate: number;
+	/** Whether that rate came from the platform or an approved proof — see `stat-source`. */
+	engagementConfirmed: boolean;
+	/** 0–100 from `track-record`, or null when there is not enough to judge by. */
+	responseRate: number | null;
+	/** 0–100 from `track-record`, or null when there is not enough to judge by. */
+	onTimeRate: number | null;
 	averageRating: number;
+	reviewsCount: number;
 	completedBookings: number;
 };
 
+const clamp = (value: number, low: number, high: number) =>
+	Math.min(high, Math.max(low, Number.isFinite(value) ? value : low));
+
+/**
+ * The score, from evidence only.
+ *
+ * A signal with nothing behind it scores nothing. That is the rule the three
+ * lower buckets used to break: a creator with no engagement figure was scored
+ * as if they had 5%, one with no reviews as if they averaged 4.5 stars, and
+ * every creator was given 13 of 15 for a response rate nobody measured. Those
+ * defaults made an empty profile look like an average one, and ranked a creator
+ * who had proved nothing alongside one who had.
+ */
 export function calculateScore(input: ScoreInput): number {
 	let score = 0;
 
@@ -53,16 +74,23 @@ export function calculateScore(input: ScoreInput): number {
 					? 15
 					: 5;
 
-	/* Engagement — 15 */
-	score += Math.min(15, Math.round(((input.engagementRate || 5) / 10) * 15));
+	/* Engagement — 15. 10% earns it all; an unconfirmed figure counts at half. */
+	if (input.engagementRate > 0) {
+		score +=
+			Math.min(15, (clamp(input.engagementRate, 0, 100) / 10) * 15) *
+			(input.engagementConfirmed ? 1 : 0.5);
+	}
 
-	/* Response rate — 15. A placeholder until reply times are instrumented. */
-	score += 13;
+	/* Response rate — 15. Measured by `track-record`; nothing measured, nothing earned. */
+	if (input.responseRate !== null) score += (clamp(input.responseRate, 0, 100) / 100) * 15;
 
-	/* Track record — 15 */
-	const volume = Math.min(7.5, input.completedBookings * 0.5);
-	const quality = ((input.averageRating || 4.5) / 5) * 7.5;
-	score += Math.round(volume + quality);
+	/* Track record — 15: volume, rating, and deadlines kept, five each. */
+	score += Math.min(5, Math.max(0, input.completedBookings) * 0.5);
+	if (input.reviewsCount > 0) {
+		/* One glowing review is not a reputation: full weight from the third. */
+		score += (clamp(input.averageRating, 0, 5) / 5) * 5 * Math.min(1, input.reviewsCount / 3);
+	}
+	if (input.onTimeRate !== null) score += (clamp(input.onTimeRate, 0, 100) / 100) * 5;
 
-	return Math.min(100, Math.max(10, score));
+	return Math.min(100, Math.max(10, Math.round(score)));
 }

@@ -27,6 +27,9 @@ export default defineConfig({
 		command: 'npm run build && npm run preview',
 		port: 4173,
 		reuseExistingServer: !process.env.CI,
-		timeout: 180_000
+		timeout: 180_000,
+		/* The hourly refresh rescores creators two minutes after start, which would
+		   move numbers under a suite that is still reading them. */
+		env: { ...process.env, STATS_REFRESH: 'off' } as Record<string, string>
 	}
 });

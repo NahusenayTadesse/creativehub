@@ -30,7 +30,8 @@
 		"fetch:avatars": "tsx scripts/fetch-avatars.ts",
 		"uploads:prune": "tsx scripts/prune-uploads.ts",
 		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
-		"verify:socials": "tsx scripts/verify-socials.ts"
+		"verify:socials": "tsx scripts/verify-socials.ts",
+		"stats:refresh": "tsx scripts/refresh-stats.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

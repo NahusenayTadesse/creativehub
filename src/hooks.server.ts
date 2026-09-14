@@ -4,10 +4,22 @@ import { randomUUID } from 'node:crypto';
 import { auth } from '$lib/server/auth';
 import { handleBotDefence } from '$lib/server/bot-defence';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
-import type { Handle, HandleServerError } from '@sveltejs/kit';
+import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
+import { startStatsScheduler } from '$lib/server/stats-scheduler';
 import { getTextDirection } from '$lib/paraglide/runtime';
 import { paraglideMiddleware } from '$lib/paraglide/server';
 import * as m from '$lib/paraglide/messages';
+
+/**
+ * Once per server process, before the first request.
+ *
+ * Starts the hourly refresh of creator figures — see `stats-scheduler.ts`. Not
+ * while building: the build loads this module to analyse routes, and a timer
+ * started then would hold the build open or fire against no database.
+ */
+export const init: ServerInit = () => {
+	if (!building) startStatsScheduler();
+};
 
 const handleParaglide: Handle = ({ event, resolve }) =>
 	paraglideMiddleware(event.request, ({ request, locale }) => {

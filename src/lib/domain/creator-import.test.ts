@@ -6,6 +6,7 @@ import {
 	mapCreatorRows,
 	parseCount,
 	parseRate,
+	parseSourceDate,
 	profileUrlFor,
 	toUsername,
 	type CsvRow
@@ -302,5 +303,25 @@ describe('mapCreatorRows', () => {
 			]
 		});
 		expect(result.creators[2].creator.region).toBeNull();
+	});
+});
+
+describe('parseSourceDate', () => {
+	const now = new Date('2026-09-14T12:00:00Z');
+
+	it('reads a month, a full date and a bare year as the start of that period', () => {
+		expect(parseSourceDate('2026-05', now)?.toISOString()).toBe('2026-05-01T00:00:00.000Z');
+		expect(parseSourceDate('2026-05-17', now)?.toISOString()).toBe('2026-05-17T00:00:00.000Z');
+		expect(parseSourceDate(' 2025 ', now)?.toISOString()).toBe('2025-01-01T00:00:00.000Z');
+	});
+
+	it('returns null rather than guessing', () => {
+		for (const value of ['', 'May 2026', '2026-13', '2026-02-31', '26-05', null, undefined]) {
+			expect(parseSourceDate(value, now), String(value)).toBeNull();
+		}
+	});
+
+	it('refuses a date from the future', () => {
+		expect(parseSourceDate('2027-01', now)).toBeNull();
 	});
 });

@@ -91,6 +91,8 @@ src/lib/
     booking.ts       Lifecycle states and the legal transitions between them
     match.ts         Deterministic 5-factor campaign ↔ creator fit score
     score.ts         The 0–100 creator score, derived from evidence only
+    track-record.ts  Response rate and deadlines met, measured from deal history
+    stat-source.ts   Where a follower count came from, and what that is worth
     trending.ts      The trending ranking as arithmetic — weights, decay, order
     money.ts         Currency conversion through the rate on `countries`
     mask.ts          Contact masking for deal conversations
@@ -102,8 +104,12 @@ src/lib/
     sanitize.ts      The allowlist an article body is narrowed to before storage
     slug.ts          Title → permalink, made unique against its own table
     score-service.ts Recalculates derived creator fields after a write
+    platform-stats.ts Asks YouTube and Telegram for a channel's numbers
+    stats-refresh.ts The refresh pass: which channels to ask, what to write
+    stats-scheduler.ts Runs that pass, and re-measures creators, every hour
     trending-service.ts Gathers the trending signals, publishes the board
-    db/schema.ts     37 tables
+    db/schema.ts     45 tables
+    db/creator-score.ts Score, reach and measured figures, shared with scripts
   schemas.ts       Every Zod schema, shared by forms and actions
   blog.ts          Section colours, article dates and states — client-safe
 ```
@@ -548,6 +554,69 @@ The script never touches the server's `.env`. Environment variables are managed
 by hand there, and a deploy that rewrites secrets is a deploy that can take the
 site down with a typo.
 
+### Where a creator's numbers come from
+
+A follower count is the figure the marketplace prices against, and most of them
+were typed in by someone. Every figure on `social_accounts` now says where it
+came from — the follower count and the engagement rate separately, each with
+the date it was set:
+
+```
+self_reported   the creator typed it on the channels form
+imported        an operator's research, via import:creators
+proof           an operator checked it against a screenshot of the creator's analytics
+platform        the platform's API returned it
+```
+
+The channels page and the public profile print that under every channel. Only
+`proof` and `platform` read as confirmed.
+
+**Platforms that will say.** Only two answer for a channel nobody signed in to,
+through a documented API with a free key:
+
+| Platform | Needs                | Gives                                                                                                                                                |
+| -------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| YouTube  | `YOUTUBE_API_KEY`    | Subscribers (rounded by YouTube to 3 significant figures) and engagement per view over the last 10 uploads. 3 quota units a channel of 10,000 a day. |
+| Telegram | `TELEGRAM_BOT_TOKEN` | Members of a public channel or group. No engagement.                                                                                                 |
+
+Without a key the platform is skipped. Instagram and TikTok will not give a
+follower count to an anonymous server at all — see `social-check.ts` — so for
+those the creator sends proof: a screenshot and the numbers on it, from the
+channels page. It lands in `/dashboard/admin/figure-proofs`, and approving it is
+the only thing that writes the figures. Screenshots are private uploads, served
+to the creator and operators only.
+
+**What runs, and when.** There is no job runner, so `stats-scheduler.ts` runs
+inside the app, started from `init` in `hooks.server.ts`: two minutes after
+start, then hourly. Each pass asks the platforms about channels not asked in 24
+hours (at most 200), then re-measures and rescores creators not measured in 24
+hours. Staleness is read from the database, so a restart repeats nothing. It is
+on in production and off under `npm run dev` unless `STATS_REFRESH=on`;
+`STATS_REFRESH=off` turns it off anywhere. A refresh never moves `updated_at`
+on a creator — the sitemap reads that as "the profile changed".
+`npm run stats:refresh` is the same pass by hand (see Scripts).
+
+**What the score does with it.** `score.ts` no longer assumes anything. The
+three buckets that used to fill in defaults — 5% engagement, a 4.5-star rating,
+13 of 15 for a response rate nobody measured — now score only evidence:
+
+```
+engagement 15    10% earns it all; a figure nobody confirmed counts at half
+response   15    share of brand requests answered within 48 hours, over 180 days, from 3 requests
+track     15     5 for volume, 5 for rating (full weight from the third review), 5 for deadlines met
+```
+
+"Answered" means the creator did anything on the thread — a reply, a counter,
+accepting terms. Freezing terms counts too, since it needs both sides. A brand
+cancelling inside the 48 hours withdraws the request instead of counting it as
+missed. Too few requests and the rate is null, which scores nothing and shows
+nothing — it is not the same as 0%. The measurements live in `track-record.ts`
+and the columns on `creators` they are stored in.
+
+The consequence to expect after deploying: every score drops, most for
+imported profiles with nothing measured behind them. Ranking among creators is
+what the change is for; the absolute numbers were inflated.
+
 ## Operations
 
 | Route          | For                                                                                                         |
@@ -752,23 +821,24 @@ reports that there is nothing to return and an operator moves the money by hand.
 
 ## Scripts
 
-| Command                 | Does                                                         |
-| ----------------------- | ------------------------------------------------------------ |
-| `npm run dev`           | Dev server                                                   |
-| `npm run build`         | Production build (node adapter)                              |
-| `npm run verify:build`  | Fail if `build/` imports anything absent on the server       |
-| `npm run deploy`        | Build, verify, back up, ship, restart, check (`--dry-run`)   |
-| `npm run check`         | svelte-check                                                 |
-| `npm run lint`          | prettier + eslint                                            |
-| `npm run format`        | prettier --write                                             |
-| `npm run test:unit`     | vitest                                                       |
-| `npm run test:e2e`      | Playwright, against a production build                       |
-| `npm test`              | Both                                                         |
-| `npm run db:generate`   | Write a migration for the current schema                     |
-| `npm run db:migrate`    | Apply everything in `drizzle/`                               |
-| `npm run db:baseline`   | Record migrations as applied — for a database `push` created |
-| `npm run db:push`       | Rewrite the schema in place. Not the deploy path; see above. |
-| `npm run db:seed`       | Seed reference data and demonstration rows                   |
-| `npm run mail:check`    | Connect and authenticate; `-- you@host.tld` also sends one   |
-| `npm run db:studio`     | Drizzle Studio                                               |
-| `npm run uploads:prune` | Find files no row points at (`-- --apply` to remove them)    |
+| Command                 | Does                                                                              |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| `npm run dev`           | Dev server                                                                        |
+| `npm run build`         | Production build (node adapter)                                                   |
+| `npm run verify:build`  | Fail if `build/` imports anything absent on the server                            |
+| `npm run deploy`        | Build, verify, back up, ship, restart, check (`--dry-run`)                        |
+| `npm run check`         | svelte-check                                                                      |
+| `npm run lint`          | prettier + eslint                                                                 |
+| `npm run format`        | prettier --write                                                                  |
+| `npm run test:unit`     | vitest                                                                            |
+| `npm run test:e2e`      | Playwright, against a production build                                            |
+| `npm test`              | Both                                                                              |
+| `npm run db:generate`   | Write a migration for the current schema                                          |
+| `npm run db:migrate`    | Apply everything in `drizzle/`                                                    |
+| `npm run db:baseline`   | Record migrations as applied — for a database `push` created                      |
+| `npm run db:push`       | Rewrite the schema in place. Not the deploy path; see above.                      |
+| `npm run db:seed`       | Seed reference data and demonstration rows                                        |
+| `npm run mail:check`    | Connect and authenticate; `-- you@host.tld` also sends one                        |
+| `npm run db:studio`     | Drizzle Studio                                                                    |
+| `npm run uploads:prune` | Find files no row points at (`-- --apply` to remove them)                         |
+| `npm run stats:refresh` | Ask YouTube/Telegram now (`-- --write` to store; `-- --scores` rescores everyone) |
