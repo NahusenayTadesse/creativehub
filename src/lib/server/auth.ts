@@ -195,12 +195,25 @@ export const auth = betterAuth({
 	},
 	user: {
 		additionalFields: {
+			/**
+			 * Declared here for the shape — the column, and `role` on the session
+			 * user — but not as something a request may set.
+			 *
+			 * The admin plugin below declares `role` too, with `input: false`, and
+			 * plugin fields are merged *over* these: whatever this says about
+			 * input, the plugin's answer is the one that holds. That is the right
+			 * answer anyway. An input-settable `role` is accepted by
+			 * `/api/auth/update-user` as readily as by sign-up, and any signed-in
+			 * account could then post itself `admin`.
+			 *
+			 * So the role a new account asked for is written by the sign-up action
+			 * instead, from a value the schema has narrowed — see routes/register.
+			 */
 			role: {
 				type: 'string',
 				required: false,
 				defaultValue: 'creator',
-				// Sign-up may propose a role, but never `admin` — see routes/register.
-				input: true
+				input: false
 			},
 			phone: { type: 'string', required: false, input: true }
 		}

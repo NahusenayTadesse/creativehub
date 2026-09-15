@@ -35,12 +35,62 @@ type WriteOptions = {
 
 const keepUpdatedAt = { updatedAt: sql`${t.creators.updatedAt}` };
 
-/** Total reach is the sum of linked channels — the discovery filters sort on it. */
+/**
+ * Records today's figures for a creator's live channels.
+ *
+ * At most one row per channel per day: a second write on the same day
+ * overwrites the first, so the day's snapshot is how the channel ended it.
+ * The day is the UTC date, which is the same for every caller and so cannot
+ * produce two rows for one day from two servers' idea of midnight.
+ */
+export async function snapshotCreatorChannels(db: Database, creatorId: number, now = new Date()) {
+	const channels = await db
+		.select({
+			id: t.socialAccounts.id,
+			followers: t.socialAccounts.followers,
+			engagementRate: t.socialAccounts.engagementRate,
+			followersSource: t.socialAccounts.followersSource
+		})
+		.from(t.socialAccounts)
+		.where(and(eq(t.socialAccounts.creatorId, creatorId), liveSocialFilter()));
+	if (!channels.length) return;
+
+	const recordedOn = now.toISOString().slice(0, 10);
+	await db
+		.insert(t.socialAccountSnapshots)
+		.values(
+			channels.map((channel) => ({
+				socialAccountId: channel.id,
+				creatorId,
+				followers: channel.followers,
+				engagementRate: channel.engagementRate,
+				followersSource: channel.followersSource,
+				recordedOn
+			}))
+		)
+		.onDuplicateKeyUpdate({
+			set: {
+				followers: sql`values(${t.socialAccountSnapshots.followers})`,
+				engagementRate: sql`values(${t.socialAccountSnapshots.engagementRate})`,
+				followersSource: sql`values(${t.socialAccountSnapshots.followersSource})`
+			}
+		});
+}
+
+/**
+ * Total reach is the sum of linked channels — the discovery filters sort on it.
+ *
+ * Every write that can move a follower count ends here — the channels form, a
+ * platform refresh, an approved proof — which is why the day's snapshot is
+ * taken here too rather than at each of them.
+ */
 export async function recalcCreatorReach(
 	db: Database,
 	creatorId: number,
 	options: WriteOptions = {}
 ) {
+	await snapshotCreatorChannels(db, creatorId);
+
 	const rows = await db
 		.select({ total: sql<number>`coalesce(sum(${t.socialAccounts.followers}), 0)` })
 		.from(t.socialAccounts)

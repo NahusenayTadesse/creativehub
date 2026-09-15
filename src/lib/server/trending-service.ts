@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, ne, notInArray } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, notInArray } from 'drizzle-orm';
 import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
@@ -7,17 +7,27 @@ import {
 	TRENDING_LANE_KINDS,
 	TRENDING_SIGNALS,
 	WEIGHT_COLUMN,
+	FOLLOWER_TIERS,
 	buildLanes,
 	compareCandidates,
 	decayWeight,
+	followerTier,
+	growthPercent,
+	measureAudience,
+	momentumValue,
+	smoothedRating,
+	tierLabel,
 	laneLocalRank,
 	localBonus,
 	matchesLocation,
 	newcomerValue,
 	scoreCandidates,
 	verificationValue,
+	type Audience,
 	type BuiltLane,
+	type ChannelFigures,
 	type CreatorLocation,
+	type FollowerTier,
 	type LaneCandidate,
 	type LaneFacet,
 	type LaneLimits,
@@ -55,6 +65,19 @@ export type TrendingConfigValues = {
 	weightSaves: number;
 	weightNewcomer: number;
 	weightVerification: number;
+	weightEngagedAudience: number;
+	weightGrowth: number;
+	weightConfirmed: number;
+	weightMomentum: number;
+	weightResponsiveness: number;
+	weightReliability: number;
+	reachMode: (typeof t.trendingReachModeEnum)[number];
+	engagementMode: (typeof t.trendingEngagementModeEnum)[number];
+	audiencePlatformIds: number[];
+	engagementCap: number;
+	unconfirmedDiscount: number;
+	growthConfirmedOnly: boolean;
+	ratingPriorReviews: number;
 	minScore: number;
 	minFollowers: number;
 	minRating: number;
@@ -62,8 +85,30 @@ export type TrendingConfigValues = {
 	requireAvailable: boolean;
 	requireChannel: boolean;
 	requireActivity: boolean;
+	maxFollowers: number;
+	followerTiers: FollowerTier[];
+	minChannelFollowers: number;
+	minEngagementRate: number;
+	maxEngagementRate: number;
+	requirePlatformIds: number[];
+	requireConfirmedStats: boolean;
+	maxStatsAgeDays: number;
+	requireClaimed: boolean;
+	minCompletedBookings: number;
+	minResponseRate: number;
+	minProfileAgeDays: number;
+	maxProfileAgeDays: number;
+	includeCategoryIds: number[];
+	excludeCategoryIds: number[];
 	maxPerCategory: number;
 	maxPerCountry: number;
+	maxPerCity: number;
+	maxPerTier: number;
+	maxPerPlatform: number;
+	incumbentBonus: number;
+	maxNewPerRun: number;
+	newcomerSlots: number;
+	newcomerMaxAgeDays: number;
 	maxTenureDays: number;
 	cooldownDays: number;
 	pinnedFirst: boolean;
@@ -81,6 +126,7 @@ export type TrendingConfigValues = {
 	maxCityLanes: number;
 	maxPlatformLanes: number;
 	maxLanguageLanes: number;
+	maxTierLanes: number;
 	laneLocalFirst: boolean;
 	autoRefresh: boolean;
 	refreshIntervalMinutes: number;
@@ -104,6 +150,21 @@ export const TRENDING_DEFAULTS: TrendingConfigValues = {
 	weightSaves: 5,
 	weightNewcomer: 5,
 	weightVerification: 10,
+	/* The signals added later start at nothing, so an existing board ranks
+	   exactly as it did until an operator decides otherwise. */
+	weightEngagedAudience: 0,
+	weightGrowth: 0,
+	weightConfirmed: 0,
+	weightMomentum: 0,
+	weightResponsiveness: 0,
+	weightReliability: 0,
+	reachMode: 'total',
+	engagementMode: 'average',
+	audiencePlatformIds: [],
+	engagementCap: 0,
+	unconfirmedDiscount: 0,
+	growthConfirmedOnly: true,
+	ratingPriorReviews: 0,
 	minScore: 0,
 	minFollowers: 0,
 	minRating: 0,
@@ -111,8 +172,30 @@ export const TRENDING_DEFAULTS: TrendingConfigValues = {
 	requireAvailable: false,
 	requireChannel: true,
 	requireActivity: false,
+	maxFollowers: 0,
+	followerTiers: [],
+	minChannelFollowers: 0,
+	minEngagementRate: 0,
+	maxEngagementRate: 0,
+	requirePlatformIds: [],
+	requireConfirmedStats: false,
+	maxStatsAgeDays: 0,
+	requireClaimed: false,
+	minCompletedBookings: 0,
+	minResponseRate: 0,
+	minProfileAgeDays: 0,
+	maxProfileAgeDays: 0,
+	includeCategoryIds: [],
+	excludeCategoryIds: [],
 	maxPerCategory: 0,
 	maxPerCountry: 0,
+	maxPerCity: 0,
+	maxPerTier: 0,
+	maxPerPlatform: 0,
+	incumbentBonus: 0,
+	maxNewPerRun: 0,
+	newcomerSlots: 0,
+	newcomerMaxAgeDays: 30,
 	maxTenureDays: 0,
 	cooldownDays: 0,
 	pinnedFirst: true,
@@ -129,6 +212,7 @@ export const TRENDING_DEFAULTS: TrendingConfigValues = {
 	maxCityLanes: 0,
 	maxPlatformLanes: 3,
 	maxLanguageLanes: 0,
+	maxTierLanes: 0,
 	laneLocalFirst: true,
 	autoRefresh: false,
 	refreshIntervalMinutes: 360,
@@ -143,6 +227,41 @@ export async function getTrendingConfig(): Promise<TrendingConfigRow | null> {
 	return rows.at(0) ?? null;
 }
 
+/**
+ * A list column as the ranking wants it.
+ *
+ * JSON columns come back parsed from MySQL and as text from a MariaDB that
+ * stores JSON as `LONGTEXT`, and a config snapshot in a run row has been
+ * through `JSON.stringify` once already. All three end up here.
+ */
+export function listOf<T extends string | number>(value: unknown, as: 'number' | 'string'): T[] {
+	let raw = value;
+	if (typeof raw === 'string') {
+		try {
+			raw = JSON.parse(raw);
+		} catch {
+			return [];
+		}
+	}
+	if (!Array.isArray(raw)) return [];
+	const items = raw.map((item) => (as === 'number' ? Number(item) : String(item)));
+	return items.filter((item) =>
+		typeof item === 'number' ? Number.isInteger(item) && item > 0 : item !== ''
+	) as T[];
+}
+
+/** Every list-valued knob, normalised — see `listOf`. */
+export const withLists = <C extends TrendingConfigValues>(config: C): C => ({
+	...config,
+	audiencePlatformIds: listOf<number>(config.audiencePlatformIds, 'number'),
+	requirePlatformIds: listOf<number>(config.requirePlatformIds, 'number'),
+	includeCategoryIds: listOf<number>(config.includeCategoryIds, 'number'),
+	excludeCategoryIds: listOf<number>(config.excludeCategoryIds, 'number'),
+	followerTiers: listOf<string>(config.followerTiers, 'string').filter(
+		(tier): tier is FollowerTier => (FOLLOWER_TIERS as readonly string[]).includes(tier)
+	)
+});
+
 /** The saved config merged over the defaults — always complete, never null. */
 export async function getTrendingConfigValues(): Promise<
 	TrendingConfigValues & { id: number | null; lastRunAt: Date | null }
@@ -150,11 +269,13 @@ export async function getTrendingConfigValues(): Promise<
 	const row = await getTrendingConfig();
 	if (!row) return { ...TRENDING_DEFAULTS, id: null, lastRunAt: null };
 	return {
-		...TRENDING_DEFAULTS,
-		...row,
-		/* The column is a nullable foreign key; the form and the ranking both
-		   want a number, and 0 is the "every market" the select offers. */
-		countryId: row.countryId ?? 0,
+		...withLists({
+			...TRENDING_DEFAULTS,
+			...row,
+			/* The column is a nullable foreign key; the form and the ranking both
+			   want a number, and 0 is the "every market" the select offers. */
+			countryId: row.countryId ?? 0
+		} as TrendingConfigValues),
 		id: row.id,
 		lastRunAt: row.lastRunAt
 	};
@@ -220,6 +341,7 @@ export async function listTrendingOverrides() {
 			position: t.trendingOverrides.position,
 			multiplier: t.trendingOverrides.multiplier,
 			note: t.trendingOverrides.note,
+			startsAt: t.trendingOverrides.startsAt,
 			expiresAt: t.trendingOverrides.expiresAt,
 			createdAt: t.trendingOverrides.createdAt,
 			username: t.creators.username,
@@ -233,8 +355,10 @@ export async function listTrendingOverrides() {
 		.orderBy(asc(t.trendingOverrides.position), asc(t.trendingOverrides.id));
 }
 
-const isLive = (override: { expiresAt: Date | null }, now: Date) =>
-	!override.expiresAt || override.expiresAt.getTime() > now.getTime();
+/** In force: started, and not yet run out. */
+export const isLive = (override: { startsAt: Date | null; expiresAt: Date | null }, now: Date) =>
+	(!override.startsAt || override.startsAt.getTime() <= now.getTime()) &&
+	(!override.expiresAt || override.expiresAt.getTime() > now.getTime());
 
 /* ------------------------------------------------------------------ *
  * Signal gathering
@@ -249,13 +373,19 @@ export type Candidate = {
 	countryName: string | null;
 	regionId: number | null;
 	city: string | null;
+	primaryPlatformId: number | null;
 	categoryIds: number[];
 	/** Every group this creator would appear in — see `buildLanes`. */
 	facets: LaneFacet[];
 	verificationLevel: string;
 	availability: string;
+	/** The audience the board counts, as stated — what floors, caps and tiers read. */
 	followers: number;
+	tier: FollowerTier;
+	audience: Audience;
 	channelCount: number;
+	/** How old the profile is, in days. */
+	ageDays: number;
 	values: SignalValues;
 	/** Why this creator cannot be on the board, or null when they can. */
 	excludedReason: string | null;
@@ -265,7 +395,7 @@ export type Candidate = {
  * The groups one creator belongs to.
  *
  * Every lane the homepage can offer is produced here, so adding a way to slice
- * the board — by language, by price band — is a few lines in one function
+ * the board — by language, by size band — is a few lines in one function
  * rather than a new query, a new table and a new strip. A facet with no label
  * is dropped: a chip reading "undefined" is worse than one fewer chip.
  */
@@ -278,6 +408,7 @@ function facetsOf(creator: {
 	regionId: number | null;
 	regionName: string | null;
 	city: string | null;
+	tier: FollowerTier;
 }): LaneFacet[] {
 	const facets: LaneFacet[] = [];
 	const add = (
@@ -307,30 +438,43 @@ function facetsOf(creator: {
 		add('platform', channel.platformId, null, channel.platformName);
 	}
 	for (const row of creator.languages) add('language', row.languageId, null, row.languageName);
+	/* Keyed on the band, and labelled for whoever runs the board. Readers see
+	   the label in their own language — `listTrendingLanes` re-labels by key. */
+	add('tier', null, creator.tier, tierLabel(creator.tier));
 
 	return facets;
 }
 
+const DAY_MS = 86_400_000;
+
+const isConfirmed = (source: string) => source === 'platform' || source === 'proof';
+
 /**
- * Every published creator with the ten raw signals measured for them.
+ * Every published creator with every raw signal measured for them.
  *
  * The activity signals are summed in application code rather than SQL because
  * each event is decayed by its own age — a query that returned a plain count
- * per creator would have thrown away the timestamps the decay needs. The rows
- * pulled are only those inside the window, which is what keeps this bounded.
+ * per creator would have thrown away the timestamps the decay needs. Rows are
+ * pulled from two windows back, not one: momentum compares this window with
+ * the one before it.
  */
 export async function gatherCandidates(
 	config: TrendingConfigValues,
 	now: Date = new Date()
 ): Promise<Candidate[]> {
-	const windowStart = new Date(now.getTime() - Math.max(1, config.windowDays) * 86_400_000);
+	const lists = withLists(config);
+	const windowMs = Math.max(1, config.windowDays) * DAY_MS;
+	const windowStart = new Date(now.getTime() - windowMs);
+	const previousStart = new Date(now.getTime() - 2 * windowMs);
 	const halfLife = Math.max(0, config.halfLifeDays);
 	const ageDays = (at: Date | string | null) =>
-		at ? (now.getTime() - new Date(at).getTime()) / 86_400_000 : Infinity;
+		at ? (now.getTime() - new Date(at).getTime()) / DAY_MS : Infinity;
 
 	const creators = await db
 		.select({
 			id: t.creators.id,
+			userId: t.creators.userId,
+			isClaimed: t.creators.isClaimed,
 			username: t.creators.username,
 			fullName: t.creators.fullName,
 			avatar: t.creators.avatar,
@@ -339,9 +483,14 @@ export async function gatherCandidates(
 			regionId: t.creators.regionId,
 			regionName: t.regions.name,
 			city: t.creators.city,
+			primaryPlatformId: t.creators.primaryPlatformId,
 			score: t.creators.score,
 			totalReach: t.creators.totalReach,
 			averageRating: t.creators.averageRating,
+			reviewsCount: t.creators.reviewsCount,
+			completedBookings: t.creators.completedBookings,
+			responseRate: t.creators.responseRate,
+			onTimeRate: t.creators.onTimeRate,
 			verificationLevel: t.creators.verificationLevel,
 			availability: t.creators.availability,
 			createdAt: t.creators.createdAt
@@ -359,17 +508,22 @@ export async function gatherCandidates(
 
 	if (!creators.length) return [];
 	const ids = creators.map((row) => row.id);
+	const baselineDay = windowStart.toISOString().slice(0, 10);
 
-	const [socials, categories, languages, bookings, applications, reviews, saves] =
+	const [socials, categories, languages, bookings, applications, reviews, saves, snapshots] =
 		await Promise.all([
 			/* The platform is joined rather than looked up later because a lane
 			   carries its label as a snapshot, and a channel with no live platform
 			   row is a channel no lane should be cut on. */
 			db
 				.select({
+					id: t.socialAccounts.id,
 					creatorId: t.socialAccounts.creatorId,
 					followers: t.socialAccounts.followers,
 					engagementRate: t.socialAccounts.engagementRate,
+					followersSource: t.socialAccounts.followersSource,
+					engagementSource: t.socialAccounts.engagementSource,
+					followersUpdatedAt: t.socialAccounts.followersUpdatedAt,
 					platformId: t.socialAccounts.platformId,
 					platformName: t.platforms.name
 				})
@@ -400,7 +554,7 @@ export async function gatherCandidates(
 				.where(
 					and(
 						inArray(t.bookings.creatorId, ids),
-						gte(t.bookings.createdAt, windowStart),
+						gte(t.bookings.createdAt, previousStart),
 						/* A cancelled booking is not demand — it is demand that fell over. */
 						ne(t.bookings.status, 'cancelled'),
 						isNull(t.bookings.deletedAt)
@@ -412,7 +566,7 @@ export async function gatherCandidates(
 				.where(
 					and(
 						inArray(t.applications.creatorId, ids),
-						gte(t.applications.createdAt, windowStart),
+						gte(t.applications.createdAt, previousStart),
 						ne(t.applications.status, 'withdrawn'),
 						isNull(t.applications.deletedAt)
 					)
@@ -423,9 +577,9 @@ export async function gatherCandidates(
 				.where(
 					and(
 						inArray(t.reviews.creatorId, ids),
-						gte(t.reviews.createdAt, windowStart),
+						gte(t.reviews.createdAt, previousStart),
 						/* The same definition the public rating uses, so a five-star week
-					   here and the average on the profile cannot disagree. */
+						   here and the average on the profile cannot disagree. */
 						ratingReviewFilter()
 					)
 				),
@@ -435,17 +589,38 @@ export async function gatherCandidates(
 				.where(
 					and(
 						inArray(t.savedCreators.creatorId, ids),
-						gte(t.savedCreators.createdAt, windowStart),
+						gte(t.savedCreators.createdAt, previousStart),
 						eq(t.savedCreators.isActive, true),
 						isNull(t.savedCreators.deletedAt)
 					)
+				),
+			/* Every snapshot up to today, oldest first. The baseline for growth is
+			   the last one on or before the window opened, or the first inside it
+			   for a channel that is newer than the window. */
+			db
+				.select({
+					socialAccountId: t.socialAccountSnapshots.socialAccountId,
+					followers: t.socialAccountSnapshots.followers,
+					followersSource: t.socialAccountSnapshots.followersSource,
+					recordedOn: t.socialAccountSnapshots.recordedOn
+				})
+				.from(t.socialAccountSnapshots)
+				.where(
+					and(
+						inArray(t.socialAccountSnapshots.creatorId, ids),
+						lte(t.socialAccountSnapshots.recordedOn, now.toISOString().slice(0, 10))
+					)
 				)
+				.orderBy(asc(t.socialAccountSnapshots.recordedOn))
 		]);
+
+	const inWindow = (at: Date | string) => new Date(at).getTime() >= windowStart.getTime();
 
 	/** Sum of one event type per creator, each event decayed by its own age. */
 	const decayedTotals = (rows: { creatorId: number; createdAt: Date | string }[]) => {
 		const totals = new Map<number, number>();
 		for (const row of rows) {
+			if (!inWindow(row.createdAt)) continue;
 			const weight = decayWeight(ageDays(row.createdAt), halfLife);
 			totals.set(row.creatorId, (totals.get(row.creatorId) ?? 0) + weight);
 		}
@@ -457,46 +632,176 @@ export async function gatherCandidates(
 	const reviewTotals = decayedTotals(reviews);
 	const saveTotals = decayedTotals(saves);
 
+	/* Plain counts per window for momentum — decay would make the earlier
+	   window look smaller simply for being earlier. */
+	const windowCounts = new Map<number, { current: number; previous: number }>();
+	for (const row of [...bookings, ...applications, ...reviews, ...saves]) {
+		const counts = windowCounts.get(row.creatorId) ?? { current: 0, previous: 0 };
+		if (inWindow(row.createdAt)) counts.current++;
+		else counts.previous++;
+		windowCounts.set(row.creatorId, counts);
+	}
+
+	/* The baseline snapshot per channel: last on or before the window opened,
+	   else the first one inside it. */
+	const baseline = new Map<number, { followers: number; followersSource: string }>();
+	for (const snapshot of snapshots) {
+		const current = baseline.get(snapshot.socialAccountId);
+		if (snapshot.recordedOn <= baselineDay || !current) {
+			baseline.set(snapshot.socialAccountId, snapshot);
+		}
+	}
+
+	/* The platform-wide average rating, over creators who have one — the prior
+	   `ratingPriorReviews` pulls every rating towards. */
+	const rated = creators.filter((creator) => creator.reviewsCount > 0);
+	const priorMean = rated.length
+		? rated.reduce((sum, creator) => sum + creator.averageRating, 0) / rated.length
+		: 0;
+
 	const minVerificationRank = VERIFICATION_ORDER.indexOf(config.minVerification);
+	const allowedPlatforms = new Set(lists.audiencePlatformIds);
+	const requiredPlatforms = new Set(lists.requirePlatformIds);
+	const includeCategories = new Set(lists.includeCategoryIds);
+	const excludeCategories = new Set(lists.excludeCategoryIds);
+	const allowedTiers = new Set(lists.followerTiers);
+
+	/*
+	 * The board used to read reach off `creators.total_reach`, which for an
+	 * imported profile is the researcher's combined estimate rather than the sum
+	 * of its channels. While the audience settings are all at their defaults
+	 * that figure is still what is read, so saving this screen without touching
+	 * them re-ranks nobody. Any audience setting switches to the channels.
+	 */
+	const audienceIsDefault =
+		config.reachMode === 'total' && !allowedPlatforms.size && config.unconfirmedDiscount <= 0;
 
 	return creators.map((creator) => {
 		const mine = socials.filter((row) => row.creatorId === creator.id);
 		const myCategories = categories.filter((row) => row.creatorId === creator.id);
 		const myLanguages = languages.filter((row) => row.creatorId === creator.id);
-		const followers = mine.reduce((sum, row) => sum + row.followers, 0);
-		const engagement = mine.length
-			? mine.reduce((sum, row) => sum + row.engagementRate, 0) / mine.length
-			: 0;
+
+		const audience = measureAudience(mine as ChannelFigures[], {
+			reachMode: config.reachMode,
+			engagementMode: config.engagementMode,
+			platformIds: lists.audiencePlatformIds,
+			engagementCap: config.engagementCap,
+			unconfirmedDiscount: config.unconfirmedDiscount,
+			primaryPlatformId: creator.primaryPlatformId
+		});
+
+		const followers = audienceIsDefault ? creator.totalReach || audience.reach : audience.reach;
+		const scoredReach = audienceIsDefault ? followers : audience.scoredReach;
+		const tier = followerTier(followers);
+
+		/* Growth, over the channels the audience settings count. */
+		let growthNow = 0;
+		let growthBase = 0;
+		for (const channel of mine) {
+			if (allowedPlatforms.size && !allowedPlatforms.has(channel.platformId)) continue;
+			const base = baseline.get(channel.id);
+			if (!base) continue;
+			if (
+				config.growthConfirmedOnly &&
+				!(isConfirmed(channel.followersSource) && isConfirmed(base.followersSource))
+			) {
+				continue;
+			}
+			growthNow += channel.followers;
+			growthBase += base.followers;
+		}
+
+		const counts = windowCounts.get(creator.id) ?? { current: 0, previous: 0 };
+		const profileAge = ageDays(creator.createdAt);
 
 		const values: SignalValues = {
 			score: creator.score,
-			reach: creator.totalReach || followers,
-			engagement,
+			reach: scoredReach,
+			engagement: audience.scoredEngagement,
+			engagedAudience: audience.engagedAudience,
+			growth: growthPercent(growthNow, growthBase),
+			confirmed: audience.confirmedShare,
 			bookings: round(bookingTotals.get(creator.id) ?? 0),
 			applications: round(applicationTotals.get(creator.id) ?? 0),
 			reviews: round(reviewTotals.get(creator.id) ?? 0),
-			rating: creator.averageRating,
+			rating: smoothedRating(
+				creator.averageRating,
+				creator.reviewsCount,
+				priorMean,
+				config.ratingPriorReviews
+			),
 			saves: round(saveTotals.get(creator.id) ?? 0),
-			newcomer: round(newcomerValue(ageDays(creator.createdAt))),
+			momentum: momentumValue(counts.current, counts.previous),
+			responsiveness: creator.responseRate ?? 0,
+			reliability: creator.onTimeRate ?? 0,
+			newcomer: round(newcomerValue(profileAge)),
 			verification: verificationValue(creator.verificationLevel)
 		};
 
 		const activity = values.bookings + values.applications + values.reviews + values.saves;
 		const verificationRank = VERIFICATION_ORDER.indexOf(creator.verificationLevel);
+		const categoryIds = myCategories.map((row) => row.categoryId);
+		const claimed = creator.isClaimed || !!creator.userId;
+		const staleBefore = now.getTime() - config.maxStatsAgeDays * DAY_MS;
 
-		let excludedReason: string | null = null;
-		/* The market comes before the numeric floors: "not in this country" is
-		   the reason an operator wants told, not "score too low". */
-		if (config.countryId && creator.countryId !== config.countryId) {
-			excludedReason = 'outside_market';
-		} else if (creator.score < config.minScore) excludedReason = 'min_score';
-		else if ((creator.totalReach || followers) < config.minFollowers) excludedReason = 'min_reach';
-		else if (creator.averageRating < config.minRating) excludedReason = 'min_rating';
-		else if (verificationRank < minVerificationRank) excludedReason = 'min_verification';
-		else if (config.requireChannel && mine.length === 0) excludedReason = 'no_channel';
-		else if (config.requireAvailable && creator.availability !== 'available') {
-			excludedReason = 'unavailable';
-		} else if (config.requireActivity && activity <= 0) excludedReason = 'no_activity';
+		/*
+		 * The first rule broken is the reason given. Market and category come
+		 * first because "not in this country" is what an operator wants told, not
+		 * "score too low"; the audience rules come before the rest because they
+		 * are the ones this screen is most often used to tune.
+		 */
+		const reasons: [broken: boolean, reason: string][] = [
+			[!!config.countryId && creator.countryId !== config.countryId, 'outside_market'],
+			[categoryIds.some((id) => excludeCategories.has(id)), 'excluded_category'],
+			[
+				includeCategories.size > 0 && !categoryIds.some((id) => includeCategories.has(id)),
+				'not_in_categories'
+			],
+			[config.requireClaimed && !claimed, 'unclaimed'],
+			[config.requireChannel && mine.length === 0, 'no_channel'],
+			[
+				requiredPlatforms.size > 0 && !mine.some((row) => requiredPlatforms.has(row.platformId)),
+				'no_platform'
+			],
+			[followers < config.minFollowers, 'min_reach'],
+			[config.maxFollowers > 0 && followers > config.maxFollowers, 'max_reach'],
+			[allowedTiers.size > 0 && !allowedTiers.has(tier), 'tier'],
+			[
+				config.minChannelFollowers > 0 && audience.largestChannel < config.minChannelFollowers,
+				'min_channel_followers'
+			],
+			[
+				config.minEngagementRate > 0 && audience.engagement < config.minEngagementRate,
+				'min_engagement'
+			],
+			[
+				config.maxEngagementRate > 0 && audience.engagement > config.maxEngagementRate,
+				'max_engagement'
+			],
+			[config.requireConfirmedStats && audience.confirmedShare <= 0, 'unconfirmed_stats'],
+			[
+				config.maxStatsAgeDays > 0 &&
+					(!audience.freshestUpdate || audience.freshestUpdate.getTime() < staleBefore),
+				'stale_stats'
+			],
+			[creator.score < config.minScore, 'min_score'],
+			[creator.averageRating < config.minRating, 'min_rating'],
+			[verificationRank < minVerificationRank, 'min_verification'],
+			[creator.completedBookings < config.minCompletedBookings, 'min_bookings'],
+			/* Measured creators only: most profiles have no response rate yet, and
+			   excluding all of them would empty the board to punish nobody. */
+			[
+				config.minResponseRate > 0 &&
+					creator.responseRate !== null &&
+					creator.responseRate < config.minResponseRate,
+				'min_response_rate'
+			],
+			[config.minProfileAgeDays > 0 && profileAge < config.minProfileAgeDays, 'profile_too_new'],
+			[config.maxProfileAgeDays > 0 && profileAge > config.maxProfileAgeDays, 'profile_too_old'],
+			[config.requireAvailable && creator.availability !== 'available', 'unavailable'],
+			[config.requireActivity && activity <= 0, 'no_activity']
+		];
+		const excludedReason = reasons.find(([broken]) => broken)?.[1] ?? null;
 
 		return {
 			creatorId: creator.id,
@@ -507,7 +812,8 @@ export async function gatherCandidates(
 			countryName: creator.countryName,
 			regionId: creator.regionId,
 			city: creator.city,
-			categoryIds: myCategories.map((row) => row.categoryId),
+			primaryPlatformId: creator.primaryPlatformId,
+			categoryIds,
 			facets: facetsOf({
 				categories: myCategories,
 				languages: myLanguages,
@@ -516,12 +822,16 @@ export async function gatherCandidates(
 				countryName: creator.countryName,
 				regionId: creator.regionId,
 				regionName: creator.regionName,
-				city: creator.city
+				city: creator.city,
+				tier
 			}),
 			verificationLevel: creator.verificationLevel,
 			availability: creator.availability,
-			followers: creator.totalReach || followers,
+			followers,
+			tier,
+			audience,
 			channelCount: mine.length,
+			ageDays: round(profileAge),
 			values,
 			excludedReason
 		};
@@ -539,16 +849,34 @@ export type BoardEntry = {
 	score: number;
 	baseScore: number;
 	multiplier: number;
+	/** Points added for already holding a slot — see `incumbentBonus`. */
+	bonus: number;
 	candidate: Candidate;
 	scored: ScoredCandidate | null;
 	/** Set when an operator instruction, not the numbers, put this creator here. */
 	note: string | null;
+	/** Holds a slot kept for newcomers rather than one earned outright. */
+	reserved?: boolean;
 };
+
+/** Why a ranked creator is on the bench rather than the board. */
+export type BenchReason =
+	| 'slots'
+	| 'category_cap'
+	| 'country_cap'
+	| 'city_cap'
+	| 'tier_cap'
+	| 'platform_cap'
+	| 'churn_limit';
+
+export type BenchRow = Omit<BoardEntry, 'rank'> & { rank: null; benchReason: BenchReason };
 
 export type BoardResult = {
 	entries: BoardEntry[];
-	/** Everything that was ranked, best first — the tail is the bench. */
-	ranked: (BoardEntry | (Omit<BoardEntry, 'rank'> & { rank: null }))[];
+	/** Everything that was ranked, board first and then the bench, best first. */
+	ranked: (BoardEntry | BenchRow)[];
+	/** Everyone who never reached the ranking, and the rule that stopped them. */
+	excluded: { candidate: Candidate; reason: string }[];
 	stats: {
 		creators: number;
 		eligible: number;
@@ -557,6 +885,10 @@ export type BoardResult = {
 		resting: number;
 		/** Eligible creators kept off the board by a diversity cap. */
 		cappedOut: number;
+		/** Creators who would have entered but for the limit on newcomers per run. */
+		churnHeld: number;
+		/** Slots filled from the newcomer reservation. */
+		newcomersReserved: number;
 		exclusions: Record<string, number>;
 	};
 };
@@ -567,22 +899,33 @@ type BuildOptions = {
 	now?: Date;
 	/** Creators currently resting, from `trending_cooldowns`. */
 	restingIds?: Set<number>;
+	/** Creators on the live board — what the incumbent bonus and the churn limit read. */
+	incumbentIds?: Set<number>;
 	candidates?: Candidate[];
 };
 
 /**
  * Produces the board without touching a row.
  *
- * The order of operations is the policy, and it is deliberate: blocks beat
- * everything, rest beats the algorithm but not a pin, pins take their slots,
- * and the diversity caps are applied last against the ranked remainder. Any
- * other order lets a cap silently drop a creator an operator pinned by hand.
+ * The order of operations is the policy, and it is deliberate:
+ *
+ * 1. blocks beat everything, and eligibility rules beat the ranking;
+ * 2. rest beats the algorithm but not a pin;
+ * 3. pins take their slots;
+ * 4. the ranking fills the rest, highest first, skipping whoever a diversity
+ *    cap or the per-run limit on new faces rules out;
+ * 5. reserved newcomer slots are honoured last, by displacing the lowest
+ *    algorithm entries — never a pin.
+ *
+ * Any other order lets a cap silently drop a creator an operator pinned by
+ * hand, or lets the newcomer reservation be undone by the cap that follows it.
  */
 export async function buildBoard(options: BuildOptions): Promise<BoardResult> {
 	const { config, overrides } = options;
 	const now = options.now ?? new Date();
 	const candidates = options.candidates ?? (await gatherCandidates(config, now));
 	const restingIds = options.restingIds ?? new Set<number>();
+	const incumbentIds = options.incumbentIds ?? new Set<number>();
 
 	const live = overrides.filter((override) => isLive(override, now));
 	const blocked = new Set(live.filter((o) => o.kind === 'block').map((o) => o.creatorId));
@@ -594,8 +937,10 @@ export async function buildBoard(options: BuildOptions): Promise<BoardResult> {
 
 	const byId = new Map(candidates.map((candidate) => [candidate.creatorId, candidate]));
 	const exclusions: Record<string, number> = {};
-	const countExclusion = (reason: string) => {
+	const excluded: BoardResult['excluded'] = [];
+	const exclude = (candidate: Candidate, reason: string) => {
 		exclusions[reason] = (exclusions[reason] ?? 0) + 1;
+		excluded.push({ candidate, reason });
 	};
 
 	/* A blocked creator is off the board in every mode, including manual: a block
@@ -603,11 +948,11 @@ export async function buildBoard(options: BuildOptions): Promise<BoardResult> {
 	   a checkbox someone forgot to untick. */
 	const pool = candidates.filter((candidate) => {
 		if (blocked.has(candidate.creatorId)) {
-			countExclusion('blocked');
+			exclude(candidate, 'blocked');
 			return false;
 		}
 		if (candidate.excludedReason) {
-			countExclusion(candidate.excludedReason);
+			exclude(candidate, candidate.excludedReason);
 			return false;
 		}
 		return true;
@@ -615,27 +960,49 @@ export async function buildBoard(options: BuildOptions): Promise<BoardResult> {
 
 	const slots = Math.max(1, config.slots);
 	const entries: BoardEntry[] = [];
+	const bench: BenchRow[] = [];
 	const taken = new Set<number>();
+
+	const entryOf = (
+		candidate: Candidate,
+		source: BoardEntry['source'],
+		scored: ScoredCandidate | null,
+		bonus: number
+	) => ({
+		creatorId: candidate.creatorId,
+		source,
+		score: scored?.score ?? 0,
+		baseScore: scored?.baseScore ?? 0,
+		multiplier: scored?.multiplier ?? 1,
+		bonus,
+		candidate,
+		scored,
+		note: noteFor.get(candidate.creatorId) ?? null
+	});
 
 	const push = (
 		candidate: Candidate,
 		source: BoardEntry['source'],
-		scored: ScoredCandidate | null
+		scored: ScoredCandidate | null,
+		bonus = 0
 	) => {
-		if (taken.has(candidate.creatorId) || entries.length >= slots) return;
+		if (taken.has(candidate.creatorId) || entries.length >= slots) return false;
 		taken.add(candidate.creatorId);
-		entries.push({
-			creatorId: candidate.creatorId,
-			rank: entries.length + 1,
-			source,
-			score: scored?.score ?? 0,
-			baseScore: scored?.baseScore ?? 0,
-			multiplier: scored?.multiplier ?? 1,
-			candidate,
-			scored,
-			note: noteFor.get(candidate.creatorId) ?? null
-		});
+		entries.push({ ...entryOf(candidate, source, scored, bonus), rank: entries.length + 1 });
+		return true;
 	};
+
+	const stats = (): BoardResult['stats'] => ({
+		creators: candidates.length,
+		eligible: pool.length,
+		pinned: entries.filter((entry) => entry.source === 'pinned').length,
+		blocked: blocked.size,
+		resting: exclusions.resting ?? 0,
+		cappedOut: bench.filter((row) => row.benchReason.endsWith('_cap')).length,
+		churnHeld: bench.filter((row) => row.benchReason === 'churn_limit').length,
+		newcomersReserved: entries.filter((entry) => entry.reserved).length,
+		exclusions
+	});
 
 	/* Manual mode: whatever an operator ticked on the creator record, in score
 	   order. No signal is read, which is the whole point of the mode. */
@@ -658,19 +1025,7 @@ export async function buildBoard(options: BuildOptions): Promise<BoardResult> {
 			if (candidate && !blocked.has(row.id)) push(candidate, 'manual', null);
 		}
 
-		return {
-			entries,
-			ranked: entries,
-			stats: {
-				creators: candidates.length,
-				eligible: pool.length,
-				pinned: 0,
-				blocked: blocked.size,
-				resting: 0,
-				cappedOut: 0,
-				exclusions
-			}
-		};
+		return { entries, ranked: entries, excluded, stats: stats() };
 	}
 
 	/* Rotation rest applies to the algorithm only — an operator pinning someone
@@ -681,11 +1036,19 @@ export async function buildBoard(options: BuildOptions): Promise<BoardResult> {
 
 	const rankable = pool.filter((candidate) => {
 		if (restingIds.has(candidate.creatorId) && !pinnedIds.has(candidate.creatorId)) {
-			countExclusion('resting');
+			exclude(candidate, 'resting');
 			return false;
 		}
 		return true;
 	});
+
+	/*
+	 * The incumbent bonus is added after the weighted score and any boost, in
+	 * points, so "worth five points" means the same thing whatever the weights
+	 * are — and it is kept apart in the breakdown rather than folded in.
+	 */
+	const bonusFor = (creatorId: number) =>
+		incumbentIds.has(creatorId) ? Math.max(0, config.incumbentBonus) : 0;
 
 	const scored = scoreCandidates(
 		rankable.map((candidate) => ({
@@ -697,7 +1060,12 @@ export async function buildBoard(options: BuildOptions): Promise<BoardResult> {
 			weights: weightsOf(config),
 			normalization: config.normalization
 		}
-	).sort(compareCandidates);
+	)
+		.map((row) => {
+			const bonus = bonusFor(row.creatorId);
+			return bonus ? { ...row, score: round(row.score + bonus) } : row;
+		})
+		.sort(compareCandidates);
 
 	const scoredById = new Map(scored.map((row) => [row.creatorId, row]));
 
@@ -707,84 +1075,149 @@ export async function buildBoard(options: BuildOptions): Promise<BoardResult> {
 		for (const pin of pins) {
 			const candidate = byId.get(pin.creatorId);
 			if (candidate && !blocked.has(pin.creatorId)) {
-				push(candidate, 'pinned', scoredById.get(pin.creatorId) ?? null);
+				push(candidate, 'pinned', scoredById.get(pin.creatorId) ?? null, bonusFor(pin.creatorId));
 			}
 		}
 	}
 
-	const perCategory = new Map<number, number>();
-	const perCountry = new Map<number, number>();
-	const countsFor = (candidate: Candidate) => ({
-		categories: candidate.categoryIds,
-		country: candidate.countryId
-	});
+	/* ---------------- Diversity caps ---------------- */
+
+	type CapKey = 'category' | 'country' | 'city' | 'tier' | 'platform';
+	const capLimit: Record<CapKey, number> = {
+		category: config.maxPerCategory,
+		country: config.maxPerCountry,
+		city: config.maxPerCity,
+		tier: config.maxPerTier,
+		platform: config.maxPerPlatform
+	};
+	const used = new Map<string, number>();
+	/* Every group a creator uses a cap place in. A city is keyed on the folded
+	   name, like its lane; a creator with no primary platform uses no platform
+	   place, as one with no country uses no country place. */
+	const groupsOf = (candidate: Candidate): [CapKey, string][] => {
+		const groups: [CapKey, string][] = candidate.categoryIds.map((id) => ['category', `${id}`]);
+		if (candidate.countryId) groups.push(['country', `${candidate.countryId}`]);
+		if (candidate.city?.trim()) groups.push(['city', candidate.city.trim().toLowerCase()]);
+		groups.push(['tier', candidate.tier]);
+		if (candidate.primaryPlatformId) groups.push(['platform', `${candidate.primaryPlatformId}`]);
+		return groups;
+	};
+	const takePlaces = (candidate: Candidate) => {
+		for (const [key, value] of groupsOf(candidate)) {
+			used.set(`${key}:${value}`, (used.get(`${key}:${value}`) ?? 0) + 1);
+		}
+	};
+	/* "At most three per category" has to mean three, so a creator carrying a
+	   saturated category is skipped even if their other categories have room.
+	   The first full cap found is the one reported. */
+	const capReached = (candidate: Candidate): BenchReason | null => {
+		for (const [key, value] of groupsOf(candidate)) {
+			const limit = capLimit[key];
+			if (limit > 0 && (used.get(`${key}:${value}`) ?? 0) >= limit) {
+				return `${key}_cap` as BenchReason;
+			}
+		}
+		return null;
+	};
 
 	/* Seed the caps with whatever the pins already used up, or a pin plus a cap
 	   of one would let a second creator from the same category straight in. */
-	for (const entry of entries) {
-		const { categories, country } = countsFor(entry.candidate);
-		for (const categoryId of categories) {
-			perCategory.set(categoryId, (perCategory.get(categoryId) ?? 0) + 1);
-		}
-		if (country) perCountry.set(country, (perCountry.get(country) ?? 0) + 1);
-	}
+	for (const entry of entries) takePlaces(entry.candidate);
 
-	let cappedOut = 0;
-	const ranked: BoardResult['ranked'] = [...entries];
+	const benchRow = (row: ScoredCandidate, candidate: Candidate, reason: BenchReason): BenchRow => ({
+		...entryOf(candidate, 'algorithm', row, bonusFor(row.creatorId)),
+		rank: null,
+		benchReason: reason
+	});
+
+	/* ---------------- The ranking ---------------- */
+
+	/*
+	 * The limit on new faces only means something against a board that already
+	 * exists. On the first run there are no incumbents, and applying it would
+	 * publish a board of three when twelve were asked for.
+	 */
+	const newLimit =
+		config.maxNewPerRun > 0 && incumbentIds.size > 0 ? config.maxNewPerRun : Infinity;
+	let newcomersAdmitted = 0;
+	const heldBack: { row: ScoredCandidate; candidate: Candidate }[] = [];
 
 	for (const row of scored) {
 		const candidate = byId.get(row.creatorId);
 		if (!candidate || taken.has(row.creatorId)) continue;
 
 		const isPinned = pinnedIds.has(row.creatorId);
-		const { categories, country } = countsFor(candidate);
-
-		/* "At most three per category" has to mean three, so a creator carrying a
-		   saturated category is skipped even if their other categories have room. */
-		const categoryFull =
-			!isPinned &&
-			config.maxPerCategory > 0 &&
-			categories.some((id) => (perCategory.get(id) ?? 0) >= config.maxPerCategory);
-		const countryFull =
-			!isPinned &&
-			config.maxPerCountry > 0 &&
-			!!country &&
-			(perCountry.get(country) ?? 0) >= config.maxPerCountry;
-
-		if (categoryFull || countryFull) {
-			cappedOut++;
-			countExclusion(categoryFull ? 'category_cap' : 'country_cap');
-			ranked.push({
-				creatorId: row.creatorId,
-				rank: null,
-				source: 'algorithm',
-				score: row.score,
-				baseScore: row.baseScore,
-				multiplier: row.multiplier,
-				candidate,
-				scored: row,
-				note: null
-			});
+		const cap = isPinned ? null : capReached(candidate);
+		if (cap) {
+			exclusions[cap] = (exclusions[cap] ?? 0) + 1;
+			bench.push(benchRow(row, candidate, cap));
 			continue;
 		}
 
-		if (entries.length < slots) {
-			push(candidate, isPinned ? 'pinned' : 'algorithm', row);
-			for (const id of categories) perCategory.set(id, (perCategory.get(id) ?? 0) + 1);
-			if (country) perCountry.set(country, (perCountry.get(country) ?? 0) + 1);
-			ranked.push(entries[entries.length - 1]);
+		if (entries.length >= slots) {
+			bench.push(benchRow(row, candidate, 'slots'));
+			continue;
+		}
+
+		const isNewFace = !isPinned && !incumbentIds.has(row.creatorId);
+		if (isNewFace && newcomersAdmitted >= newLimit) {
+			heldBack.push({ row, candidate });
+			continue;
+		}
+
+		push(candidate, isPinned ? 'pinned' : 'algorithm', row, bonusFor(row.creatorId));
+		takePlaces(candidate);
+		if (isNewFace) newcomersAdmitted++;
+	}
+
+	/* The limit steadies the board; it is not meant to leave slots empty. If the
+	   incumbents could not fill it, the held-back creators take what is left, in
+	   score order, and only the rest wait for a later run. */
+	for (const { row, candidate } of heldBack) {
+		if (entries.length < slots && !capReached(candidate)) {
+			push(candidate, 'algorithm', row, bonusFor(row.creatorId));
+			takePlaces(candidate);
 		} else {
-			ranked.push({
-				creatorId: row.creatorId,
-				rank: null,
-				source: 'algorithm',
-				score: row.score,
-				baseScore: row.baseScore,
-				multiplier: row.multiplier,
-				candidate,
-				scored: row,
-				note: null
-			});
+			exclusions.churn_limit = (exclusions.churn_limit ?? 0) + 1;
+			bench.push(benchRow(row, candidate, 'churn_limit'));
+		}
+	}
+
+	/* ---------------- Reserved newcomer slots ---------------- */
+
+	const isNewcomer = (candidate: Candidate) =>
+		candidate.ageDays <= Math.max(0, config.newcomerMaxAgeDays);
+	const wanted = Math.min(Math.max(0, config.newcomerSlots), slots);
+	let short = wanted - entries.filter((entry) => isNewcomer(entry.candidate)).length;
+
+	if (short > 0) {
+		/* Only from the bench that was benched for room — slots or the per-run
+		   limit. A creator a diversity cap ruled out stays ruled out. */
+		const hopefuls = bench
+			.filter(
+				(row) =>
+					(row.benchReason === 'slots' || row.benchReason === 'churn_limit') &&
+					isNewcomer(row.candidate)
+			)
+			.sort((a, b) => b.score - a.score);
+
+		for (const hopeful of hopefuls) {
+			if (short <= 0) break;
+			if (entries.length >= slots) {
+				/* The lowest-placed algorithm entry that is not itself a newcomer. */
+				const victimIndex = entries.findLastIndex(
+					(entry) => entry.source === 'algorithm' && !entry.reserved && !isNewcomer(entry.candidate)
+				);
+				if (victimIndex < 0) break;
+				const [victim] = entries.splice(victimIndex, 1);
+				taken.delete(victim.creatorId);
+				bench.push({ ...victim, rank: null, benchReason: 'slots' });
+			}
+			bench.splice(bench.indexOf(hopeful), 1);
+			taken.add(hopeful.creatorId);
+			const { benchReason: _benched, ...promoted } = hopeful;
+			entries.push({ ...promoted, rank: entries.length + 1, reserved: true });
+			short--;
 		}
 	}
 
@@ -794,25 +1227,35 @@ export async function buildBoard(options: BuildOptions): Promise<BoardResult> {
 		for (const pin of pins) {
 			const candidate = byId.get(pin.creatorId);
 			if (!candidate || taken.has(pin.creatorId) || blocked.has(pin.creatorId)) continue;
-			if (entries.length >= slots) entries.pop();
-			push(candidate, 'pinned', scoredById.get(pin.creatorId) ?? null);
+			if (entries.length >= slots) {
+				const victimIndex = entries.findLastIndex((entry) => entry.source !== 'pinned');
+				if (victimIndex < 0) continue;
+				const [victim] = entries.splice(victimIndex, 1);
+				taken.delete(victim.creatorId);
+				if (victim.scored) bench.push({ ...victim, rank: null, benchReason: 'slots' });
+			}
+			push(candidate, 'pinned', scoredById.get(pin.creatorId) ?? null, bonusFor(pin.creatorId));
 		}
-		entries.sort((a, b) => b.score - a.score || a.creatorId - b.creatorId);
-		entries.forEach((entry, index) => (entry.rank = index + 1));
 	}
 
+	/* Final order. Pins that lead keep their operator order; everything else is
+	   by score, so a reserved newcomer sits where their score puts them rather
+	   than being tacked on the end. */
+	const leading =
+		config.mode === 'hybrid' && config.pinnedFirst
+			? entries.filter((entry) => entry.source === 'pinned')
+			: [];
+	const rest = entries
+		.filter((entry) => !leading.includes(entry))
+		.sort((a, b) => b.score - a.score || a.creatorId - b.creatorId);
+	const ordered = [...leading, ...rest];
+	ordered.forEach((entry, index) => (entry.rank = index + 1));
+
 	return {
-		entries,
-		ranked,
-		stats: {
-			creators: candidates.length,
-			eligible: pool.length,
-			pinned: entries.filter((entry) => entry.source === 'pinned').length,
-			blocked: blocked.size,
-			resting: exclusions.resting ?? 0,
-			cappedOut,
-			exclusions
-		}
+		entries: ordered,
+		ranked: [...ordered, ...bench.sort((a, b) => b.score - a.score || a.creatorId - b.creatorId)],
+		excluded,
+		stats: stats()
 	};
 }
 
@@ -880,11 +1323,11 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 	const started = Date.now();
 	const now = new Date();
 	const config = await ensureTrendingConfig(options.actorId);
-	const values = {
+	const values = withLists({
 		...TRENDING_DEFAULTS,
 		...config,
 		countryId: config.countryId ?? 0
-	} as TrendingConfigValues;
+	} as TrendingConfigValues);
 
 	if (config.isFrozen) {
 		return {
@@ -922,7 +1365,13 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 		}
 	}
 
-	const board = await buildBoard({ config: values, overrides, now, restingIds: resting });
+	const board = await buildBoard({
+		config: values,
+		overrides,
+		now,
+		restingIds: resting,
+		incumbentIds: new Set(previous.map((entry) => entry.creatorId))
+	});
 	const lanes = laneBoardOf(values, board);
 
 	const previousIds = new Set(previous.map((entry) => entry.creatorId));
@@ -956,7 +1405,8 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 					breakdown: {
 						components: entry.scored?.components ?? [],
 						multiplier: entry.multiplier,
-						baseScore: entry.baseScore
+						baseScore: entry.baseScore,
+						bonus: entry.bonus
 					},
 					runId: id,
 					/* Tenure is measured from the first appearance, not this run, or
@@ -1228,8 +1678,23 @@ const emptyStats = (): BoardResult['stats'] => ({
 	blocked: 0,
 	resting: 0,
 	cappedOut: 0,
+	churnHeld: 0,
+	newcomersReserved: 0,
 	exclusions: {}
 });
+
+/** Saved weight presets, alphabetically. */
+export async function listTrendingPresets() {
+	return db
+		.select({
+			id: t.trendingPresets.id,
+			name: t.trendingPresets.name,
+			description: t.trendingPresets.description,
+			weights: t.trendingPresets.weights
+		})
+		.from(t.trendingPresets)
+		.orderBy(asc(t.trendingPresets.name));
+}
 
 /** The knobs as they stood for a run, minus the bookkeeping columns. */
 const snapshotOf = (values: TrendingConfigValues): Record<string, unknown> =>

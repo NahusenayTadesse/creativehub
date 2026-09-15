@@ -19,17 +19,60 @@
 		MapPin,
 		Radio,
 		Languages,
-		Flame
+		Flame,
+		Users
 	} from '@lucide/svelte';
 	import CreatorCard from '$lib/components/creator-card.svelte';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import GalleryCarousel from '$lib/components/gallery-carousel.svelte';
 	import DynamicIcon from '$lib/components/dynamic-icon.svelte';
 	import { formatReach } from '$lib/domain/money';
-	import type { TrendingLaneKind } from '$lib/domain/trending';
+	import { TIER_FLOORS, type FollowerTier, type TrendingLaneKind } from '$lib/domain/trending';
 	import * as m from '$lib/paraglide/messages';
+	import PageMeta from '$lib/components/page-meta.svelte';
+	import { page } from '$app/state';
+	import { resolveLogos } from '$lib/brand';
 
 	let { data } = $props();
+
+	/* ---------------- What a search engine and a link preview see ---------------- */
+
+	const logos = $derived(resolveLogos(page.data.settings));
+	const siteName = $derived(page.data.settings?.siteName || 'Creator Network');
+	const absoluteUrl = (path: string) => new URL(path, page.url.origin).href;
+
+	/**
+	 * The site itself, for a search engine: who runs it, and where its creator
+	 * directory can be searched. Built from the operator's settings, so a
+	 * renamed install describes itself by its own name.
+	 */
+	const siteJsonLd = $derived({
+		'@context': 'https://schema.org',
+		'@graph': [
+			{
+				'@type': 'Organization',
+				'@id': absoluteUrl('/#organization'),
+				name: siteName,
+				url: absoluteUrl('/'),
+				logo: absoluteUrl(logos.mark)
+			},
+			{
+				'@type': 'WebSite',
+				'@id': absoluteUrl('/#website'),
+				name: siteName,
+				url: absoluteUrl('/'),
+				publisher: { '@id': absoluteUrl('/#organization') },
+				potentialAction: {
+					'@type': 'SearchAction',
+					target: {
+						'@type': 'EntryPoint',
+						urlTemplate: `${absoluteUrl('/discover')}?q={search_term_string}`
+					},
+					'query-input': 'required name=search_term_string'
+				}
+			}
+		]
+	});
 
 	let query = $state('');
 
@@ -53,11 +96,19 @@
 		region: Map,
 		city: MapPin,
 		platform: Radio,
-		language: Languages
+		language: Languages,
+		tier: Users
 	};
 
 	const strips = $derived([
-		{ key: 'all', kind: null, refId: null, label: m.home_trending_all(), creators: data.trending },
+		{
+			key: 'all',
+			kind: null,
+			refId: null,
+			refKey: null,
+			label: m.home_trending_all(),
+			creators: data.trending
+		},
 		...data.lanes
 	]);
 
@@ -93,6 +144,12 @@
 		/* A city is free text on a profile rather than a reference row, so the
 		   search box is the only filter that can carry one. */
 		if (strip.kind === 'city') return filtered(`q=${encodeURIComponent(strip.label)}`);
+		/* A size band's floor is a filter discovery has; its ceiling is not, so
+		   "see all" for micro-creators starts at ten thousand and sorts from there. */
+		if (strip.kind === 'tier' && strip.refKey && strip.refKey in TIER_FLOORS) {
+			const floor = TIER_FLOORS[strip.refKey as FollowerTier];
+			return floor ? filtered(`minReach=${floor}`) : (discover as ResolvedPathname);
+		}
 
 		const param = laneFilter[strip.kind];
 		return param && strip.refId
@@ -115,10 +172,14 @@
 	]);
 </script>
 
-<svelte:head>
-	<title>{m.home_meta_title()}</title>
-	<meta name="description" content={m.home_meta_description()} />
-</svelte:head>
+<PageMeta
+	title={m.home_meta_title()}
+	description={m.home_meta_description()}
+	path="/"
+	image={logos.mark}
+	wideImage={false}
+	jsonLd={siteJsonLd}
+/>
 
 <!-- Sections sit closer together on a phone: at 16 units the gaps read as the
      page having ended rather than as one section giving way to the next. -->

@@ -41,7 +41,11 @@ import mysql from 'mysql2/promise';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { and, eq } from 'drizzle-orm';
 import * as t from '../src/lib/server/db/schema';
-import { recalcCreatorReach, recalcCreatorScore } from '../src/lib/server/db/creator-score';
+import {
+	recalcCreatorReach,
+	recalcCreatorScore,
+	snapshotCreatorChannels
+} from '../src/lib/server/db/creator-score';
 import { isConfirmedSource } from '../src/lib/domain/stat-source';
 import {
 	AVATAR_COLUMNS,
@@ -385,6 +389,7 @@ async function importToDatabase(result: ImportResult) {
 			   channel carries a confirmed count, the sum of channels is the better
 			   number and the estimate would overwrite it with an older one. */
 			if (confirmedChannel) await recalcCreatorReach(db, creatorId);
+			else await snapshotCreatorChannels(db, creatorId);
 			/* Scored from the database rather than the CSV row, so reviews, measured
 			   response figures and confirmed engagement all count. */
 			await recalcCreatorScore(db, creatorId);
