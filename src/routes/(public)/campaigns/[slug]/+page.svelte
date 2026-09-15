@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AppImage from '$lib/components/app-image.svelte';
+	import PageMeta from '$lib/components/page-meta.svelte';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { superForm } from 'sveltekit-superforms';
@@ -88,10 +89,17 @@
 	);
 </script>
 
-<svelte:head>
-	<title>{m.campaign_meta_title({ title: campaign.title })}</title>
-	<meta name="description" content={campaign.description ?? ''} />
-</svelte:head>
+<!-- An operator can open a brief that is not published; that preview must not
+     be indexed. The organisation's logo is the preview image, being the one
+     picture a brief has. -->
+<PageMeta
+	title={m.campaign_meta_title({ title: campaign.title })}
+	description={campaign.description}
+	path={`/campaigns/${campaign.slug}`}
+	image={campaign.organizationLogo}
+	wideImage={false}
+	noIndex={campaign.status !== 'published'}
+/>
 
 <div class="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
 	<a

@@ -366,6 +366,39 @@ export const socialAccounts = mysqlTable(
 	(t) => [index('social_creator_idx').on(t.creatorId)]
 );
 
+/**
+ * A channel's figures as they stood on a day.
+ *
+ * Written whenever a creator's channels are re-summed — an edit, a platform
+ * refresh, an approved proof — at most one row per channel per day, the last
+ * write of the day winning. Nothing is written on a day nothing changed, so
+ * "followers as of a date" is the latest row on or before it.
+ *
+ * This is what follower growth is measured from; without history the only
+ * question that can be asked of a follower count is how big it is now.
+ */
+export const socialAccountSnapshots = mysqlTable(
+	'social_account_snapshots',
+	{
+		id: id(),
+		socialAccountId: int('social_account_id')
+			.notNull()
+			.references(() => socialAccounts.id, { onDelete: 'cascade' }),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		followers: int('followers').notNull(),
+		engagementRate: double('engagement_rate').default(0).notNull(),
+		followersSource: mysqlEnum('followers_source', statSourceEnum).notNull(),
+		recordedOn: date('recorded_on', { mode: 'string' }).notNull(),
+		createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull()
+	},
+	(t) => [
+		uniqueIndex('snapshot_account_day_idx').on(t.socialAccountId, t.recordedOn),
+		index('snapshot_creator_day_idx').on(t.creatorId, t.recordedOn)
+	]
+);
+
 export const packages = mysqlTable(
 	'packages',
 	{
@@ -456,6 +489,12 @@ export const campaigns = mysqlTable(
 		language: varchar('language', { length: 80 }).default('Amharic & English').notNull(),
 		tags: json('tags').$type<string[]>().default([]).notNull(),
 		status: mysqlEnum('status', campaignStatusEnum).default('draft').notNull(),
+		/**
+		 * When the creators this brief fits were told about it. Set once, on the
+		 * first publish, so re-publishing or editing a live brief never tells
+		 * them twice.
+		 */
+		matchNotifiedAt: timestamp('match_notified_at', { fsp: 3 }),
 		applicationsCount: int('applications_count').default(0).notNull(),
 		...publishable(),
 		...audit()
@@ -1173,7 +1212,34 @@ export const notifications = mysqlTable(
 		...publishable(),
 		...audit()
 	},
-	(t) => [index('notifications_user_idx').on(t.userId)]
+	(t) => [
+		index('notifications_user_idx').on(t.userId),
+		/* The bell asks "how many unread" on every dashboard page. */
+		index('notifications_unread_idx').on(t.userId, t.readAt)
+	]
+);
+
+/**
+ * How far each person has read a deal's conversation.
+ *
+ * Per reader rather than per message: `messages.read_at` is one column, and a
+ * thread has two sides and sometimes an operator — "read" by whom is exactly
+ * the question it cannot answer. A message is unread for someone when it was
+ * sent by somebody else after their `last_read_at`.
+ */
+export const bookingReads = mysqlTable(
+	'booking_reads',
+	{
+		id: id(),
+		userId: userRef('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		bookingId: int('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		lastReadAt: timestamp('last_read_at', { fsp: 3 }).notNull()
+	},
+	(t) => [uniqueIndex('booking_read_user_booking_idx').on(t.userId, t.bookingId)]
 );
 
 /**
@@ -1195,6 +1261,10 @@ export const userSettings = mysqlTable('user_settings', {
 
 	messagesEmail: boolean('messages_email').default(true).notNull(),
 	messagesApp: boolean('messages_app').default(true).notNull(),
+
+	/** A newly published campaign that fits the creator — see `campaign-matches.ts`. */
+	opportunitiesEmail: boolean('opportunities_email').default(true).notNull(),
+	opportunitiesApp: boolean('opportunities_app').default(true).notNull(),
 
 	/**
 	 * Verification, claims, and the state of the account itself. Security mail a
@@ -1402,7 +1472,12 @@ export const trendingModeEnum = ['manual', 'automatic', 'hybrid'] as const;
  * score. `minmax` keeps the true distances between candidates, which is what
  * you want when the pool is small and the gaps are real.
  */
-export const trendingNormalizationEnum = ['percentile', 'minmax'] as const;
+export const trendingNormalizationEnum = ['percentile', 'minmax', 'log'] as const;
+
+/** Which channels count as a creator's reach — see `measureAudience`. */
+export const trendingReachModeEnum = ['total', 'primary', 'largest'] as const;
+/** How several channels' engagement rates become one figure. */
+export const trendingEngagementModeEnum = ['average', 'weighted', 'best'] as const;
 
 /**
  * What a reader's own location does to the order they are shown.
@@ -1436,7 +1511,8 @@ export const trendingLaneKindEnum = [
 	'region',
 	'city',
 	'platform',
-	'language'
+	'language',
+	'tier'
 ] as const;
 
 export const trendingOverrideKindEnum = ['pin', 'boost', 'block'] as const;
@@ -1460,6 +1536,8 @@ export type TrendingBreakdown = {
 	multiplier: number;
 	/** Score before the multiplier, so a boost is visible rather than baked in. */
 	baseScore: number;
+	/** Points added for already holding a slot. Absent on boards built before it existed. */
+	bonus?: number;
 };
 
 export const trendingConfig = mysqlTable('trending_config', {
@@ -1491,6 +1569,29 @@ export const trendingConfig = mysqlTable('trending_config', {
 	weightSaves: int('weight_saves').default(5).notNull(),
 	weightNewcomer: int('weight_newcomer').default(5).notNull(),
 	weightVerification: int('weight_verification').default(10).notNull(),
+	/* Added later, and 0 by default so that adding them changed no board. */
+	weightEngagedAudience: int('weight_engaged_audience').default(0).notNull(),
+	weightGrowth: int('weight_growth').default(0).notNull(),
+	weightConfirmed: int('weight_confirmed').default(0).notNull(),
+	weightMomentum: int('weight_momentum').default(0).notNull(),
+	weightResponsiveness: int('weight_responsiveness').default(0).notNull(),
+	weightReliability: int('weight_reliability').default(0).notNull(),
+
+	/* Audience — how followers and engagement are read before they are ranked. */
+	reachMode: mysqlEnum('reach_mode', trendingReachModeEnum).default('total').notNull(),
+	engagementMode: mysqlEnum('engagement_mode', trendingEngagementModeEnum)
+		.default('average')
+		.notNull(),
+	/** Only these platforms' channels count towards reach and engagement. Empty: all. */
+	audiencePlatformIds: json('audience_platform_ids').$type<number[]>().default([]).notNull(),
+	/** Engagement above this percent is read as this. 0: no cap. */
+	engagementCap: double('engagement_cap').default(0).notNull(),
+	/** Percent taken off reach and engagement nobody has confirmed. */
+	unconfirmedDiscount: int('unconfirmed_discount').default(0).notNull(),
+	/** Growth counts only channels whose figures were confirmed at both ends. */
+	growthConfirmedOnly: boolean('growth_confirmed_only').default(true).notNull(),
+	/** Reviews' worth of platform-average rating mixed into every rating. 0: off. */
+	ratingPriorReviews: int('rating_prior_reviews').default(0).notNull(),
 
 	/* Eligibility — applied before ranking, so a weight can never promote a
 	   creator the platform is not willing to put on its homepage. */
@@ -1504,10 +1605,49 @@ export const trendingConfig = mysqlTable('trending_config', {
 	requireChannel: boolean('require_channel').default(true).notNull(),
 	/** Demands at least one booking, application, review or save in the window. */
 	requireActivity: boolean('require_activity').default(false).notNull(),
+	/* 0 switches each of these off. */
+	maxFollowers: int('max_followers').default(0).notNull(),
+	/** Size bands allowed on the board. Empty: every band. */
+	followerTiers: json('follower_tiers').$type<string[]>().default([]).notNull(),
+	/** At least one counted channel must be this big. */
+	minChannelFollowers: int('min_channel_followers').default(0).notNull(),
+	minEngagementRate: double('min_engagement_rate').default(0).notNull(),
+	/** Above this, an engagement rate is implausible rather than impressive. */
+	maxEngagementRate: double('max_engagement_rate').default(0).notNull(),
+	/** A live channel on one of these platforms is required. Empty: none required. */
+	requirePlatformIds: json('require_platform_ids').$type<number[]>().default([]).notNull(),
+	requireConfirmedStats: boolean('require_confirmed_stats').default(false).notNull(),
+	/** Figures older than this many days disqualify. */
+	maxStatsAgeDays: int('max_stats_age_days').default(0).notNull(),
+	/** Only profiles someone has claimed — a board of people who can answer. */
+	requireClaimed: boolean('require_claimed').default(false).notNull(),
+	minCompletedBookings: int('min_completed_bookings').default(0).notNull(),
+	/** Applies to measured creators; one with no measurement yet is not held back. */
+	minResponseRate: int('min_response_rate').default(0).notNull(),
+	minProfileAgeDays: int('min_profile_age_days').default(0).notNull(),
+	maxProfileAgeDays: int('max_profile_age_days').default(0).notNull(),
+	/** Only creators in one of these categories. Empty: every category. */
+	includeCategoryIds: json('include_category_ids').$type<number[]>().default([]).notNull(),
+	/** Never a creator in any of these categories. */
+	excludeCategoryIds: json('exclude_category_ids').$type<number[]>().default([]).notNull(),
 
 	/* Diversity caps. 0 means no cap. */
 	maxPerCategory: int('max_per_category').default(0).notNull(),
 	maxPerCountry: int('max_per_country').default(0).notNull(),
+	maxPerCity: int('max_per_city').default(0).notNull(),
+	/** Per follower tier, read from the audience the board counts. */
+	maxPerTier: int('max_per_tier').default(0).notNull(),
+	/** Per primary platform. */
+	maxPerPlatform: int('max_per_platform').default(0).notNull(),
+
+	/* Stability and discovery. */
+	/** Points added to a creator already on the board, so near-ties do not swap every run. */
+	incumbentBonus: int('incumbent_bonus').default(0).notNull(),
+	/** At most this many creators new to the board per run. 0: no limit. */
+	maxNewPerRun: int('max_new_per_run').default(0).notNull(),
+	/** Slots held for creators whose profile is younger than `newcomerMaxAgeDays`. */
+	newcomerSlots: int('newcomer_slots').default(0).notNull(),
+	newcomerMaxAgeDays: int('newcomer_max_age_days').default(30).notNull(),
 
 	/* Rotation. Without it the same handful of accounts hold every slot for as
 	   long as their numbers stay good, and new supply is never discovered. */
@@ -1548,6 +1688,7 @@ export const trendingConfig = mysqlTable('trending_config', {
 	maxCityLanes: int('max_city_lanes').default(0).notNull(),
 	maxPlatformLanes: int('max_platform_lanes').default(3).notNull(),
 	maxLanguageLanes: int('max_language_lanes').default(0).notNull(),
+	maxTierLanes: int('max_tier_lanes').default(0).notNull(),
 	/**
 	 * Whether a reader's own market's lanes are moved to the front.
 	 *
@@ -1579,6 +1720,8 @@ export const trendingOverrides = mysqlTable(
 		multiplier: double('multiplier').default(1).notNull(),
 		/** Why — this is the sentence that justifies a hand-placed homepage slot. */
 		note: varchar('note', { length: 300 }),
+		/** Runs before this ignore it — a pin booked for a campaign launch. Null: now. */
+		startsAt: timestamp('starts_at', { fsp: 3 }),
 		/** Runs after this stop applying it. Null means it stands until removed. */
 		expiresAt: timestamp('expires_at', { fsp: 3 }),
 		...audit()
@@ -1610,6 +1753,25 @@ export const trendingEntries = mysqlTable(
 		uniqueIndex('trending_entry_creator_idx').on(t.creatorId),
 		index('trending_rank_idx').on(t.rank)
 	]
+);
+
+/**
+ * Weight sets an operator saved by name, beside the built-in presets.
+ *
+ * Weights only, like the built-ins: applying a preset should move the sliders
+ * and nothing else. Restoring every setting at once is what loading a past
+ * run is for.
+ */
+export const trendingPresets = mysqlTable(
+	'trending_presets',
+	{
+		id: id(),
+		name: varchar('name', { length: 80 }).notNull(),
+		description: varchar('description', { length: 200 }),
+		weights: json('weights').$type<Record<string, number>>().notNull(),
+		...audit()
+	},
+	(t) => [uniqueIndex('trending_preset_name_idx').on(t.name)]
 );
 
 export const trendingCooldowns = mysqlTable(

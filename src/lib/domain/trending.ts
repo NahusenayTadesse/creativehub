@@ -14,11 +14,17 @@ export const TRENDING_SIGNALS = [
 	'score',
 	'reach',
 	'engagement',
+	'engagedAudience',
+	'growth',
+	'confirmed',
 	'bookings',
 	'applications',
 	'reviews',
 	'rating',
 	'saves',
+	'momentum',
+	'responsiveness',
+	'reliability',
 	'newcomer',
 	'verification'
 ] as const;
@@ -30,11 +36,17 @@ export const WEIGHT_COLUMN = {
 	score: 'weightScore',
 	reach: 'weightReach',
 	engagement: 'weightEngagement',
+	engagedAudience: 'weightEngagedAudience',
+	growth: 'weightGrowth',
+	confirmed: 'weightConfirmed',
 	bookings: 'weightBookings',
 	applications: 'weightApplications',
 	reviews: 'weightReviews',
 	rating: 'weightRating',
 	saves: 'weightSaves',
+	momentum: 'weightMomentum',
+	responsiveness: 'weightResponsiveness',
+	reliability: 'weightReliability',
 	newcomer: 'weightNewcomer',
 	verification: 'weightVerification'
 } as const satisfies Record<TrendingSignal, string>;
@@ -53,6 +65,13 @@ export const trendingSignalMeta = () =>
 		{ key: 'score', label: m.at_signal_score(), help: m.at_signal_score_help() },
 		{ key: 'reach', label: m.at_signal_reach(), help: m.at_signal_reach_help() },
 		{ key: 'engagement', label: m.at_signal_engagement(), help: m.at_signal_engagement_help() },
+		{
+			key: 'engagedAudience',
+			label: m.at_signal_engaged_audience(),
+			help: m.at_signal_engaged_audience_help()
+		},
+		{ key: 'growth', label: m.at_signal_growth(), help: m.at_signal_growth_help() },
+		{ key: 'confirmed', label: m.at_signal_confirmed(), help: m.at_signal_confirmed_help() },
 		{ key: 'bookings', label: m.at_signal_bookings(), help: m.at_signal_bookings_help() },
 		{
 			key: 'applications',
@@ -62,6 +81,17 @@ export const trendingSignalMeta = () =>
 		{ key: 'reviews', label: m.at_signal_reviews(), help: m.at_signal_reviews_help() },
 		{ key: 'rating', label: m.at_signal_rating(), help: m.at_signal_rating_help() },
 		{ key: 'saves', label: m.at_signal_saves(), help: m.at_signal_saves_help() },
+		{ key: 'momentum', label: m.at_signal_momentum(), help: m.at_signal_momentum_help() },
+		{
+			key: 'responsiveness',
+			label: m.at_signal_responsiveness(),
+			help: m.at_signal_responsiveness_help()
+		},
+		{
+			key: 'reliability',
+			label: m.at_signal_reliability(),
+			help: m.at_signal_reliability_help()
+		},
 		{ key: 'newcomer', label: m.at_signal_newcomer(), help: m.at_signal_newcomer_help() },
 		{
 			key: 'verification',
@@ -70,14 +100,30 @@ export const trendingSignalMeta = () =>
 		}
 	] as const satisfies ReadonlyArray<{ key: TrendingSignal; label: string; help: string }>;
 
-/** Preset weightings an operator can drop in instead of moving ten sliders. */
+/**
+ * The groups the signal sliders are shown in, so sixteen of them read as four
+ * questions — how big, how trusted, how in demand, how dependable — rather than
+ * as one undifferentiated column.
+ */
+export const TRENDING_SIGNAL_GROUPS = [
+	{ key: 'audience', signals: ['reach', 'engagement', 'engagedAudience', 'growth', 'confirmed'] },
+	{ key: 'demand', signals: ['bookings', 'applications', 'saves', 'momentum'] },
+	{ key: 'quality', signals: ['score', 'reviews', 'rating', 'responsiveness', 'reliability'] },
+	{ key: 'profile', signals: ['newcomer', 'verification'] }
+] as const satisfies ReadonlyArray<{ key: string; signals: readonly TrendingSignal[] }>;
+
+/** A full weight set with every signal named, so a preset can never leave one stale. */
+const weights = (set: Partial<TrendingWeights>): TrendingWeights =>
+	Object.fromEntries(TRENDING_SIGNALS.map((key) => [key, set[key] ?? 0])) as TrendingWeights;
+
+/** Preset weightings an operator can drop in instead of moving sixteen sliders. */
 export const trendingPresets = () =>
 	[
 		{
 			key: 'balanced',
 			label: m.at_preset_balanced(),
 			description: m.at_preset_balanced_help(),
-			weights: {
+			weights: weights({
 				score: 20,
 				reach: 10,
 				engagement: 15,
@@ -88,79 +134,92 @@ export const trendingPresets = () =>
 				saves: 5,
 				newcomer: 5,
 				verification: 10
-			}
+			})
 		},
 		{
 			key: 'momentum',
 			label: m.at_preset_momentum(),
 			description: m.at_preset_momentum_help(),
-			weights: {
+			weights: weights({
 				score: 5,
-				reach: 0,
-				engagement: 15,
-				bookings: 25,
-				applications: 15,
+				engagement: 10,
+				bookings: 20,
+				applications: 10,
 				reviews: 10,
 				rating: 5,
-				saves: 20,
-				newcomer: 5,
-				verification: 0
-			}
+				saves: 15,
+				momentum: 20,
+				newcomer: 5
+			})
 		},
 		{
 			key: 'audience',
 			label: m.at_preset_audience(),
 			description: m.at_preset_audience_help(),
-			weights: {
-				score: 10,
-				reach: 35,
-				engagement: 30,
-				bookings: 5,
-				applications: 0,
-				reviews: 0,
+			weights: weights({
+				score: 5,
+				reach: 25,
+				engagement: 20,
+				engagedAudience: 25,
+				confirmed: 10,
 				rating: 5,
 				saves: 5,
-				newcomer: 0,
-				verification: 10
-			}
+				verification: 5
+			})
+		},
+		{
+			key: 'rising',
+			label: m.at_preset_rising(),
+			description: m.at_preset_rising_help(),
+			weights: weights({
+				engagement: 15,
+				engagedAudience: 10,
+				growth: 30,
+				confirmed: 5,
+				saves: 10,
+				momentum: 20,
+				newcomer: 10
+			})
 		},
 		{
 			key: 'quality',
 			label: m.at_preset_quality(),
 			description: m.at_preset_quality_help(),
-			weights: {
-				score: 25,
-				reach: 0,
+			weights: weights({
+				score: 15,
 				engagement: 5,
-				bookings: 15,
-				applications: 0,
-				reviews: 15,
-				rating: 25,
-				saves: 0,
-				newcomer: 0,
-				verification: 15
-			}
+				confirmed: 10,
+				bookings: 10,
+				reviews: 10,
+				rating: 20,
+				responsiveness: 10,
+				reliability: 10,
+				verification: 10
+			})
 		},
 		{
 			key: 'discovery',
 			label: m.at_preset_discovery(),
 			description: m.at_preset_discovery_help(),
-			weights: {
+			weights: weights({
 				score: 10,
-				reach: 0,
 				engagement: 20,
 				bookings: 5,
 				applications: 15,
 				reviews: 5,
 				rating: 5,
 				saves: 10,
-				newcomer: 30,
-				verification: 0
-			}
+				newcomer: 30
+			})
 		}
 	] as const;
 
-export type TrendingNormalization = 'percentile' | 'minmax';
+/**
+ * `log` compresses before it compares: min–max over log₁₀(1 + value). It keeps
+ * real distances, as `minmax` does, without letting one account with ten
+ * million followers push everyone else's reach to zero.
+ */
+export type TrendingNormalization = 'percentile' | 'minmax' | 'log';
 
 /* ------------------------------------------------------------------ *
  * Location
@@ -284,6 +343,15 @@ export function normalizeValues(values: number[], method: TrendingNormalization)
 	if (n === 0) return [];
 	if (n === 1) return [values[0] > 0 ? 1 : 0];
 
+	if (method === 'log') {
+		/* Sign-aware, because growth can be negative: -50% and +50% should sit
+		   either side of zero, not both collapse onto the log of a positive. */
+		return normalizeValues(
+			values.map((v) => Math.sign(v) * Math.log10(1 + Math.abs(v))),
+			'minmax'
+		);
+	}
+
 	const min = Math.min(...values);
 	const max = Math.max(...values);
 	if (min === max) return values.map(() => (max === 0 ? 0 : 0.5));
@@ -306,6 +374,218 @@ export function normalizeValues(values: number[], method: TrendingNormalization)
 		i = j + 1;
 	}
 	return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * Audience
+ *
+ * Followers and engagement, measured the way the operator asked for them. The
+ * raw figures sit on `social_accounts`, one row per channel; everything here
+ * is about which channels count and how they are added up.
+ * ------------------------------------------------------------------ */
+
+/**
+ * The size bands brands buy by. Floors, not ranges: a creator is in the highest
+ * tier whose floor their reach clears.
+ */
+export const FOLLOWER_TIERS = ['nano', 'micro', 'mid', 'macro', 'mega'] as const;
+export type FollowerTier = (typeof FOLLOWER_TIERS)[number];
+
+export const TIER_FLOORS: Record<FollowerTier, number> = {
+	nano: 0,
+	micro: 10_000,
+	mid: 100_000,
+	macro: 500_000,
+	mega: 1_000_000
+};
+
+export function followerTier(followers: number): FollowerTier {
+	let tier: FollowerTier = 'nano';
+	for (const key of FOLLOWER_TIERS) if (followers >= TIER_FLOORS[key]) tier = key;
+	return tier;
+}
+
+export const followerTierMeta = () =>
+	[
+		{ key: 'nano', label: m.at_tier_nano(), range: m.at_tier_nano_range() },
+		{ key: 'micro', label: m.at_tier_micro(), range: m.at_tier_micro_range() },
+		{ key: 'mid', label: m.at_tier_mid(), range: m.at_tier_mid_range() },
+		{ key: 'macro', label: m.at_tier_macro(), range: m.at_tier_macro_range() },
+		{ key: 'mega', label: m.at_tier_mega(), range: m.at_tier_mega_range() }
+	] as const satisfies ReadonlyArray<{ key: FollowerTier; label: string; range: string }>;
+
+export const tierLabel = (tier: string) =>
+	followerTierMeta().find((meta) => meta.key === tier)?.label ?? tier;
+
+/** Which channels make up "reach". */
+export type ReachMode = 'total' | 'primary' | 'largest';
+/** How several channels' engagement rates become one. */
+export type EngagementMode = 'average' | 'weighted' | 'best';
+
+export type ChannelFigures = {
+	platformId: number;
+	followers: number;
+	/** Percent. 0 means none on file. */
+	engagementRate: number;
+	followersSource: string;
+	engagementSource: string;
+	followersUpdatedAt: Date | null;
+};
+
+export type AudienceOptions = {
+	reachMode: ReachMode;
+	engagementMode: EngagementMode;
+	/** Only these platforms' channels count. Empty means every platform. */
+	platformIds: readonly number[];
+	/** Rates above this percent are read as this. 0 means no cap. */
+	engagementCap: number;
+	/** Percent taken off a figure nobody has confirmed. 0 leaves them alone. */
+	unconfirmedDiscount: number;
+	primaryPlatformId: number | null;
+};
+
+export type Audience = {
+	/** Followers across the channels that count, as stated. */
+	reach: number;
+	/** The same, with unconfirmed figures discounted — what the reach signal ranks on. */
+	scoredReach: number;
+	/** Combined engagement as stated, before the cap or the discount. What the floors read. */
+	engagement: number;
+	/** Combined engagement after the cap and the discount — what the signal ranks on. */
+	scoredEngagement: number;
+	/** Followers × engagement, summed per channel: the people a post actually reaches. */
+	engagedAudience: number;
+	/** Share of counted followers whose figure is confirmed, 0–1. */
+	confirmedShare: number;
+	/** The biggest single channel among those that count. */
+	largestChannel: number;
+	/** The most recently set follower figure among the counted channels. */
+	freshestUpdate: Date | null;
+	/** How many channels counted. */
+	channelCount: number;
+};
+
+const confirmedSource = (source: string) => source === 'platform' || source === 'proof';
+
+/**
+ * Followers and engagement for one creator, under the operator's rules.
+ *
+ * The channels the reach mode selects are the channels engagement is read
+ * from too: a board that ranks on the primary platform's audience should rank
+ * on that platform's engagement, not on an average dragged about by channels
+ * it has just said do not count.
+ */
+export function measureAudience(channels: ChannelFigures[], options: AudienceOptions): Audience {
+	const allowed = options.platformIds.length ? new Set(options.platformIds) : null;
+	const counted = allowed ? channels.filter((c) => allowed.has(c.platformId)) : channels;
+
+	const byFollowers = [...counted].sort((a, b) => b.followers - a.followers);
+	let selected = counted;
+	if (options.reachMode === 'largest') {
+		selected = byFollowers.slice(0, 1);
+	} else if (options.reachMode === 'primary') {
+		const primary = counted.filter((c) => c.platformId === options.primaryPlatformId);
+		/* A creator whose primary platform is filtered out, or who never set one,
+		   is read on their biggest channel rather than as having no audience. */
+		selected = primary.length ? primary : byFollowers.slice(0, 1);
+	}
+
+	const discount = Math.min(100, Math.max(0, options.unconfirmedDiscount)) / 100;
+	const trust = (source: string) => (confirmedSource(source) ? 1 : 1 - discount);
+	const cap = options.engagementCap > 0 ? options.engagementCap : Infinity;
+
+	const reach = selected.reduce((sum, c) => sum + c.followers, 0);
+	const scoredReach = selected.reduce((sum, c) => sum + c.followers * trust(c.followersSource), 0);
+	const confirmedFollowers = selected
+		.filter((c) => confirmedSource(c.followersSource))
+		.reduce((sum, c) => sum + c.followers, 0);
+
+	const rated = selected.filter((c) => c.engagementRate > 0);
+	const combine = (rate: (c: ChannelFigures) => number) => {
+		if (!rated.length) return 0;
+		if (options.engagementMode === 'best') return Math.max(...rated.map(rate));
+		if (options.engagementMode === 'weighted') {
+			const followers = rated.reduce((sum, c) => sum + c.followers, 0);
+			if (followers > 0)
+				return rated.reduce((sum, c) => sum + rate(c) * c.followers, 0) / followers;
+		}
+		return rated.reduce((sum, c) => sum + rate(c), 0) / rated.length;
+	};
+
+	const scoredRate = (c: ChannelFigures) =>
+		Math.min(c.engagementRate, cap) * trust(c.engagementSource);
+
+	const freshest = selected.reduce<Date | null>(
+		(latest, c) =>
+			c.followersUpdatedAt && (!latest || c.followersUpdatedAt > latest)
+				? c.followersUpdatedAt
+				: latest,
+		null
+	);
+
+	return {
+		reach,
+		scoredReach: round(scoredReach, 2),
+		engagement: round(
+			combine((c) => c.engagementRate),
+			4
+		),
+		scoredEngagement: round(combine(scoredRate), 4),
+		engagedAudience: round(
+			rated.reduce(
+				(sum, c) => sum + c.followers * trust(c.followersSource) * (scoredRate(c) / 100),
+				0
+			),
+			2
+		),
+		confirmedShare: reach > 0 ? round(confirmedFollowers / reach, 4) : 0,
+		largestChannel: byFollowers[0]?.followers ?? 0,
+		freshestUpdate: freshest,
+		channelCount: selected.length
+	};
+}
+
+/**
+ * Follower growth over the window, in percent.
+ *
+ * Nothing to compare against is 0 rather than a guess, and the result is held
+ * inside -100…+1000: a channel that went from 10 followers to 9,000 is not
+ * ninety thousand percent more interesting than one that doubled, and an
+ * unbounded figure would flatten every other creator under min–max.
+ */
+export function growthPercent(now: number, baseline: number): number {
+	if (!(baseline > 0)) return 0;
+	return round(Math.min(1000, Math.max(-100, ((now - baseline) / baseline) * 100)), 2);
+}
+
+/**
+ * Demand this window against the window before it.
+ *
+ * A ratio with one added to each side, so a creator going from nothing to five
+ * bookings reads as strong momentum without dividing by zero, and one with no
+ * activity in either window reads as flat (1) rather than as falling.
+ */
+export function momentumValue(current: number, previous: number): number {
+	return round((Math.max(0, current) + 1) / (Math.max(0, previous) + 1), 4);
+}
+
+/**
+ * A rating pulled towards the platform average until there are enough reviews
+ * to stand on its own.
+ *
+ * With `priorReviews` at 5, one five-star review counts as one voice against
+ * five average ones. A creator with no reviews scores 0 rather than the
+ * average: no evidence is not the same as average evidence.
+ */
+export function smoothedRating(
+	average: number,
+	reviews: number,
+	priorMean: number,
+	priorReviews: number
+): number {
+	if (reviews <= 0) return 0;
+	if (priorReviews <= 0) return average;
+	return round((average * reviews + priorMean * priorReviews) / (reviews + priorReviews), 4);
 }
 
 export type ScoredCandidate = {
@@ -425,7 +705,8 @@ export const TRENDING_LANE_KINDS = [
 	'region',
 	'city',
 	'platform',
-	'language'
+	'language',
+	'tier'
 ] as const;
 
 export type TrendingLaneKind = (typeof TRENDING_LANE_KINDS)[number];
@@ -437,7 +718,8 @@ export const LANE_LIMIT_COLUMN = {
 	region: 'maxRegionLanes',
 	city: 'maxCityLanes',
 	platform: 'maxPlatformLanes',
-	language: 'maxLanguageLanes'
+	language: 'maxLanguageLanes',
+	tier: 'maxTierLanes'
 } as const satisfies Record<TrendingLaneKind, string>;
 
 export const trendingLaneKindMeta = () =>
@@ -447,7 +729,8 @@ export const trendingLaneKindMeta = () =>
 		{ key: 'region', label: m.at_lane_kind_region() },
 		{ key: 'city', label: m.at_lane_kind_city() },
 		{ key: 'platform', label: m.at_lane_kind_platform() },
-		{ key: 'language', label: m.at_lane_kind_language() }
+		{ key: 'language', label: m.at_lane_kind_language() },
+		{ key: 'tier', label: m.at_lane_kind_tier() }
 	] as const satisfies ReadonlyArray<{ key: TrendingLaneKind; label: string }>;
 
 /**

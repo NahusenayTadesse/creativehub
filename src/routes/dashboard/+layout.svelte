@@ -4,6 +4,7 @@
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import ThemeToggle from '$lib/components/theme-toggle.svelte';
+	import NotificationBell from '$lib/components/notification-bell.svelte';
 	import { LogOut, ExternalLink } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { resolveLogos } from '$lib/brand';
@@ -59,6 +60,7 @@
 						<ExternalLink class="h-3.5 w-3.5" />
 						{m.dash_public_site()}
 					</a>
+					<NotificationBell unread={data.unreadNotifications} items={data.recentNotifications} />
 					<ThemeToggle />
 					<form method="POST" action="/logout">
 						<button

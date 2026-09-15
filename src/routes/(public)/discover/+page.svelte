@@ -3,6 +3,7 @@
 	import type { ParamValue } from '$lib/query';
 	import type { CreatorCard as CreatorCardRow } from '$lib/server/queries';
 	import * as m from '$lib/paraglide/messages';
+	import PageMeta from '$lib/components/page-meta.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
@@ -238,9 +239,12 @@
 	</div>
 {/snippet}
 
-<svelte:head>
-	<title>{m.discover_meta_title()}</title>
-</svelte:head>
+<!-- Canonical on the unfiltered directory, for the reason the blog index gives. -->
+<PageMeta
+	title={m.discover_meta_title()}
+	description={m.discover_meta_description()}
+	path="/discover"
+/>
 
 <div id="discovery-view-container" class="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
 	<!-- Header -->

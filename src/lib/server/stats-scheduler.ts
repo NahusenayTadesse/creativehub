@@ -3,6 +3,7 @@ import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/db';
 import { remeasureStaleCreators } from '$lib/server/db/creator-score';
 import { refreshPlatformStats } from '$lib/server/stats-refresh';
+import { maybeAutoRefresh } from '$lib/server/trending-service';
 
 /**
  * Keeps creator figures current without a job runner.
@@ -18,11 +19,24 @@ import { refreshPlatformStats } from '$lib/server/stats-refresh';
  *    the last day, and rescores them — which is also how a change to the score
  *    formula reaches every existing profile.
  *
+ * Separately, every five minutes, it asks whether the trending board is due
+ * for its automatic recompute.
+ *
  * `STATS_REFRESH=off` turns it off; in development it is off unless
  * `STATS_REFRESH=on`, so `npm run dev` does not spend an API quota on reload.
  */
 
 const HOUR = 60 * 60 * 1000;
+
+/**
+ * How often the trending board is asked whether it is due.
+ *
+ * The board's own interval is the operator's, set on the trending screen, and
+ * can be as short as fifteen minutes; asking every five keeps a run within five
+ * minutes of when it was due. Asking is one indexed read. Before this, only a
+ * visit to the homepage asked — a quiet night meant a stale morning board.
+ */
+const TRENDING_CHECK_MS = 5 * 60 * 1000;
 
 /** Long enough that a deploy's health check and first requests go first. */
 const FIRST_RUN_DELAY_MS = 2 * 60 * 1000;
@@ -48,10 +62,17 @@ export function startStatsScheduler() {
 
 	const first = setTimeout(() => void runStatsRefresh(), FIRST_RUN_DELAY_MS);
 	const every = setInterval(() => void runStatsRefresh(), HOUR);
-	/* Neither may keep the process alive past a SIGTERM. */
+	/* `maybeAutoRefresh` checks the operator's schedule and its own lock, and
+	   logs its own failures, so the timer only has to keep asking. */
+	const trending = setInterval(
+		() => void maybeAutoRefresh().catch((err) => console.error('Trending check failed:', err)),
+		TRENDING_CHECK_MS
+	);
+	/* None may keep the process alive past a SIGTERM. */
 	first.unref?.();
 	every.unref?.();
-	scheduler.timers.push(first, every);
+	trending.unref?.();
+	scheduler.timers.push(first, every, trending);
 }
 
 /** One pass. Never throws: a failed run is a log line, and the next hour tries again. */

@@ -78,6 +78,11 @@ function publicView(creator: NonNullable<Awaited<ReturnType<typeof getCreatorByU
 		onTimeSample: creator.onTimeSample,
 		/* Whether anyone is on the other side of a booking. The badge says so. */
 		isClaimed: creator.isClaimed,
+		/* Only an owner or an operator can reach an unpublished profile; the page
+		   tells search engines not to index what they are previewing. */
+		isPublished: creator.isPublished,
+		/* The profile's last edit, for the structured data's `dateModified`. */
+		updatedAt: creator.updatedAt,
 		country: creator.country && { name: creator.country.name, flag: creator.country.flag },
 		region: creator.region && { name: creator.region.name },
 		platform: creator.platform && { name: creator.platform.name },

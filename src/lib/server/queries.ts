@@ -11,6 +11,7 @@ import {
 	eq,
 	gt,
 	inArray,
+	isNotNull,
 	isNull,
 	like,
 	lte,
@@ -27,7 +28,7 @@ import { user } from '$lib/server/db/auth.schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
 import { defineQuery, escapeLike, type PageResult, type RowOf } from '$lib/server/query';
 import { handleFromEmail, looksLikeSamePerson } from '$lib/domain/claim';
-import { laneKey, positionScore, type TrendingLaneKind } from '$lib/domain/trending';
+import { laneKey, positionScore, tierLabel, type TrendingLaneKind } from '$lib/domain/trending';
 import {
 	getLocalRanker,
 	listPublishedLanes,
@@ -354,6 +355,24 @@ export function listCreators(
 	});
 }
 
+/**
+ * Every published creator somebody has claimed, as cards.
+ *
+ * The audience for "a brief that fits you": an unclaimed profile has nobody to
+ * tell. Not paged, because a match is scored against all of them — which is
+ * fine while claimed supply numbers in the hundreds, and the query to revisit
+ * when it does not.
+ */
+export async function listClaimedCreatorCards() {
+	const rows = await creatorJoins(
+		db
+			.select({ ...creatorCardColumns, userId: t.creators.userId })
+			.from(t.creators)
+			.$dynamic()
+	).where(and(...publishedCreators(), isNotNull(t.creators.userId)));
+	return (await hydrateCreatorCards(rows)) as (CreatorCard & { userId: string })[];
+}
+
 /** How many published creators sit in each market, for the discovery chips. */
 export const creatorFacet = (url: URL, key: string) =>
 	creatorsQuery.facet(url, key, { where: publishedCreators() });
@@ -431,6 +450,8 @@ export type TrendingLane = {
 	kind: TrendingLaneKind;
 	/** The reference row behind the lane, so a chip can link to its filter. */
 	refId: number | null;
+	/** The key of a lane with no reference row — a city, a size band. */
+	refKey: string | null;
 	label: string;
 	creators: CreatorCard[];
 };
@@ -474,7 +495,10 @@ export async function listTrendingLanes(): Promise<TrendingLane[]> {
 				key: laneKey(lane),
 				kind: lane.kind,
 				refId: lane.refId,
-				label: lane.label,
+				refKey: lane.refKey,
+				/* A size band is stored under whatever language the run happened in;
+				   it is re-labelled for this reader from its key. */
+				label: lane.kind === 'tier' && lane.refKey ? tierLabel(lane.refKey) : lane.label,
 				creators: lane.entries
 					.map((entry) => cardOf.get(entry.creatorId))
 					.filter((card): card is CreatorCard => !!card)

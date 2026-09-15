@@ -164,6 +164,17 @@
 			email: 'messagesEmail',
 			app: 'messagesApp'
 		},
+		/* Only creators are ever matched to a brief; the row means nothing to a brand. */
+		...(data.role === 'creator'
+			? [
+					{
+						label: m.set_notify_opportunities(),
+						help: m.set_notify_opportunities_help(),
+						email: 'opportunitiesEmail',
+						app: 'opportunitiesApp'
+					}
+				]
+			: []),
 		{
 			label: m.set_notify_account(),
 			help: m.set_notify_account_help(),

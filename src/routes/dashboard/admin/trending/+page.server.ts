@@ -11,8 +11,11 @@ import {
 	trendingConfigSchema,
 	trendingOverrideSchema,
 	trendingOverrideRemove,
+	trendingPresetRemove,
+	trendingPresetSave,
 	trendingRunSchema
 } from '$lib/schemas';
+import { TRENDING_SIGNALS, WEIGHT_COLUMN } from '$lib/domain/trending';
 import {
 	TRENDING_DEFAULTS,
 	buildBoard,
@@ -23,9 +26,12 @@ import {
 	listTrendingBoard,
 	listTrendingCooldowns,
 	listTrendingOverrides,
+	listTrendingPresets,
 	listTrendingRuns,
 	loadCooldowns,
 	runTrending,
+	withLists,
+	type BoardResult,
 	type TrendingConfigValues
 } from '$lib/server/trending-service';
 
@@ -55,26 +61,41 @@ const listPickableCreators = () =>
 
 export const load: PageServerLoad = async () => {
 	const config = await getTrendingConfigValues();
-	const [form, overrideForm, runForm, board, lanes, overrides, runs, cooldowns, creators] =
-		await Promise.all([
-			superValidate(config, zod4(trendingConfigSchema)),
-			superValidate(zod4(trendingOverrideSchema)),
-			superValidate(zod4(trendingRunSchema)),
-			listTrendingBoard(),
-			/* Published in the run order, not the reader's: this screen is where
+	const [
+		form,
+		overrideForm,
+		runForm,
+		presetForm,
+		board,
+		lanes,
+		overrides,
+		runs,
+		cooldowns,
+		creators,
+		presets
+	] = await Promise.all([
+		superValidate(config, zod4(trendingConfigSchema)),
+		superValidate(zod4(trendingOverrideSchema)),
+		superValidate(zod4(trendingRunSchema)),
+		superValidate(zod4(trendingPresetSave), { id: 'preset' }),
+		listTrendingBoard(),
+		/* Published in the run order, not the reader's: this screen is where
 			   an operator checks what was built, and a board that reordered
 			   itself around whoever opened it could not be checked at all. */
-			listPublishedLanes(),
-			listTrendingOverrides(),
-			listTrendingRuns(),
-			listTrendingCooldowns(),
-			listPickableCreators()
-		]);
+		listPublishedLanes(),
+		listTrendingOverrides(),
+		listTrendingRuns(),
+		listTrendingCooldowns(),
+		listPickableCreators(),
+		listTrendingPresets()
+	]);
 
 	return {
 		form,
 		overrideForm,
 		runForm,
+		presetForm,
+		presets,
 		config,
 		board,
 		lanes,
@@ -88,15 +109,21 @@ export const load: PageServerLoad = async () => {
 
 /** The submitted knobs, complete enough for the ranking to run on. */
 const valuesOf = (data: Record<string, unknown>): TrendingConfigValues =>
-	({ ...TRENDING_DEFAULTS, ...data }) as TrendingConfigValues;
+	withLists({ ...TRENDING_DEFAULTS, ...data } as TrendingConfigValues);
+
+type RankedRow = BoardResult['ranked'][number];
 
 /** A ranked row, trimmed to what the table renders. */
 export type PreviewRow = ReturnType<typeof toPreviewRow>;
 
-function toPreviewRow(entry: Awaited<ReturnType<typeof buildBoard>>['ranked'][number]) {
+function toPreviewRow(entry: RankedRow, liveRank: Map<number, number>) {
 	return {
 		creatorId: entry.creatorId,
 		rank: entry.rank,
+		/** Where they sit on the live board, or null when they are not on it. */
+		previousRank: liveRank.get(entry.creatorId) ?? null,
+		benchReason: entry.rank === null ? entry.benchReason : null,
+		reserved: entry.rank !== null && !!entry.reserved,
 		username: entry.candidate.username,
 		fullName: entry.candidate.fullName,
 		avatar: entry.candidate.avatar,
@@ -104,24 +131,114 @@ function toPreviewRow(entry: Awaited<ReturnType<typeof buildBoard>>['ranked'][nu
 		city: entry.candidate.city,
 		verificationLevel: entry.candidate.verificationLevel,
 		followers: entry.candidate.followers,
+		tier: entry.candidate.tier,
+		engagement: entry.candidate.audience.engagement,
 		source: entry.source,
 		score: entry.score,
 		baseScore: entry.baseScore,
 		multiplier: entry.multiplier,
+		bonus: entry.bonus,
 		note: entry.note,
 		components: entry.scored?.components ?? [],
 		values: entry.candidate.values
 	};
 }
 
+/**
+ * What happened to one creator under these settings — the answer to "why is
+ * this person here, or not?".
+ *
+ * Every candidate gets one, excluded ones included: the creator an operator is
+ * asking about is as often the one who is missing as the one who is there.
+ */
+export type PreviewOutcome = {
+	creatorId: number;
+	fullName: string;
+	username: string;
+	status: 'board' | 'bench' | 'excluded';
+	rank: number | null;
+	previousRank: number | null;
+	/** The bench reason, or the eligibility rule that excluded them. */
+	reason: string | null;
+	score: number;
+	baseScore: number;
+	multiplier: number;
+	bonus: number;
+	reserved: boolean;
+	followers: number;
+	tier: string;
+	engagement: number;
+	confirmedShare: number;
+	channelCount: number;
+	ageDays: number;
+	components: PreviewRow['components'];
+	values: PreviewRow['values'];
+};
+
+function outcomesOf(board: BoardResult, liveRank: Map<number, number>): PreviewOutcome[] {
+	const common = (candidate: RankedRow['candidate']) => ({
+		creatorId: candidate.creatorId,
+		fullName: candidate.fullName,
+		username: candidate.username,
+		previousRank: liveRank.get(candidate.creatorId) ?? null,
+		followers: candidate.followers,
+		tier: candidate.tier,
+		engagement: candidate.audience.engagement,
+		confirmedShare: candidate.audience.confirmedShare,
+		/* The channels the audience settings counted, not every channel on file. */
+		channelCount: candidate.audience.channelCount,
+		ageDays: candidate.ageDays,
+		values: candidate.values
+	});
+
+	const ranked: PreviewOutcome[] = board.ranked.map((row) => ({
+		...common(row.candidate),
+		status: row.rank === null ? 'bench' : 'board',
+		rank: row.rank,
+		reason: row.rank === null ? row.benchReason : null,
+		score: row.score,
+		baseScore: row.baseScore,
+		multiplier: row.multiplier,
+		bonus: row.bonus,
+		reserved: row.rank !== null && !!row.reserved,
+		components: row.scored?.components ?? []
+	}));
+
+	const excluded: PreviewOutcome[] = board.excluded.map(({ candidate, reason }) => ({
+		...common(candidate),
+		status: 'excluded',
+		rank: null,
+		reason,
+		score: 0,
+		baseScore: 0,
+		multiplier: 1,
+		bonus: 0,
+		reserved: false,
+		components: []
+	}));
+
+	return [...ranked, ...excluded].sort((a, b) => a.fullName.localeCompare(b.fullName));
+}
+
 /** What `?/preview` hands back — a dry run, written nowhere. */
 export type TrendingPreview = {
-	stats: Awaited<ReturnType<typeof buildBoard>>['stats'];
+	stats: BoardResult['stats'];
 	rows: PreviewRow[];
+	/** Every candidate's outcome, for the "why" lookup. */
+	outcomes: PreviewOutcome[];
+	/** The lowest score that held an algorithm slot — the bar a benched creator missed. */
+	cutoffScore: number | null;
 	/** The lanes these settings would publish, in the order they would sit in. */
 	lanes: { kind: string; label: string; size: number }[];
 	entering: string[];
 	leaving: string[];
+};
+
+/** A date field as the start of that day; blank is "no start". */
+const parseStart = (value: string): Date | null => {
+	if (!value) return null;
+	const parsed = new Date(`${value}T00:00:00`);
+	return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
 /** Blank means "no expiry"; a date means the end of that day. */
@@ -161,7 +278,12 @@ export const actions: Actions = {
 			action: 'updated',
 			fromState: existing.mode,
 			toState: values.mode,
-			reason: `slots ${values.slots}, window ${values.windowDays}d, half-life ${values.halfLifeDays}d`
+			reason:
+				`slots ${values.slots}, window ${values.windowDays}d, half-life ${values.halfLifeDays}d, ` +
+				`reach ${values.reachMode}, engagement ${values.engagementMode}; weights ` +
+				TRENDING_SIGNALS.filter((key) => Number(values[WEIGHT_COLUMN[key]]) > 0)
+					.map((key) => `${key} ${values[WEIGHT_COLUMN[key]]}`)
+					.join(', ')
 		});
 
 		if (values.isFrozen) {
@@ -193,13 +315,25 @@ export const actions: Actions = {
 		const [overrides, resting, current] = await Promise.all([
 			db.select().from(t.trendingOverrides).where(isNull(t.trendingOverrides.deletedAt)),
 			loadCooldowns(now),
-			db.select({ creatorId: t.trendingEntries.creatorId }).from(t.trendingEntries)
+			db
+				.select({ creatorId: t.trendingEntries.creatorId, rank: t.trendingEntries.rank })
+				.from(t.trendingEntries)
 		]);
 
 		const values = valuesOf(form.data);
-		const board = await buildBoard({ config: values, overrides, now, restingIds: resting });
+		const board = await buildBoard({
+			config: values,
+			overrides,
+			now,
+			restingIds: resting,
+			incumbentIds: new Set(current.map((row) => row.creatorId))
+		});
 
 		const liveIds = new Set(current.map((row) => row.creatorId));
+		const liveRank = new Map(current.map((row) => [row.creatorId, row.rank]));
+		const algorithmScores = board.entries
+			.filter((entry) => entry.source === 'algorithm' && !entry.reserved)
+			.map((entry) => entry.score);
 		const nextIds = new Set(board.entries.map((entry) => entry.creatorId));
 		const leavingIds = current.map((row) => row.creatorId).filter((id) => !nextIds.has(id));
 		/* Named, not numbered: a creator dropping off the homepage is the part of
@@ -218,7 +352,9 @@ export const actions: Actions = {
 				stats: board.stats,
 				/* The bench is worth showing: "who just missed out" is the question an
 				   operator asks straight after "who made it". */
-				rows: board.ranked.slice(0, 40).map(toPreviewRow),
+				rows: board.ranked.slice(0, 40).map((row) => toPreviewRow(row, liveRank)),
+				outcomes: outcomesOf(board, liveRank),
+				cutoffScore: algorithmScores.length ? Math.min(...algorithmScores) : null,
 				/* Cut from the same board object the table above renders, so the
 				   lanes shown are the lanes those rows would produce. */
 				lanes: laneBoardOf(values, board).map((lane) => ({
@@ -230,7 +366,7 @@ export const actions: Actions = {
 					.filter((entry) => !liveIds.has(entry.creatorId))
 					.map((entry) => entry.candidate.fullName),
 				leaving: leaving.map((row) => row.fullName)
-			}
+			} satisfies TrendingPreview
 		};
 	},
 
@@ -307,8 +443,13 @@ export const actions: Actions = {
 			position: form.data.kind === 'pin' ? form.data.position : 0,
 			multiplier: form.data.kind === 'boost' ? form.data.multiplier : 1,
 			note: form.data.note || null,
+			startsAt: parseStart(form.data.startsAt),
 			expiresAt: parseExpiry(form.data.expiresAt)
 		};
+
+		if (values.startsAt && values.expiresAt && values.expiresAt <= values.startsAt) {
+			return message(form, { type: 'error', text: m.at_error_override_dates() }, { status: 400 });
+		}
 
 		await db
 			.insert(t.trendingOverrides)
@@ -347,6 +488,63 @@ export const actions: Actions = {
 		});
 
 		return { removed: true };
+	},
+
+	/* Keep the sliders as they stand under a name, beside the built-in presets. */
+	savePreset: async (event) => {
+		const user = requireRole(event, 'admin');
+		const form = await superValidate(event.request, zod4(trendingPresetSave), { id: 'preset' });
+		if (!form.valid) {
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
+		}
+
+		const weights = Object.fromEntries(
+			TRENDING_SIGNALS.map((key) => [key, Number(form.data[WEIGHT_COLUMN[key]] ?? 0)])
+		);
+		if (!Object.values(weights).some((weight) => weight > 0)) {
+			return message(form, { type: 'error', text: m.at_error_preset_empty() }, { status: 400 });
+		}
+
+		const values = {
+			name: form.data.name,
+			description: form.data.description || null,
+			weights
+		};
+		/* Saving under a name that exists replaces it: keeping a preset up to date
+		   is the common case, and a duplicate-name error would only make an
+		   operator delete it first. */
+		await db
+			.insert(t.trendingPresets)
+			.values({ ...values, createdBy: user.id, updatedBy: user.id })
+			.onDuplicateKeyUpdate({ set: { ...values, updatedBy: user.id } });
+
+		await recordAudit({
+			actorId: user.id,
+			actorLabel: user.name,
+			entity: 'trending_preset',
+			action: 'saved',
+			reason: form.data.name
+		});
+
+		return message(form, { type: 'success', text: m.at_preset_saved({ name: form.data.name }) });
+	},
+
+	deletePreset: async (event) => {
+		const user = requireRole(event, 'admin');
+		const form = await superValidate(event.request, zod4(trendingPresetRemove));
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
+
+		await db.delete(t.trendingPresets).where(eq(t.trendingPresets.id, form.data.id));
+
+		await recordAudit({
+			actorId: user.id,
+			actorLabel: user.name,
+			entity: 'trending_preset',
+			entityId: form.data.id,
+			action: 'deleted'
+		});
+
+		return { deleted: true };
 	},
 
 	/* Let a rested creator back into the running before their rest is up. */

@@ -3,6 +3,7 @@ import type { LayoutServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { requireUser, getCreatorFor, getOrganizationFor, isAdmin } from '$lib/server/guards';
+import { countUnreadNotifications, listNotifications } from '$lib/server/inbox';
 import {
 	countPendingClaims,
 	countPendingStatProofs,
@@ -102,11 +103,20 @@ export const load: LayoutServerLoad = async (event) => {
 		counts.applications = Number(applications[0]?.n ?? 0);
 	}
 
+	/* The bell in the header: how many are waiting, and the last few to show
+	   without leaving the page. Two indexed reads on every dashboard page. */
+	const [unreadNotifications, recentNotifications] = await Promise.all([
+		countUnreadNotifications(user.id),
+		listNotifications(user.id, { limit: 6 })
+	]);
+
 	return {
 		role,
 		isAdmin: isAdmin(user),
 		creator: creator ?? null,
 		organization: organization ?? null,
-		counts
+		counts,
+		unreadNotifications,
+		recentNotifications
 	};
 };

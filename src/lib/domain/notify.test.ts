@@ -7,6 +7,8 @@ const allOff: Preferences = {
 	dealsApp: false,
 	messagesEmail: false,
 	messagesApp: false,
+	opportunitiesEmail: false,
+	opportunitiesApp: false,
 	accountEmail: false,
 	productEmail: false
 };

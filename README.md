@@ -108,7 +108,7 @@ src/lib/
     stats-refresh.ts The refresh pass: which channels to ask, what to write
     stats-scheduler.ts Runs that pass, and re-measures creators, every hour
     trending-service.ts Gathers the trending signals, publishes the board
-    db/schema.ts     45 tables
+    db/schema.ts     47 tables
     db/creator-score.ts Score, reach and measured figures, shared with scripts
   schemas.ts       Every Zod schema, shared by forms and actions
   blog.ts          Section colours, article dates and states — client-safe
@@ -352,6 +352,23 @@ both directions: it consults no preference, writes no in-app row — the recipie
 may be locked out of the interface that would show it — and it _is_ awaited,
 because there the send is the action.
 
+The header bell and `/dashboard/notifications` read those rows back
+(`server/inbox.ts`), and a deal's page marks its own notifications read when it
+is opened. The deal room polls its thread every ten seconds while the tab is
+visible, and offers a refresh when the terms or submissions change underneath
+the reader rather than swapping them out mid-read.
+
+Publishing a brief tells the creators it fits (`server/campaign-matches.ts`).
+It happens once per brief — `campaigns.match_notified_at` is claimed in a
+conditional write before anything is sent, so re-saving or two saves at once
+send nothing more — and the rules for who qualifies are
+`selectCampaignMatches` in `domain/match.ts`: a claimed profile that is not
+away, has not applied, sits inside the brief's follower range, scores at least
+80 on the same fit score discovery sorts by, and has had fewer than three of
+these in the last seven days. At most 25 per brief, best first. It runs after
+the publish has returned, so the brand never waits on it; briefs published
+before it existed were marked as already announced by the migration.
+
 Closing an account is a request, not a switch. `user` cascades to
 `organizations`, which cascades to `bookings`, so deleting the row would take
 every deal that organisation ever made with it. An operator unpicks it by hand,
@@ -374,20 +391,58 @@ mistranslated obligation is worse than an untranslated one.
 ### Trending is a policy, not a checkbox
 
 `/dashboard/admin/trending` is where an operator decides what "trending" means.
-Ten signals — profile score, reach, engagement, recent bookings, applications,
-reviews, rating, shortlist saves, newcomer boost and verification — each carry a
-weight, and the weights are relative: they are divided by their own sum, so
-raising one does not silently steal from the other nine.
+Sixteen signals, in four groups, each carry a weight, and the weights are
+relative: they are divided by their own sum, so raising one does not silently
+steal from the others.
+
+```
+audience      reach · engagement · engaged audience (followers × engagement) · follower growth · confirmed figures
+demand        recent bookings · applications · shortlist saves · momentum (this window against the last)
+quality       profile score · reviews · rating · response rate · deadlines met
+profile       newcomer boost · verification
+```
+
+The six added last — engaged audience, growth, confirmed figures, momentum,
+response rate and deadlines met — default to a weight of 0, and every other
+new setting defaults to off, so a board built before they existed ranks the
+same until an operator turns something on.
 
 ```
 mode          manual (ticked by hand) · automatic (ranking only) · hybrid (pins, then ranking)
 window        activity older than N days is not counted at all
 half-life     how fast activity inside that window loses value; 0 counts it flat
-comparison    percentile (rank against the pool) or min–max (keep the real distances)
-eligibility   floors on score, reach, rating and verification; live channel, availability, activity
-fairness      max per category and per country, max days on the board, rest afterwards
-overrides     pin, boost or block one creator — each with a reason and an expiry
+comparison    percentile · min–max · log (min–max over log₁₀, so ten million followers cannot flatten the rest)
+rating        smoothing: N reviews' worth of platform average mixed in, so one five-star review cannot win
+audience      reach from every channel, the primary platform or the largest channel; engagement as a
+              simple average, weighted by followers, or the best channel; only some platforms;
+              an engagement cap; a discount on figures nobody has confirmed
+eligibility   audience: min/max reach, size bands (nano…mega), smallest main channel, min/max engagement
+              (the max catches bought engagement), required platforms, confirmed figures only, figure age
+              profile: score, rating, verification, completed deals, response rate, profile age,
+              included/excluded categories, claimed only, live channel, availability, activity
+fairness      max per category, country, city, size band and primary platform
+stability     a points bonus for already holding a slot; a limit on new faces per run; max days on
+              the board, then rest
+discovery     slots held for newcomers, filled from the bench by displacing the lowest algorithm slots
+overrides     pin, boost or block one creator — each with a reason, a start date and an expiry
+lanes         the ranking cut by category, market, platform, language and size band
 ```
+
+Follower growth is measured from `social_account_snapshots`: one row per
+channel per day, written whenever a creator's channels are re-summed — the
+channels form, a platform refresh, an approved proof — and backfilled once from
+each channel's last recorded figure. By default growth counts only channels
+whose figures were confirmed at both ends; otherwise a creator could grow by
+editing their own follower count.
+
+The screen also keeps saved weight presets beside the built-in ones, loads the
+settings of any past run back into the form (settings that did not exist yet
+load as their defaults, which is what that run used), and answers "why is this
+creator here — or not?" for anyone in a preview: their rank or the rule that
+excluded them, how far short of the last slot they fell, and their breakdown.
+Unsaved settings survive every other action on the page. Automatic refresh is
+checked every five minutes by the in-process scheduler, so a quiet night no
+longer means a stale morning board.
 
 Three properties are deliberate:
 
@@ -398,7 +453,8 @@ Three properties are deliberate:
   way to make an algorithm screen untrustworthy — so a save republishes, unless
   the board is frozen.
 - **Every slot can be explained.** `trending_entries` stores the contribution of
-  each signal to each rank, `trending_runs` stores the settings the run used,
+  each signal to each rank, plus any boost and incumbent bonus, `trending_runs`
+  stores the settings the run used,
   and `creators.is_trending` is rewritten from the board so the badge on a card
   and the strip on the homepage cannot disagree.
 

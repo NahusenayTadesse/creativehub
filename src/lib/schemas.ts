@@ -5,6 +5,7 @@ import { idSchema, sortOrderField } from '$lib/server/crud';
 import { BLOG_ACCENTS, BLOG_STATUSES } from '$lib/blog';
 import { ROLES, STAFF_ROLES } from '$lib/roles';
 import { BAN_DURATIONS } from '$lib/bans';
+import { FOLLOWER_TIERS, TRENDING_SIGNALS, WEIGHT_COLUMN } from '$lib/domain/trending';
 
 export { idSchema, sortOrderField };
 export { BLOG_ACCENTS, BLOG_STATUSES };
@@ -745,6 +746,8 @@ export const notificationPreferences = z.object({
 	dealsApp: pref,
 	messagesEmail: pref,
 	messagesApp: pref,
+	opportunitiesEmail: pref,
+	opportunitiesApp: pref,
 	accountEmail: pref,
 	productEmail: pref
 });
@@ -888,6 +891,12 @@ const weight = z.coerce.number().int().min(0).max(100).default(0);
 /** How many lanes of one kind to publish. 0 switches that kind off. */
 const laneCount = z.coerce.number().int().min(0).max(12);
 
+/** A capped whole number where 0 means "off". */
+const offOr = (max: number) => z.coerce.number().int().min(0).max(max).default(0);
+
+/** A repeated form field of reference ids — platforms, categories. */
+const idList = z.array(z.coerce.number().int().positive()).default([]);
+
 export const trendingConfigSchema = z.object({
 	id: z.coerce.number().optional(),
 	mode: z.enum(['manual', 'automatic', 'hybrid']).default('hybrid'),
@@ -895,7 +904,7 @@ export const trendingConfigSchema = z.object({
 	windowDays: z.coerce.number().int().min(1).max(365).default(30),
 	/** 0 disables decay — every event in the window then counts the same. */
 	halfLifeDays: z.coerce.number().int().min(0).max(180).default(7),
-	normalization: z.enum(['percentile', 'minmax']).default('percentile'),
+	normalization: z.enum(['percentile', 'minmax', 'log']).default('percentile'),
 
 	weightScore: weight,
 	weightReach: weight,
@@ -907,6 +916,22 @@ export const trendingConfigSchema = z.object({
 	weightSaves: weight,
 	weightNewcomer: weight,
 	weightVerification: weight,
+	weightEngagedAudience: weight,
+	weightGrowth: weight,
+	weightConfirmed: weight,
+	weightMomentum: weight,
+	weightResponsiveness: weight,
+	weightReliability: weight,
+
+	/* Audience: which channels count, and how their figures are combined. */
+	reachMode: z.enum(['total', 'primary', 'largest']).default('total'),
+	engagementMode: z.enum(['average', 'weighted', 'best']).default('average'),
+	audiencePlatformIds: idList,
+	/** Percent; 0 is no cap. */
+	engagementCap: z.coerce.number().min(0).max(100).default(0),
+	unconfirmedDiscount: offOr(100),
+	growthConfirmedOnly: z.coerce.boolean().default(false),
+	ratingPriorReviews: offOr(100),
 
 	minScore: z.coerce.number().int().min(0).max(100).default(0),
 	minFollowers: count,
@@ -915,10 +940,33 @@ export const trendingConfigSchema = z.object({
 	requireAvailable: z.coerce.boolean().default(false),
 	requireChannel: z.coerce.boolean().default(false),
 	requireActivity: z.coerce.boolean().default(false),
+	maxFollowers: offOr(2_000_000_000),
+	followerTiers: z.array(z.enum(FOLLOWER_TIERS)).default([]),
+	minChannelFollowers: offOr(2_000_000_000),
+	minEngagementRate: z.coerce.number().min(0).max(100).default(0),
+	maxEngagementRate: z.coerce.number().min(0).max(100).default(0),
+	requirePlatformIds: idList,
+	requireConfirmedStats: z.coerce.boolean().default(false),
+	maxStatsAgeDays: offOr(3650),
+	requireClaimed: z.coerce.boolean().default(false),
+	minCompletedBookings: offOr(1000),
+	minResponseRate: offOr(100),
+	minProfileAgeDays: offOr(3650),
+	maxProfileAgeDays: offOr(3650),
+	includeCategoryIds: idList,
+	excludeCategoryIds: idList,
 
 	/** 0 means uncapped. */
 	maxPerCategory: z.coerce.number().int().min(0).max(48).default(0),
 	maxPerCountry: z.coerce.number().int().min(0).max(48).default(0),
+	maxPerCity: offOr(48),
+	maxPerTier: offOr(48),
+	maxPerPlatform: offOr(48),
+	/** Points on the 0–100 scale. */
+	incumbentBonus: offOr(50),
+	maxNewPerRun: offOr(48),
+	newcomerSlots: offOr(48),
+	newcomerMaxAgeDays: z.coerce.number().int().min(1).max(365).default(30),
 	maxTenureDays: z.coerce.number().int().min(0).max(365).default(0),
 	cooldownDays: z.coerce.number().int().min(0).max(365).default(0),
 
@@ -944,6 +992,7 @@ export const trendingConfigSchema = z.object({
 	maxCityLanes: laneCount.default(0),
 	maxPlatformLanes: laneCount.default(3),
 	maxLanguageLanes: laneCount.default(0),
+	maxTierLanes: laneCount.default(0),
 	laneLocalFirst: z.coerce.boolean().default(false),
 
 	autoRefresh: z.coerce.boolean().default(false),
@@ -958,9 +1007,27 @@ export const trendingOverrideSchema = z.object({
 	position: z.coerce.number().int().min(0).max(48).default(0),
 	multiplier: z.coerce.number().min(0.1).max(5).default(1),
 	note: z.string().trim().max(300).optional().default(''),
+	/** Blank means from the next run. */
+	startsAt: z.string().trim().max(20).optional().default(''),
 	/** Blank means the instruction stands until an operator removes it. */
 	expiresAt: z.string().trim().max(20).optional().default('')
 });
+
+/**
+ * Saving the sliders under a name. The weights arrive as their own fields —
+ * `weightScore`, `weightReach`… — posted from the settings form's current
+ * values, so what is saved is what the operator is looking at.
+ */
+export const trendingPresetSave = z.object({
+	name: z.string().trim().min(2).max(80),
+	description: z.string().trim().max(200).optional().default(''),
+	...(Object.fromEntries(TRENDING_SIGNALS.map((key) => [WEIGHT_COLUMN[key], weight])) as Record<
+		(typeof WEIGHT_COLUMN)[keyof typeof WEIGHT_COLUMN],
+		typeof weight
+	>)
+});
+
+export const trendingPresetRemove = z.object({ id: z.coerce.number().int().positive() });
 
 export const trendingOverrideRemove = z.object({ id: z.coerce.number() });
 

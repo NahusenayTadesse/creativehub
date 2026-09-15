@@ -22,7 +22,11 @@ import { slugify } from '../../slug';
 import { calculateScore } from '../../domain/score';
 import { splitFee } from '../../domain/booking';
 import { recalcCreatorAggregates } from './rollups';
-import { measureCreatorMetrics, recalcCreatorScore } from './creator-score';
+import {
+	measureCreatorMetrics,
+	recalcCreatorScore,
+	snapshotCreatorChannels
+} from './creator-score';
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
 const pool = mysql.createPool(process.env.DATABASE_URL);
@@ -2642,6 +2646,7 @@ async function seed() {
 	for (const seedCreator of CREATORS) {
 		const creatorId = creatorIds[seedCreator.username];
 		if (!creatorId) continue;
+		await snapshotCreatorChannels(db, creatorId);
 		await measureCreatorMetrics(db, creatorId);
 		await recalcCreatorScore(db, creatorId);
 	}
