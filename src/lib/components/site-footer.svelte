@@ -162,23 +162,5 @@
 				</span>
 			</div>
 		</div>
-
-		<!-- The credit CC BY-SA asks for, for the Addis Ababa photograph in the
-		     homepage hero — see assets-src/landing/CREDITS.md. -->
-		<p class="mt-6 text-center text-[11px] text-slab-ink-dim md:text-left">
-			{m.footer_photo_credit()}
-			<a
-				href="https://commons.wikimedia.org/wiki/File:AddisView.jpg"
-				rel="external noopener"
-				target="_blank"
-				class="underline underline-offset-2 hover:text-slab-brand">“AddisView” by DaneyWiki</a
-			>,
-			<a
-				href="https://creativecommons.org/licenses/by-sa/4.0/"
-				rel="external noopener license"
-				target="_blank"
-				class="underline underline-offset-2 hover:text-slab-brand">CC BY-SA 4.0</a
-			>
-		</p>
 	</div>
 </footer>

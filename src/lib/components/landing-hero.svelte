@@ -66,9 +66,11 @@
 
 	/* ---------------- The collage ---------------- */
 
-	/* The figure from the design mockup in front of Addis Ababa's skyline. Its
-	   sources and licence are in assets-src/landing/CREDITS.md. */
-	const picture = $derived(image || '/hero/creator-camera.webp');
+	/* A stand-in cut from the design mockup (assets-src/landing/inspiration.jpeg)
+	   until a real photograph replaces it — through the landing page screen, or
+	   by replacing this file under a new name, since Cloudflare keeps a copy of
+	   an unchanged URL for up to a week. */
+	const picture = $derived(image || '/hero/creator-camera-demo.webp');
 	const collage = $derived(creators.slice(0, 3));
 
 	const platformColor = (name: string | null) =>
