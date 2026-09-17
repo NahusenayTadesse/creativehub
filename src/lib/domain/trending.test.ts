@@ -18,6 +18,7 @@ import {
 	type ChannelFigures,
 	laneKey,
 	laneLocalRank,
+	effectiveLocalRanking,
 	localBonus,
 	matchesLocation,
 	newcomerValue,
@@ -357,6 +358,26 @@ describe('localBonus', () => {
 	it('outruns any real score in first, whatever the points say', () => {
 		expect(localBonus(true, 'first', 0)).toBeGreaterThan(100);
 		expect(localBonus(true, 'first', 0)).toBe(LOCAL_FIRST_BONUS);
+	});
+
+	/* `only` is enforced by serving a market's own board; any other list it
+	   reaches must still show something, so it orders the way `first` does. */
+	it('orders like first in only', () => {
+		expect(localBonus(true, 'only', 0)).toBe(LOCAL_FIRST_BONUS);
+		expect(localBonus(false, 'only', 40)).toBe(0);
+	});
+});
+
+describe('effectiveLocalRanking', () => {
+	it('restricts automatic mode to the reader market, whatever was saved', () => {
+		expect(effectiveLocalRanking('automatic', 'off')).toBe('only');
+		expect(effectiveLocalRanking('automatic', 'boost')).toBe('only');
+	});
+
+	it('keeps the operator choice in the other modes', () => {
+		expect(effectiveLocalRanking('hybrid', 'boost')).toBe('boost');
+		expect(effectiveLocalRanking('manual', 'off')).toBe('off');
+		expect(effectiveLocalRanking('hybrid', 'only')).toBe('only');
 	});
 });
 

@@ -32,7 +32,12 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 					siteName: settings.siteName,
 					tagline: settings.tagline,
 					heroTitle: settings.heroTitle,
+					heroAccent: settings.heroAccent,
+					heroTitleEnd: settings.heroTitleEnd,
 					heroSubtitle: settings.heroSubtitle,
+					heroImage: settings.heroImage,
+					galleryIntervalSeconds: settings.galleryIntervalSeconds,
+					landingSections: settings.landingSections,
 					/* The four brand slots, forwarded raw. `resolveLogos` turns them
 					   into URLs at the point of use, so a page that draws no logo
 					   pays nothing for them. */

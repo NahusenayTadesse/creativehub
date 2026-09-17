@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ResolvedPathname } from '$app/types';
 	import { page } from '$app/state';
+	import { BRAND_VERSION } from '$lib/brand';
 	import { locales, localizeHref } from '$lib/paraglide/runtime';
 	import './layout.css';
 	import { ModeWatcher } from 'mode-watcher';
@@ -34,8 +35,10 @@
 		settings page changes it everywhere it is drawn on a page; the browser
 		chrome keeps the shipped one.
 	-->
-	<link rel="icon" href="/favicon.png" type="image/png" />
-	<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+	<!-- Versioned so a rebuilt icon is not hidden behind Cloudflare's copy of the
+	     old one — see BRAND_VERSION in $lib/brand. -->
+	<link rel="icon" href="/favicon.png?v={BRAND_VERSION}" type="image/png" />
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png?v={BRAND_VERSION}" />
 </svelte:head>
 
 <!--

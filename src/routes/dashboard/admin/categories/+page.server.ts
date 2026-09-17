@@ -9,6 +9,8 @@ export const { load, actions } = contentCrud({
 	label: () => m.ca_label(),
 	addSchema: categoryAdd,
 	editSchema: categoryEdit,
+	/* The homepage tile's picture, stored on disk like a gallery slide's. */
+	fileFields: ['image'],
 	/* Actions run before any `load`, so the admin layout guard cannot cover them. */
 	guard: referenceDataGuard,
 	/* An encoder writes here; only an operator removes a row. */

@@ -11,6 +11,7 @@ vi.mock('$lib/server/viewer-location', () => ({ getViewerLocation: async () => n
 import {
 	TRENDING_DEFAULTS,
 	buildBoard,
+	buildMarketBoards,
 	type Candidate,
 	type OverrideRow,
 	type TrendingConfigValues
@@ -271,5 +272,82 @@ describe('buildBoard — newcomer slots', () => {
 		];
 		const board = await build(pool, { slots: 2, maxPerCategory: 1, newcomerSlots: 1 });
 		expect(ids(board.entries)).toEqual([1, 2]);
+	});
+});
+
+describe('buildMarketBoards — a reader shown their own country only', () => {
+	const kenyan = (id: number, score: number, overrides: Partial<Candidate> = {}) =>
+		candidate(id, score, { countryId: 2, countryName: 'Kenya', ...overrides });
+
+	const markets = async (
+		candidates: Candidate[],
+		settings: Partial<TrendingConfigValues> = {},
+		overrides: OverrideRow[] = []
+	) => {
+		const settled = config(settings);
+		const shared = await buildBoard({ config: settled, overrides, now: NOW, candidates });
+		return buildMarketBoards({ config: settled, overrides, candidates, shared, now: NOW });
+	};
+
+	/* The shared board is three deep and Ethiopia wins all three slots; Kenya's
+	   own board must still be full rather than the empty cut of that. */
+	it('gives each market a full board of its own creators', async () => {
+		const boards = await markets([
+			candidate(1, 90),
+			candidate(2, 80),
+			candidate(3, 70),
+			kenyan(4, 40),
+			kenyan(5, 30),
+			kenyan(6, 20),
+			kenyan(7, 10)
+		]);
+		expect(boards.map((market) => market.countryId)).toEqual([1, 2]);
+		expect(ids(boards[1].board.entries)).toEqual([4, 5, 6]);
+		expect(boards[1].board.entries.map((entry) => entry.rank)).toEqual([1, 2, 3]);
+	});
+
+	it('publishes nothing for a market with no one eligible', async () => {
+		const boards = await markets([
+			candidate(1, 90),
+			kenyan(2, 50, { excludedReason: 'min_score' })
+		]);
+		expect(boards.map((market) => market.countryId)).toEqual([1]);
+	});
+
+	it('keeps a pin in its own market only', async () => {
+		const pin = override({ creatorId: 4, kind: 'pin', position: 1 });
+		const boards = await markets(
+			[candidate(1, 90), candidate(2, 80), kenyan(4, 10), kenyan(5, 50)],
+			{ mode: 'hybrid', pinnedFirst: true },
+			[pin]
+		);
+		const [ethiopia, kenya] = boards;
+		expect(ids(ethiopia.board.entries)).toEqual([1, 2]);
+		expect(ids(kenya.board.entries)).toEqual([4, 5]);
+	});
+
+	it('has nothing to publish when the board is already one market', async () => {
+		const boards = await markets([candidate(1, 90), kenyan(2, 50)], { countryId: 1 });
+		expect(boards).toEqual([]);
+	});
+
+	it('cuts the ticked board by market in manual mode', async () => {
+		const shared = await buildBoard({
+			config: config({ mode: 'automatic' }),
+			overrides: [],
+			now: NOW,
+			candidates: [candidate(1, 90), kenyan(2, 80), candidate(3, 70)]
+		});
+		const boards = await buildMarketBoards({
+			config: config({ mode: 'manual' }),
+			overrides: [],
+			candidates: [candidate(1, 90), kenyan(2, 80), candidate(3, 70)],
+			shared,
+			now: NOW
+		});
+		expect(boards.map((market) => [market.countryId, ids(market.board.entries)])).toEqual([
+			[1, [1, 3]],
+			[2, [2]]
+		]);
 	});
 });

@@ -1,0 +1,1 @@
+ALTER TABLE `site_settings` ADD `hero_title_end` varchar(250) DEFAULT '' NOT NULL;

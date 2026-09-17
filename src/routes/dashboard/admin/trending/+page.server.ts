@@ -391,7 +391,7 @@ export const actions: Actions = {
 			entity: 'trending_board',
 			entityId: result.runId,
 			action: 'recomputed',
-			reason: `${result.entryCount} slots, ${result.laneCount} lanes, ${result.changedCount} changed`
+			reason: `${result.entryCount} slots, ${result.laneCount} lanes, ${result.marketCount} markets, ${result.changedCount} changed`
 		});
 
 		return { ran: result.entryCount, changed: result.changedCount };

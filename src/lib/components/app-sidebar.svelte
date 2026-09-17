@@ -21,6 +21,7 @@
 		Languages,
 		Settings,
 		GalleryHorizontal,
+		LayoutTemplate,
 		Newspaper,
 		UserRoundCog,
 		ScrollText,
@@ -265,6 +266,16 @@
 				section: m.sb_reference_data(),
 				items: [
 					...referenceData,
+					{
+						title: m.sb_landing_page(),
+						url: resolve('/dashboard/admin/landing'),
+						icon: LayoutTemplate
+					},
+					{
+						title: m.sb_partners(),
+						url: resolve('/dashboard/admin/partners'),
+						icon: Handshake
+					},
 					{ title: m.sb_site_settings(), url: resolve('/dashboard/admin/settings'), icon: Settings }
 				]
 			}
@@ -296,7 +307,7 @@
 			     at every width, so there is no phone case to fall back for — the
 			     panel is off-canvas on a phone and full width when it is open. -->
 			<a href={resolve('/')} title={m.sb_go_public_site()} class="flex flex-col items-start gap-1">
-				<SiteLogo {logos} variant="wordmark" heightClass="h-8" />
+				<SiteLogo {logos} variant="wordmark" heightClass="h-11" />
 				<div class="text-[10px] font-bold tracking-widest text-ink-dim uppercase">
 					{m.sb_role_dashboard({ role: roleLabel })}
 				</div>

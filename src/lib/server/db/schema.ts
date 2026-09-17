@@ -97,6 +97,8 @@ export const categories = mysqlTable(
 		description: text('description'),
 		/** Lucide icon name, resolved by $lib/components/dynamic-icon.svelte. */
 		icon: varchar('icon', { length: 60 }).default('Sparkles').notNull(),
+		/** The picture on the category's homepage tile. Empty draws the icon alone. */
+		image: varchar('image', { length: 500 }).default('').notNull(),
 		...publishable(),
 		...audit()
 	},
@@ -1371,10 +1373,31 @@ export const siteSettings = mysqlTable('site_settings', {
 	tagline: varchar('tagline', { length: 250 })
 		.default("Connecting Ethiopia's digital influence.")
 		.notNull(),
-	heroTitle: varchar('hero_title', { length: 250 })
-		.default('Find the right creator. Build the right campaign.')
-		.notNull(),
+	/*
+	 * The landing page's own words and pictures — see /dashboard/admin/landing.
+	 *
+	 * Empty text is not "no headline": it means "use the one in `messages/`",
+	 * which is translated. A value typed here is shown to every reader in every
+	 * language, so it is an override an operator opts into rather than the
+	 * default a fresh install starts from.
+	 */
+	heroTitle: varchar('hero_title', { length: 250 }).default('').notNull(),
+	/** The second, coloured line of the headline. Read only alongside a custom title. */
+	heroAccent: varchar('hero_accent', { length: 250 }).default('').notNull(),
+	/** The third line, back in plain ink. Read only alongside a custom title. */
+	heroTitleEnd: varchar('hero_title_end', { length: 250 }).default('').notNull(),
 	heroSubtitle: text('hero_subtitle'),
+	/** Drawn behind the hero's text. Empty keeps the plain panel. */
+	heroImage: varchar('hero_image', { length: 500 }).default('').notNull(),
+	/** How long a gallery slide stays up before the next one. 0 never advances. */
+	galleryIntervalSeconds: int('gallery_interval_seconds').default(6).notNull(),
+	/**
+	 * The landing page's sections in the order an operator put them, each shown
+	 * or hidden. Null is the shipped order with everything shown, and
+	 * `landingLayout` in $lib/domain/landing.ts fills in any section added since
+	 * this was saved, so a new section is never silently missing.
+	 */
+	landingSections: json('landing_sections').$type<{ key: string; visible: boolean }[] | null>(),
 	/*
 	 * The brand marks, each empty until an operator uploads one.
 	 *
@@ -1424,6 +1447,25 @@ export const siteSettings = mysqlTable('site_settings', {
  * own image and copy. `image` holds an uploaded file name that `/files/[name]`
  * serves, or an absolute URL — `assetUrl` in $lib/assets accepts both.
  */
+/**
+ * The organisations named in the homepage hero as partners.
+ *
+ * A logo here is a public statement that the organisation works with the
+ * platform, so the table is edited by an operator only — not by the data
+ * encoders who keep the gallery — and nothing is seeded into it: the row that
+ * puts a company's name on the homepage should be one somebody chose to add.
+ */
+export const partners = mysqlTable('partners', {
+	id: id(),
+	name: varchar('name', { length: 180 }).notNull(),
+	/** An upload's file name or an absolute URL, as `gallery_slides.image`. */
+	logo: varchar('logo', { length: 500 }).default('').notNull(),
+	/** The partner's own site, if the logo should link anywhere. */
+	websiteUrl: varchar('website_url', { length: 500 }),
+	...publishable(),
+	...audit()
+});
+
 export const gallerySlides = mysqlTable('gallery_slides', {
 	id: id(),
 	title: varchar('title', { length: 180 }).notNull(),
@@ -1486,9 +1528,11 @@ export const trendingEngagementModeEnum = ['average', 'weighted', 'best'] as con
  * out of a hundred to a creator in the reader's market — enough to lift a
  * near-miss above a stranger, not enough to bury a runaway leader. `first`
  * puts every local creator ahead of every other one, board order kept inside
- * each group.
+ * each group. `only` serves a reader located in a market the run published a
+ * board for that market's board and nothing else — and it is what `automatic`
+ * mode always uses, whatever this column says.
  */
-export const trendingLocalRankingEnum = ['off', 'boost', 'first'] as const;
+export const trendingLocalRankingEnum = ['off', 'boost', 'first', 'only'] as const;
 
 /**
  * How close a creator has to be to count as the reader's own.
@@ -1836,9 +1880,53 @@ export const trendingLanes = mysqlTable(
 		/** The best score inside the lane — how lanes of one kind are ordered. */
 		topScore: double('top_score').default(0).notNull(),
 		runId: int('run_id'),
+		/**
+		 * The market this lane was cut from, or null for a lane of the board
+		 * everyone shares. A reader served one market's board gets that market's
+		 * lanes, so "trending in fashion" cannot slip in a creator from elsewhere.
+		 */
+		marketCountryId: int('market_country_id').references(() => countries.id, {
+			onDelete: 'cascade'
+		}),
 		computedAt: timestamp('computed_at', { fsp: 3 }).defaultNow().notNull()
 	},
-	(t) => [index('trending_lane_position_idx').on(t.position)]
+	(t) => [
+		index('trending_lane_position_idx').on(t.position),
+		index('trending_lane_market_idx').on(t.marketCountryId, t.position)
+	]
+);
+
+/**
+ * One board per market, published by the same run as the shared board.
+ *
+ * Each is the whole ranking again with every other country excluded before
+ * scoring, not the shared board filtered afterwards: a twelve-slot board drawn
+ * from every market may hold two Kenyan creators, and a Kenyan reader who is
+ * shown only their own country deserves twelve. Pins, caps and blocks apply
+ * exactly as they do on the shared board. `is_trending` is still written from
+ * the shared board alone.
+ */
+export const trendingMarketEntries = mysqlTable(
+	'trending_market_entries',
+	{
+		id: id(),
+		countryId: int('country_id')
+			.notNull()
+			.references(() => countries.id, { onDelete: 'cascade' }),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		/** 1-based slot on this market's board. */
+		rank: int('rank').notNull(),
+		trendingScore: double('trending_score').default(0).notNull(),
+		source: mysqlEnum('source', trendingEntrySourceEnum).default('algorithm').notNull(),
+		runId: int('run_id'),
+		computedAt: timestamp('computed_at', { fsp: 3 }).defaultNow().notNull()
+	},
+	(t) => [
+		uniqueIndex('trending_market_entry_idx').on(t.countryId, t.creatorId),
+		index('trending_market_rank_idx').on(t.countryId, t.rank)
+	]
 );
 
 export const trendingLaneEntries = mysqlTable(

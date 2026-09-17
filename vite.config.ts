@@ -148,6 +148,10 @@ export default defineConfig({
 			 * as `import` now — so the rule is simply: add what it prints, until
 			 * it prints nothing.
 			 */
+			/* Platform logos for the homepage hero. ESM, imported icon by icon. */
+			'simple-icons',
+			/* The IP-to-country reader — CommonJS, with no dependencies of its own. */
+			'mmdb-lib',
 			'sanitize-html',
 			'htmlparser2',
 			'deepmerge',
@@ -170,8 +174,8 @@ export default defineConfig({
 		 * touched mail first, and only that one. Pre-bundling it to ESM gives dev
 		 * the same module the build produces.
 		 */
-		/* `sanitize-html` is CommonJS too; see the note above `nodemailer`. */
-		optimizeDeps: { include: ['nodemailer', 'sanitize-html'] }
+		/* `sanitize-html` and `mmdb-lib` are CommonJS too; see the note above `nodemailer`. */
+		optimizeDeps: { include: ['nodemailer', 'sanitize-html', 'mmdb-lib'] }
 	},
 
 	/**

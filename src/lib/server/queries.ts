@@ -31,6 +31,7 @@ import { handleFromEmail, looksLikeSamePerson } from '$lib/domain/claim';
 import { laneKey, positionScore, tierLabel, type TrendingLaneKind } from '$lib/domain/trending';
 import {
 	getLocalRanker,
+	getViewerMarket,
 	listPublishedLanes,
 	orderLanesForViewer
 } from '$lib/server/trending-service';
@@ -115,6 +116,7 @@ export const listCategories = () =>
 			name: t.categories.name,
 			slug: t.categories.slug,
 			icon: t.categories.icon,
+			image: t.categories.image,
 			/* The homepage prints this under each category tile. */
 			description: t.categories.description
 		})
@@ -137,6 +139,19 @@ export const listLanguages = () =>
 		.orderBy(asc(t.languages.sortOrder));
 
 export const getSettings = async () => (await db.select().from(t.siteSettings).limit(1)).at(0);
+
+/** The hero's partner logos, in the order an operator arranged them. */
+export const listPartners = () =>
+	db
+		.select({
+			id: t.partners.id,
+			name: t.partners.name,
+			logo: t.partners.logo,
+			websiteUrl: t.partners.websiteUrl
+		})
+		.from(t.partners)
+		.where(live(t.partners))
+		.orderBy(asc(t.partners.sortOrder), asc(t.partners.id));
 
 /**
  * The homepage gallery, in the order an admin arranged it. Named columns
@@ -392,8 +407,14 @@ export async function listFeaturedCreators(limit = 6): Promise<CreatorCard[]> {
  * The flag is what the run wrote, so the set always matches; the ranks are read
  * separately only to put them back in the operator's order. Falls back to score
  * order when no board has been published yet.
+ *
+ * A reader who is to see their own country only is served that market's board
+ * instead, which the flag says nothing about — see `buildMarketBoards`.
  */
 export async function listTrendingCreators(limit = 8): Promise<CreatorCard[]> {
+	const market = await getViewerMarket();
+	if (market !== null) return listMarketTrendingCreators(market, limit);
+
 	const [board, local] = await Promise.all([
 		db
 			.select({ creatorId: t.trendingEntries.creatorId, rank: t.trendingEntries.rank })
@@ -433,6 +454,25 @@ export async function listTrendingCreators(limit = 8): Promise<CreatorCard[]> {
 	return page.rows;
 }
 
+/** One market's own board, in its own order. Nothing to re-rank: it is all local. */
+async function listMarketTrendingCreators(countryId: number, limit: number) {
+	const board = await db
+		.select({ creatorId: t.trendingMarketEntries.creatorId, rank: t.trendingMarketEntries.rank })
+		.from(t.trendingMarketEntries)
+		.where(eq(t.trendingMarketEntries.countryId, countryId))
+		.orderBy(asc(t.trendingMarketEntries.rank));
+	if (!board.length) return [];
+
+	const rankOf = new Map(board.map((entry) => [entry.creatorId, entry.rank]));
+	const page = await creatorsQuery.run(unfiltered(), {
+		where: [...publishedCreators(), inArray(t.creators.id, [...rankOf.keys()])],
+		perPage: limit,
+		/* Negated because ranking sorts high-to-low and rank 1 comes first. */
+		rank: { by: (row: any) => -(rankOf.get(row.id) ?? Infinity) }
+	});
+	return page.rows;
+}
+
 /**
  * How many distinct creators the lane strip may put on the page.
  *
@@ -461,10 +501,11 @@ export type TrendingLane = {
  *
  * The cards are fetched once for the union of every lane and handed back out
  * by reference: a creator in three lanes is one query row and one object, not
- * three. Lanes arrive in the order the reader's own location earned them.
+ * three. Lanes arrive in the order the reader's own location earned them, and
+ * come from their market's own board when that is the board they are served.
  */
 export async function listTrendingLanes(): Promise<TrendingLane[]> {
-	const published = await orderLanesForViewer(await listPublishedLanes());
+	const published = await orderLanesForViewer(await listPublishedLanes(await getViewerMarket()));
 	if (!published.length) return [];
 
 	/* Walk the lanes in order, taking whole lanes while the union stays inside

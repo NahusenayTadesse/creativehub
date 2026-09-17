@@ -6,6 +6,7 @@ import { BLOG_ACCENTS, BLOG_STATUSES } from '$lib/blog';
 import { ROLES, STAFF_ROLES } from '$lib/roles';
 import { BAN_DURATIONS } from '$lib/bans';
 import { FOLLOWER_TIERS, TRENDING_SIGNALS, WEIGHT_COLUMN } from '$lib/domain/trending';
+import { LANDING_SECTIONS } from '$lib/domain/landing';
 
 export { idSchema, sortOrderField };
 export { BLOG_ACCENTS, BLOG_STATUSES };
@@ -220,6 +221,8 @@ export const categoryAdd = z.object({
 		.regex(/^[a-z0-9-]+$/, { error: () => m.val_slug_format() }),
 	description: optionalText,
 	icon: z.string().trim().max(60).default('Sparkles'),
+	/* Optional on add as well as edit: a tile with no picture draws its icon. */
+	image: uploadOrUrl,
 	isActive: active,
 	sortOrder: sortOrderField
 });
@@ -838,8 +841,6 @@ export const settingsSchema = z.object({
 	id: z.coerce.number().optional(),
 	siteName: name(180),
 	tagline: z.string().trim().max(250),
-	heroTitle: z.string().trim().max(250),
-	heroSubtitle: optionalText,
 	/* Four pickers rather than one. Each is optional, and an empty one means
 	   "keep whatever is stored" — the settings action reads a cleared checkbox,
 	   not an empty picker, as the instruction to go back to the shipped mark. */
@@ -854,6 +855,54 @@ export const settingsSchema = z.object({
 	supportEmail: z.string().trim().max(200).optional().default(''),
 	supportPhone: z.string().trim().max(60).optional().default('')
 });
+
+/* ------------------------------------------------------------------ *
+ * Landing page
+ * ------------------------------------------------------------------ */
+
+/** Shown unless unticked. `false` is what an unticked `checkboxSingle` posts. */
+const shown = z.coerce.boolean().default(true);
+
+export const landingSchema = z.object({
+	/* Empty is the translated copy, so none of the three is required. */
+	heroTitle: z.string().trim().max(250).default(''),
+	heroAccent: z.string().trim().max(250).default(''),
+	heroTitleEnd: z.string().trim().max(250).default(''),
+	heroSubtitle: optionalText,
+	/* An empty picker keeps the stored picture; removing it is its own action. */
+	heroImage: uploadOrUrl,
+	/* A minute is already longer than anyone waits on a slide; 0 stops it. */
+	galleryIntervalSeconds: z.coerce.number().int().min(0).max(60).default(6),
+	/* Posted as one hidden field per section, top to bottom. */
+	sectionOrder: z.array(z.enum(LANDING_SECTIONS)).default([...LANDING_SECTIONS]),
+	showGallery: shown,
+	showTrending: shown,
+	showCategories: shown,
+	showCompensation: shown,
+	showHowItWorks: shown
+});
+
+/* ------------------------------------------------------------------ *
+ * Partners
+ * ------------------------------------------------------------------ */
+
+const partnerFields = {
+	name: name(180),
+	logo: uploadOrUrl,
+	websiteUrl: optionalUrl,
+	isActive: active,
+	sortOrder: sortOrderField
+};
+
+/* A partner with no logo would be a blank space in the hero, so add insists on
+   one; an edit's empty picker keeps the stored logo, as a gallery slide's does. */
+export const partnerAdd = z
+	.object(partnerFields)
+	.refine((v) => (v.logo instanceof File ? v.logo.size > 0 : Boolean(v.logo)), {
+		path: ['logo'],
+		error: () => m.val_image_required()
+	});
+export const partnerEdit = z.object({ ...partnerFields, ...idSchema.shape });
 
 /* ------------------------------------------------------------------ *
  * Homepage gallery
@@ -974,7 +1023,7 @@ export const trendingConfigSchema = z.object({
 
 	/** 0 means every market — the board is not restricted to one country. */
 	countryId: z.coerce.number().int().min(0).default(0),
-	localRanking: z.enum(['off', 'boost', 'first']).default('off'),
+	localRanking: z.enum(['off', 'boost', 'first', 'only']).default('off'),
 	localMatch: z.enum(['country', 'region', 'city']).default('country'),
 	/** Points out of a hundred a local match is worth, in `boost`. */
 	localBoost: z.coerce.number().int().min(0).max(100).default(15),

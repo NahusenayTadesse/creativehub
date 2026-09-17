@@ -18,7 +18,7 @@
 		<!-- The auth pages sit outside the app shell, so the logo comes from
 		     `page.data` — the root layout's settings, which every route carries. -->
 		<a href={resolve('/')} class="flex items-center justify-center">
-			<SiteLogo {logos} variant="wordmark" heightClass="h-12" />
+			<SiteLogo {logos} variant="wordmark" heightClass="h-16" />
 		</a>
 
 		<div class="bento-card bento-card-static space-y-4 text-center">
