@@ -35,7 +35,6 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 					heroAccent: settings.heroAccent,
 					heroTitleEnd: settings.heroTitleEnd,
 					heroSubtitle: settings.heroSubtitle,
-					heroImage: settings.heroImage,
 					galleryIntervalSeconds: settings.galleryIntervalSeconds,
 					landingSections: settings.landingSections,
 					/* The four brand slots, forwarded raw. `resolveLogos` turns them

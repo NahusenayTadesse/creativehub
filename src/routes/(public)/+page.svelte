@@ -79,7 +79,6 @@
 
 	const headline = $derived(heroHeadline(page.data.settings ?? {}));
 	const heroSubtitle = $derived(page.data.settings?.heroSubtitle || m.hero_subtitle());
-	const heroImage = $derived(page.data.settings?.heroImage ?? '');
 	const sections = $derived(
 		landingLayout(page.data.settings?.landingSections).filter((section) => section.visible)
 	);
@@ -240,7 +239,6 @@
 	<LandingHero
 		{headline}
 		subtitle={heroSubtitle}
-		image={heroImage}
 		creators={heroCreators}
 		partners={data.partners}
 		stats={data.stats}

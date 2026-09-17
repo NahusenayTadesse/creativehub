@@ -5,9 +5,7 @@
 	import { toast } from 'svelte-sonner';
 	import { resolve } from '$app/paths';
 	import PageHeader from '$lib/components/page-header.svelte';
-	import AppImage from '$lib/components/app-image.svelte';
 	import InputComp from '$lib/formComponents/InputComp.svelte';
-	import FileUpload from '$lib/formComponents/FileUpload.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 	import {
@@ -16,9 +14,7 @@
 		ExternalLink,
 		GalleryHorizontal,
 		Handshake,
-		ImageOff,
-		Tags,
-		Trash2
+		Tags
 	} from '@lucide/svelte';
 	import {
 		SECTION_VISIBILITY_FIELD,
@@ -85,7 +81,7 @@
 		{m.lp_view_page()}
 	</a>
 
-	<form method="POST" action="?/save" use:enhance enctype="multipart/form-data" class="space-y-6">
+	<form method="POST" action="?/save" use:enhance class="space-y-6">
 		<Errors allErrors={$allErrors} />
 
 		<!-- ---------------- Hero ---------------- -->
@@ -132,65 +128,22 @@
 				placeholder={m.hero_subtitle()}
 			/>
 
-			<!-- The headline as a visitor will read it, over the picture if there is one. -->
+			<!-- The headline as a visitor will read it. -->
 			<div
 				class="relative overflow-hidden rounded-2xl border-2 border-edge bg-inverse p-4 shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))]"
 			>
-				{#if data.heroImage}
-					<AppImage
-						src={data.heroImage}
-						alt=""
-						kind="cover"
-						seed="hero"
-						class="absolute inset-0 h-full w-full object-cover"
-					/>
-					<div class="absolute inset-0 bg-gradient-to-r from-slate-950/90 to-slate-950/40"></div>
-				{/if}
 				<p class="relative text-[10px] font-black tracking-widest text-ink-dim uppercase">
 					{m.lp_preview()}
 				</p>
-				<p
-					class="relative mt-1 text-lg leading-tight font-black {data.heroImage
-						? 'text-white'
-						: 'text-inverse-ink'}"
-				>
+				<p class="relative mt-1 text-lg leading-tight font-black text-inverse-ink">
 					{headline.title}
 					{#if headline.accent}
-						<span class={data.heroImage ? 'text-slab-brand' : 'text-brand-gradient'}>
+						<span class="text-brand-gradient">
 							{headline.accent}
 						</span>
 					{/if}
 					{headline.end}
 				</p>
-			</div>
-
-			<div class="space-y-2 rounded-2xl border-2 border-edge-soft p-3">
-				<div class="flex items-start justify-between gap-3">
-					<div class="min-w-0">
-						<p class="text-xs font-black text-ink">{m.lp_hero_image()}</p>
-						<p class="mt-0.5 text-[11px] leading-relaxed text-ink-dim">{m.lp_hero_image_hint()}</p>
-					</div>
-					{#if !data.heroImage}
-						<span
-							class="flex shrink-0 items-center gap-1 rounded-full border border-edge bg-well px-2 py-0.5 text-[10px] font-black tracking-wider text-ink-dim uppercase"
-						>
-							<ImageOff class="h-3 w-3" />
-							{m.lp_hero_image_none()}
-						</span>
-					{/if}
-				</div>
-				<FileUpload {form} name="heroImage" placeholder={m.gal_image_hint()} />
-				{#if data.heroImage}
-					<!-- Targets the separate form below: forms cannot nest. -->
-					<button
-						type="submit"
-						form="hero-image-remove"
-						class="flex items-center gap-1.5 text-[11px] font-black text-ink-soft underline underline-offset-2 hover:text-ink"
-					>
-						<Trash2 class="h-3 w-3" />
-						{m.lp_hero_image_remove()}
-					</button>
-				{/if}
 			</div>
 		</div>
 
@@ -335,8 +288,4 @@
 			{/if}
 		</button>
 	</form>
-
-	<!-- Empty, unenhanced and outside the main form, so removing the picture does
-	     not also save whatever else is half-typed above. -->
-	<form id="hero-image-remove" method="POST" action="?/removeHeroImage" hidden></form>
 </div>

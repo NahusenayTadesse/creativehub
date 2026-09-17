@@ -2,10 +2,11 @@
 
 ## `inspiration.jpeg`
 
-The design mockup the hero was built from, supplied by the site owner.
+The design mockup the homepage hero was first built from, supplied by the site
+owner. Kept for reference; nothing the site serves is taken from it.
 
-`static/hero/creator-camera-demo.webp`, the hero's default photograph, is a
-temporary stand-in cut from it: the panel with the man holding the camera,
-cleaned up and upscaled. It contains nothing from any other source, so it
-carries no attribution requirement. It is due to be replaced with a real
-photograph — upload one on the landing page screen, or replace the file.
+## `hero-gallery/`
+
+The six pictures in the homepage hero's gallery, supplied by the site owner.
+`static/hero/gallery-1.webp` … `gallery-6.webp` are these, resized to at most
+1200px and converted to WebP (about 680KB together, from 12MB of PNG).
