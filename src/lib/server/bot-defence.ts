@@ -115,16 +115,8 @@ const TIERS: Record<Tier, { burst: Limit; sustained: Limit }> = {
  * exactly what `vite dev` looks like.
  */
 export function clientKey(event: Parameters<Handle>[0]['event']): string | null {
-	const forwarded = event.request.headers.get('x-forwarded-for');
-
-	if (forwarded) {
-		const hops = forwarded
-			.split(',')
-			.map((hop) => hop.trim())
-			.filter(Boolean);
-		const address = hops.at(-XFF_DEPTH) ?? hops.at(0);
-		if (address) return normaliseAddress(address);
-	}
+	const forwarded = forwardedHop(event.request.headers);
+	if (forwarded) return normaliseAddress(forwarded);
 
 	let peer: string;
 	try {
@@ -140,6 +132,36 @@ export function clientKey(event: Parameters<Handle>[0]['event']): string | null 
 	}
 
 	return normaliseAddress(peer);
+}
+
+/** The hop OpenLiteSpeed appended to `X-Forwarded-For` — see `XFF_DEPTH`. */
+function forwardedHop(headers: Headers): string | null {
+	const hops = (headers.get('x-forwarded-for') ?? '')
+		.split(',')
+		.map((hop) => hop.trim())
+		.filter(Boolean);
+	return hops.at(-XFF_DEPTH) ?? hops.at(0) ?? null;
+}
+
+/**
+ * The caller's own address, whole — or null when all we can see is the
+ * loopback.
+ *
+ * `clientKey` buckets an address for the limits; this is for looking one up,
+ * where a /64 is no address at all. Read from the same hop, so the two can
+ * never disagree about who is asking. Says nothing when it cannot tell:
+ * `clientKey` already reports that, once.
+ */
+export function clientAddress(event: Parameters<Handle>[0]['event']): string | null {
+	const forwarded = forwardedHop(event.request.headers);
+	if (forwarded) return bareAddress(forwarded);
+
+	try {
+		const peer = event.getClientAddress();
+		return isLocal(peer) ? null : bareAddress(peer);
+	} catch {
+		return null;
+	}
 }
 
 /** Whether this process has already said it cannot tell callers apart. */
@@ -208,13 +230,7 @@ const isLocal = (address: string) =>
  * come from a different one at no cost.
  */
 export function normaliseAddress(address: string): string {
-	let value = address.trim().toLowerCase();
-
-	/* `[2001:db8::1]:443`, and the bracketless `1.2.3.4:5678` some proxies send. */
-	if (value.startsWith('[')) value = value.slice(1, value.indexOf(']'));
-	else if (value.split(':').length === 2) value = value.split(':')[0];
-
-	value = value.replace(/^::ffff:/, '');
+	const value = bareAddress(address);
 
 	if (!value.includes(':')) return value;
 
@@ -223,6 +239,17 @@ export function normaliseAddress(address: string): string {
 	   bucket key deserves — an address that short is already its own prefix. */
 	if (value.includes('::') && groups.length < 5) return value;
 	return groups.slice(0, 4).join(':') + '::/64';
+}
+
+/** An address with its port, brackets and IPv4-mapped prefix taken off. */
+function bareAddress(address: string): string {
+	let value = address.trim().toLowerCase();
+
+	/* `[2001:db8::1]:443`, and the bracketless `1.2.3.4:5678` some proxies send. */
+	if (value.startsWith('[')) value = value.slice(1, value.indexOf(']'));
+	else if (value.split(':').length === 2) value = value.split(':')[0];
+
+	return value.replace(/^::ffff:/, '');
 }
 
 /**

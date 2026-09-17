@@ -308,7 +308,7 @@
 				onclick={() => (scoreOpen = true)}
 				class="absolute top-4 left-4 flex items-center gap-1.5 rounded-xl border border-white/20 bg-black/70 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md transition-colors hover:bg-black/90"
 			>
-				<Award class="h-4 w-4 text-emerald-400" />
+				<Award class="h-4 w-4 text-slab-brand" />
 				<span>{m.profile_creator_score({ score: creator.score })}</span>
 			</button>
 		</div>

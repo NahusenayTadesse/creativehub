@@ -83,7 +83,7 @@
 					title={m.card_quick_view_title()}
 					class="absolute right-2.5 bottom-2.5 flex cursor-pointer items-center gap-1 rounded-xl border border-edge-mid bg-slate-900/90 px-2.5 py-1 text-[10px] font-black text-inverse-ink shadow-md backdrop-blur-xs transition-all hover:scale-105 hover:bg-inverse"
 				>
-					<Eye class="h-3 w-3 text-emerald-400" />
+					<Eye class="h-3 w-3 text-slab-brand" />
 					<span>{m.card_quick_view()}</span>
 				</button>
 			{/if}

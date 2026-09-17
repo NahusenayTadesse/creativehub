@@ -127,6 +127,34 @@
       "when": 1789410786217,
       "tag": "0017_sour_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1789480673230,
+      "tag": "0018_trending_markets",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1789505960142,
+      "tag": "0019_landing_page",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1789630107768,
+      "tag": "0020_hero_title_end",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1789631555188,
+      "tag": "0021_partners",
+      "breakpoints": true
     }
   ]
 }

@@ -1972,9 +1972,8 @@ async function seed() {
 	await upsert(t.siteSettings, sql`1=1`, {
 		siteName: 'Creator Network',
 		tagline: "Connecting Ethiopia's digital influence.",
-		heroTitle: 'Find the right creator. Build the right campaign.',
-		heroSubtitle:
-			'Ethiopia’s managed creator marketplace. Work with verified creators across TikTok, Telegram, YouTube and Instagram, agree terms that are recorded, and track delivery through to completion.',
+		/* No hero text: empty is the translated copy in `messages/`, which is
+		   what a fresh install should show in both languages. */
 		platformFeePercent: 15,
 		supportEmail: 'support@creatornetwork.et',
 		supportPhone: '+251 11 000 0000'

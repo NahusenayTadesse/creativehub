@@ -28,8 +28,9 @@ const GRACE_MS = 24 * 60 * 60 * 1000;
 /**
  * Every column that can hold an uploaded file name.
  *
- * The two upload paths in the app are `contentCrud`'s `fileFields` — declared
- * only for the homepage gallery today — and verification evidence. The rest are
+ * The upload paths in the app are `contentCrud`'s `fileFields` — the gallery
+ * and category pictures — the brand marks and hero picture on `site_settings`,
+ * and verification evidence. The rest are
  * listed because they accept *either* an upload or an external URL, and a
  * column that never holds one costs a single harmless query here, whereas a
  * column left off this list means live files counted as orphans. Missing
@@ -37,6 +38,13 @@ const GRACE_MS = 24 * 60 * 60 * 1000;
  */
 const FILE_COLUMNS: [table: string, column: string][] = [
 	['gallery_slides', 'image'],
+	['categories', 'image'],
+	['partners', 'logo'],
+	['site_settings', 'hero_image'],
+	['site_settings', 'logo_wordmark'],
+	['site_settings', 'logo_wordmark_dark'],
+	['site_settings', 'logo_mark'],
+	['site_settings', 'logo_partners'],
 	['verification_requests', 'document_url'],
 	['stat_proofs', 'screenshot'],
 	['creators', 'avatar'],

@@ -28,7 +28,14 @@
 	</Section>
 
 	<Section heading={m.pp_account_h()}><p>{m.pp_account_b()}</p></Section>
-	<Section heading={m.pp_auto_h()}><p>{m.pp_auto_b()}</p></Section>
+	<Section heading={m.pp_auto_h()}>
+		<p>{m.pp_auto_b()}</p>
+		<!-- The credit DB-IP's free database is licensed on (CC BY 4.0). -->
+		<p>
+			{m.pp_location_b()}
+			<a href="https://db-ip.com" class="underline">{m.pp_location_credit()}</a>
+		</p>
+	</Section>
 	<Section heading={m.pp_cookies_h()}><p>{m.pp_cookies_b()}</p></Section>
 	<Section heading={m.pp_use_h()}><p>{m.pp_use_b()}</p></Section>
 	<Section heading={m.pp_share_h()}><p>{m.pp_share_b()}</p></Section>

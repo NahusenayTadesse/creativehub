@@ -225,8 +225,24 @@ export type TrendingNormalization = 'percentile' | 'minmax' | 'log';
  * Location
  * ------------------------------------------------------------------ */
 
-export type TrendingLocalRanking = 'off' | 'boost' | 'first';
+export type TrendingLocalRanking = 'off' | 'boost' | 'first' | 'only';
 export type TrendingLocalMatch = 'country' | 'region' | 'city';
+
+/**
+ * What the reader's location actually does, once the board's mode has had its
+ * say.
+ *
+ * `automatic` is the mode an operator picks to take their hands off the board,
+ * and there the location counts for the most it can: a reader in a market we
+ * publish a board for sees that market's board alone. The other modes keep the
+ * operator's own choice.
+ */
+export function effectiveLocalRanking(
+	mode: string,
+	localRanking: TrendingLocalRanking
+): TrendingLocalRanking {
+	return mode === 'automatic' ? 'only' : localRanking;
+}
 
 /** Where a reader is, as much of it as could be worked out. */
 export type ViewerLocation = {
@@ -279,10 +295,15 @@ export const LOCAL_FIRST_BONUS = 1_000_000;
  * Both callers rank on a 0–100 scale — the platform score on discovery, the
  * board position on the homepage strip — so the operator's `boost` is in the
  * same units on both, and "worth fifteen points" means one thing.
+ *
+ * `only` orders like `first`. The trending strip honours it by serving the
+ * market's own board instead; a list that is not the board — discovery, or the
+ * shared board for a reader whose market has none — must not go empty because
+ * of it, so local creators simply lead.
  */
 export function localBonus(isLocal: boolean, mode: TrendingLocalRanking, points: number): number {
 	if (!isLocal || mode === 'off') return 0;
-	return mode === 'first' ? LOCAL_FIRST_BONUS : Math.max(0, points);
+	return mode === 'first' || mode === 'only' ? LOCAL_FIRST_BONUS : Math.max(0, points);
 }
 
 /**

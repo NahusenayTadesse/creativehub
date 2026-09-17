@@ -11,6 +11,7 @@ import {
 	buildLanes,
 	compareCandidates,
 	decayWeight,
+	effectiveLocalRanking,
 	followerTier,
 	growthPercent,
 	measureAudience,
@@ -37,6 +38,7 @@ import {
 	type TrendingSignal,
 	type TrendingWeights
 } from '$lib/domain/trending';
+import { getRequestEvent } from '$app/server';
 import { getViewerLocation } from '$lib/server/viewer-location';
 
 /**
@@ -1284,6 +1286,90 @@ export const laneBoardOf = (config: TrendingConfigValues, board: BoardResult): B
 	buildLanes(laneCandidatesOf(board), laneOptionsOf(config));
 
 /* ------------------------------------------------------------------ *
+ * Markets
+ * ------------------------------------------------------------------ */
+
+export type MarketBoard = { countryId: number; board: BoardResult; lanes: BuiltLane[] };
+
+/**
+ * One board per country, for the readers who are shown only their own.
+ *
+ * Each is `buildBoard` run again with every other country ruled out before
+ * scoring — so a signal is normalised against that market's creators, its caps
+ * and newcomer slots apply inside it, and it is as deep as the shared board
+ * rather than whatever share of twelve slots that country happened to win.
+ * A pin carries into its creator's own market and no other, since a pin skips
+ * the eligibility rules that would otherwise have kept it out.
+ *
+ * A market with no one eligible publishes nothing, and a reader there is
+ * served the shared board: an empty strip is not what "your country only"
+ * should look like to someone from a country with no creators yet.
+ */
+export async function buildMarketBoards(options: {
+	config: TrendingConfigValues;
+	overrides: OverrideRow[];
+	candidates: Candidate[];
+	/** The shared board — manual mode has no ranking to redo, only this to cut. */
+	shared: BoardResult;
+	now?: Date;
+	restingIds?: Set<number>;
+	/** Each market's live board, for its own incumbent bonus and churn limit. */
+	incumbents?: Map<number, Set<number>>;
+}): Promise<MarketBoard[]> {
+	const { config, candidates } = options;
+	/* A board already restricted to one market has no other market to publish. */
+	if (config.countryId) return [];
+
+	const countryOf = new Map(
+		candidates.map((candidate) => [candidate.creatorId, candidate.countryId])
+	);
+	const markets = [
+		...new Set(
+			candidates
+				.filter((candidate) => candidate.countryId && !candidate.excludedReason)
+				.map((candidate) => candidate.countryId as number)
+		)
+	].sort((a, b) => a - b);
+
+	const laneOptions = laneOptionsOf(config);
+	/* Everyone in a market's lanes is from that market, so its one country lane
+	   would be the market's own board again under another name. */
+	laneOptions.limits.country = 0;
+
+	const boards: MarketBoard[] = [];
+	for (const countryId of markets) {
+		let board: BoardResult;
+		if (config.mode === 'manual') {
+			/* No signal is read in manual mode, so there is nothing to re-rank: the
+			   market's board is its own ticked creators, in the shared order. */
+			const entries = options.shared.entries
+				.filter((entry) => entry.candidate.countryId === countryId)
+				.map((entry, index) => ({ ...entry, rank: index + 1 }));
+			board = { ...options.shared, entries, ranked: entries };
+		} else {
+			board = await buildBoard({
+				config: { ...config, countryId },
+				overrides: options.overrides.filter(
+					(override) => override.kind !== 'pin' || countryOf.get(override.creatorId) === countryId
+				),
+				now: options.now,
+				restingIds: options.restingIds,
+				incumbentIds: options.incumbents?.get(countryId) ?? new Set(),
+				candidates: candidates.map((candidate) =>
+					candidate.excludedReason || candidate.countryId === countryId
+						? candidate
+						: { ...candidate, excludedReason: 'outside_market' }
+				)
+			});
+		}
+		if (board.entries.length) {
+			boards.push({ countryId, board, lanes: buildLanes(laneCandidatesOf(board), laneOptions) });
+		}
+	}
+	return boards;
+}
+
+/* ------------------------------------------------------------------ *
  * Publishing
  * ------------------------------------------------------------------ */
 
@@ -1307,6 +1393,8 @@ export type RunResult = {
 	runId: number | null;
 	entryCount: number;
 	laneCount: number;
+	/** Markets that got a board of their own — see `buildMarketBoards`. */
+	marketCount: number;
 	changedCount: number;
 	stats: BoardResult['stats'];
 	skipped?: 'frozen';
@@ -1334,16 +1422,26 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 			runId: null,
 			entryCount: 0,
 			laneCount: 0,
+			marketCount: 0,
 			changedCount: 0,
 			stats: emptyStats(),
 			skipped: 'frozen'
 		};
 	}
 
-	const [overrides, previous, resting] = await Promise.all([
+	const [overrides, previous, previousMarkets, resting, candidates] = await Promise.all([
 		db.select().from(t.trendingOverrides).where(isNull(t.trendingOverrides.deletedAt)),
 		db.select().from(t.trendingEntries),
-		loadCooldowns(now)
+		db
+			.select({
+				countryId: t.trendingMarketEntries.countryId,
+				creatorId: t.trendingMarketEntries.creatorId
+			})
+			.from(t.trendingMarketEntries),
+		loadCooldowns(now),
+		/* Gathered once and shared: the market boards rank the same measurements
+		   the shared board does, not a second reading taken moments later. */
+		gatherCandidates(values, now)
 	]);
 
 	/*
@@ -1370,9 +1468,32 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 		overrides,
 		now,
 		restingIds: resting,
-		incumbentIds: new Set(previous.map((entry) => entry.creatorId))
+		incumbentIds: new Set(previous.map((entry) => entry.creatorId)),
+		candidates
 	});
 	const lanes = laneBoardOf(values, board);
+
+	/* Only published while some reader would be served one. Switching it on is
+	   a settings save, and saving publishes, so there is no stale gap to fill. */
+	const incumbents = new Map<number, Set<number>>();
+	for (const entry of previousMarkets) {
+		incumbents.set(
+			entry.countryId,
+			(incumbents.get(entry.countryId) ?? new Set()).add(entry.creatorId)
+		);
+	}
+	const markets =
+		effectiveLocalRanking(values.mode, values.localRanking) === 'only'
+			? await buildMarketBoards({
+					config: values,
+					overrides,
+					candidates,
+					shared: board,
+					now,
+					restingIds: resting,
+					incumbents
+				})
+			: [];
 
 	const previousIds = new Set(previous.map((entry) => entry.creatorId));
 	const nextIds = board.entries.map((entry) => entry.creatorId);
@@ -1422,29 +1543,50 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 		   it should vanish rather than linger with a stale membership. */
 		await tx.delete(t.trendingLaneEntries);
 		await tx.delete(t.trendingLanes);
-		for (const [index, lane] of lanes.entries()) {
-			const inserted = await tx.insert(t.trendingLanes).values({
-				kind: lane.kind,
-				refId: lane.refId,
-				refKey: lane.refKey,
-				label: lane.label,
-				position: index + 1,
-				size: lane.entries.length,
-				topScore: lane.topScore,
+		const laneSets: [marketCountryId: number | null, BuiltLane[]][] = [
+			[null, lanes],
+			...markets.map((market): [number, BuiltLane[]] => [market.countryId, market.lanes])
+		];
+		for (const [marketCountryId, set] of laneSets) {
+			for (const [index, lane] of set.entries()) {
+				const inserted = await tx.insert(t.trendingLanes).values({
+					kind: lane.kind,
+					refId: lane.refId,
+					refKey: lane.refKey,
+					label: lane.label,
+					position: index + 1,
+					size: lane.entries.length,
+					topScore: lane.topScore,
+					runId: id,
+					marketCountryId,
+					computedAt: now
+				});
+				const laneId = insertedId(inserted);
+				await tx.insert(t.trendingLaneEntries).values(
+					lane.entries.map((entry) => ({
+						laneId,
+						creatorId: entry.creatorId,
+						rank: entry.rank,
+						trendingScore: entry.score,
+						source: entry.source
+					}))
+				);
+			}
+		}
+
+		await tx.delete(t.trendingMarketEntries);
+		const marketRows = markets.flatMap((market) =>
+			market.board.entries.map((entry) => ({
+				countryId: market.countryId,
+				creatorId: entry.creatorId,
+				rank: entry.rank,
+				trendingScore: entry.score,
+				source: entry.source,
 				runId: id,
 				computedAt: now
-			});
-			const laneId = insertedId(inserted);
-			await tx.insert(t.trendingLaneEntries).values(
-				lane.entries.map((entry) => ({
-					laneId,
-					creatorId: entry.creatorId,
-					rank: entry.rank,
-					trendingScore: entry.score,
-					source: entry.source
-				}))
-			);
-		}
+			}))
+		);
+		if (marketRows.length) await tx.insert(t.trendingMarketEntries).values(marketRows);
 
 		for (const [creatorId, restingUntil] of rotateOut) {
 			await tx
@@ -1480,6 +1622,7 @@ export async function runTrending(options: RunOptions = {}): Promise<RunResult> 
 		runId,
 		entryCount: board.entries.length,
 		laneCount: lanes.length,
+		marketCount: markets.length,
 		changedCount,
 		stats: board.stats
 	};
@@ -1561,8 +1704,19 @@ export type PublishedLane = {
  * lane: there are at most a couple of dozen lanes, and the homepage is not the
  * place to find out how many round trips a strip of chips costs.
  */
-export async function listPublishedLanes(): Promise<PublishedLane[]> {
-	const lanes = await db.select().from(t.trendingLanes).orderBy(asc(t.trendingLanes.position));
+export async function listPublishedLanes(
+	/** A market's own lanes, or null for the lanes of the shared board. */
+	marketCountryId: number | null = null
+): Promise<PublishedLane[]> {
+	const lanes = await db
+		.select()
+		.from(t.trendingLanes)
+		.where(
+			marketCountryId === null
+				? isNull(t.trendingLanes.marketCountryId)
+				: eq(t.trendingLanes.marketCountryId, marketCountryId)
+		)
+		.orderBy(asc(t.trendingLanes.position));
 	if (!lanes.length) return [];
 
 	const entries = await db
@@ -1632,16 +1786,61 @@ export async function orderLanesForViewer<
  */
 export async function getLocalRanker(): Promise<((creator: CreatorLocation) => number) | null> {
 	const config = await getTrendingConfig();
-	const mode = config?.localRanking ?? TRENDING_DEFAULTS.localRanking;
+	const mode = effectiveLocalRanking(
+		config?.mode ?? TRENDING_DEFAULTS.mode,
+		config?.localRanking ?? TRENDING_DEFAULTS.localRanking
+	);
 	if (mode === 'off') return null;
 
 	const viewer = await getViewerLocation();
 	if (!viewer) return null;
 
-	const level = config?.localMatch ?? TRENDING_DEFAULTS.localMatch;
+	/* `only` is about the reader's country, so it matches on the country — the
+	   same line the market boards are drawn on. */
+	const level = mode === 'only' ? 'country' : (config?.localMatch ?? TRENDING_DEFAULTS.localMatch);
 	const points = config?.localBoost ?? TRENDING_DEFAULTS.localBoost;
 
 	return (creator) => localBonus(matchesLocation(creator, viewer, level), mode, points);
+}
+
+/**
+ * The market whose own board this reader is served, or null for the shared
+ * board.
+ *
+ * Null unless the reader is to see their country only, we know which country
+ * that is, and the last run published a board for it. The last condition is
+ * the one that keeps a reader from a market with no creators — or a site whose
+ * last run predates the setting — looking at an empty strip.
+ *
+ * Memoised on `locals`: the strip and its lanes both ask, in parallel.
+ */
+export function getViewerMarket(): Promise<number | null> {
+	try {
+		const { locals } = getRequestEvent();
+		return (locals.trendingMarket ??= resolveViewerMarket());
+	} catch {
+		/* Outside a request — nobody is reading. */
+		return Promise.resolve(null);
+	}
+}
+
+async function resolveViewerMarket(): Promise<number | null> {
+	const config = await getTrendingConfig();
+	const mode = effectiveLocalRanking(
+		config?.mode ?? TRENDING_DEFAULTS.mode,
+		config?.localRanking ?? TRENDING_DEFAULTS.localRanking
+	);
+	if (mode !== 'only' || config?.countryId) return null;
+
+	const viewer = await getViewerLocation();
+	if (!viewer?.countryId) return null;
+
+	const published = await db
+		.select({ id: t.trendingMarketEntries.id })
+		.from(t.trendingMarketEntries)
+		.where(eq(t.trendingMarketEntries.countryId, viewer.countryId))
+		.limit(1);
+	return published.length ? viewer.countryId : null;
 }
 
 /** Creator ids in board order — how the public strip knows what comes first. */

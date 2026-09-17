@@ -19,6 +19,7 @@
 		TRENDING_SIGNALS,
 		TRENDING_SIGNAL_GROUPS,
 		WEIGHT_COLUMN,
+		effectiveLocalRanking,
 		followerTierMeta,
 		tierLabel,
 		trendingLaneKindMeta,
@@ -307,8 +308,14 @@
 	const localRankingItems = $derived([
 		{ value: 'off', name: m.at_local_off() },
 		{ value: 'boost', name: m.at_local_boost_mode() },
-		{ value: 'first', name: m.at_local_first_mode() }
+		{ value: 'first', name: m.at_local_first_mode() },
+		{ value: 'only', name: m.at_local_only_mode() }
 	]);
+
+	/* Automatic mode shows readers their own country only, whatever the select
+	   says — the same rule as `effectiveLocalRanking`, so the fields below dim
+	   for the setting that will actually run. */
+	const effectiveLocal = $derived(effectiveLocalRanking($form.mode, $form.localRanking));
 
 	const localMatchItems = $derived([
 		{ value: 'country', name: m.at_local_match_country() },
@@ -317,11 +324,15 @@
 	]);
 
 	const localRankingHelp = $derived(
-		$form.localRanking === 'first'
-			? m.at_local_first_help()
-			: $form.localRanking === 'boost'
-				? m.at_local_boost_help()
-				: m.at_local_off_help()
+		$form.mode === 'automatic'
+			? m.at_local_automatic_help()
+			: $form.localRanking === 'only'
+				? m.at_local_only_help()
+				: $form.localRanking === 'first'
+					? m.at_local_first_help()
+					: $form.localRanking === 'boost'
+						? m.at_local_boost_help()
+						: m.at_local_off_help()
 	);
 
 	const reasonLabel = (key: string) =>
@@ -1169,14 +1180,14 @@
 					type="select"
 					label={m.at_local_match()}
 					items={localMatchItems}
-					disabled={$form.localRanking === 'off'}
+					disabled={effectiveLocal === 'off' || effectiveLocal === 'only'}
 					hint={m.at_local_match_help()}
 				/>
 			</div>
 
 			<!-- Only `boost` reads the points, so the slider says so rather than
 			     sitting there looking live. -->
-			<div class={$form.localRanking === 'boost' ? '' : 'opacity-50'}>
+			<div class={effectiveLocal === 'boost' ? '' : 'opacity-50'}>
 				<InputComp
 					{form}
 					{errors}
@@ -1186,8 +1197,8 @@
 					min={0}
 					max={100}
 					step={1}
-					disabled={$form.localRanking !== 'boost'}
-					hint={$form.localRanking === 'boost'
+					disabled={effectiveLocal !== 'boost'}
+					hint={effectiveLocal === 'boost'
 						? m.at_local_boost_field_help()
 						: m.at_local_boost_inactive()}
 					formatValue={(points) => m.at_local_boost_value({ points })}
