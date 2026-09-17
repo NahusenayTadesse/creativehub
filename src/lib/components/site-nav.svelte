@@ -18,7 +18,6 @@
 	import ThemeToggle from './theme-toggle.svelte';
 	import ThemeChoice from './theme-choice.svelte';
 	import SiteLogo from './site-logo.svelte';
-	import NavSearch from './nav-search.svelte';
 	import type { Logos } from '$lib/brand';
 
 	let {
@@ -124,10 +123,6 @@
 			</nav>
 
 			<div class="hidden items-center gap-3 lg:flex">
-				<!-- From `xl` only: at laptop width the links, the language, the theme
-				     and the account controls already fill the row. -->
-				<NavSearch class="hidden w-52 xl:flex" />
-
 				<button
 					type="button"
 					onclick={toggleLocale}

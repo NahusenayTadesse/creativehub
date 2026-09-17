@@ -84,8 +84,9 @@ export function heroHeadline(settings: {
 	const title = settings.heroTitle?.trim() ?? '';
 	const accent = settings.heroAccent?.trim() ?? '';
 	const end = settings.heroTitleEnd?.trim() ?? '';
+	/* The shipped headline is two lines; the third is an operator's to add. */
 	if (!title && !accent && !end) {
-		return { title: m.hero_title(), accent: m.hero_title_accent(), end: m.hero_title_end() };
+		return { title: m.hero_title(), accent: m.hero_title_accent(), end: '' };
 	}
 	return { title, accent, end };
 }

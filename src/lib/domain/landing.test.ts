@@ -63,7 +63,7 @@ describe('heroHeadline', () => {
 		const headline = heroHeadline({ heroTitle: '', heroAccent: '  ', heroTitleEnd: '' });
 		expect(headline.title).not.toBe('');
 		expect(headline.accent).not.toBe('');
-		expect(headline.end).not.toBe('');
+		expect(headline.end).toBe('');
 	});
 
 	it('overrides every line together, even with only one typed', () => {
