@@ -6,7 +6,7 @@
 	let { data } = $props();
 
 	const name = $derived(data.settings?.siteName ?? 'Influencer Ethiopia');
-	const email = $derived(data.settings?.supportEmail ?? 'support@creatornetwork.et');
+	const email = $derived(data.settings?.supportEmail ?? 'support@influencerethiopia.com');
 
 	const UPDATED = '25 August 2026';
 </script>
