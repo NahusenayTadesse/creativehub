@@ -37,7 +37,7 @@
 	/* ---------------- What a search engine and a link preview see ---------------- */
 
 	const logos = $derived(resolveLogos(page.data.settings));
-	const siteName = $derived(page.data.settings?.siteName || 'Creator Network');
+	const siteName = $derived(page.data.settings?.siteName || 'Influencer Ethiopia');
 	const absoluteUrl = (path: string) => new URL(path, page.url.origin).href;
 
 	/**

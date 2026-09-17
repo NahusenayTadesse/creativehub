@@ -1369,7 +1369,7 @@ export const staffInvites = mysqlTable(
 
 export const siteSettings = mysqlTable('site_settings', {
 	id: id(),
-	siteName: varchar('site_name', { length: 180 }).default('Creator Network').notNull(),
+	siteName: varchar('site_name', { length: 180 }).default('Influencer Ethiopia').notNull(),
 	tagline: varchar('tagline', { length: 250 })
 		.default("Connecting Ethiopia's digital influence.")
 		.notNull(),

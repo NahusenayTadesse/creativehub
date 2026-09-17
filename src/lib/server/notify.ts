@@ -56,8 +56,8 @@ function getSiteName(): Promise<string> {
 		.select({ siteName: t.siteSettings.siteName })
 		.from(t.siteSettings)
 		.limit(1)
-		.then((rows) => rows.at(0)?.siteName ?? 'Creator Network')
-		.catch(() => 'Creator Network');
+		.then((rows) => rows.at(0)?.siteName ?? 'Influencer Ethiopia')
+		.catch(() => 'Influencer Ethiopia');
 	return siteNamePromise;
 }
 

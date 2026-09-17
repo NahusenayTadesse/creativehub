@@ -1,4 +1,4 @@
-# Bug hunt — Creator Network
+# Bug hunt — Influencer Ethiopia
 
 > **Status: all findings below have been fixed.** Every item from C1 through L12 was
 > addressed in a follow-up pass, except **L9**, which was wrong — `creator_categories`

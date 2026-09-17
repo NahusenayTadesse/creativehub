@@ -1,4 +1,4 @@
-# Creator Network
+# Influencer Ethiopia
 
 A two-sided marketplace connecting organisations — brands, agencies, NGOs and event
 organisers — with content creators across Ethiopia and the wider Pan-African market.
