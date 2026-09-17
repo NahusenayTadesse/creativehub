@@ -1,6 +1,6 @@
 <div align="center">
 
-# Creator Network
+# Influencer Ethiopia
 
 ### The Complete Feature Catalogue
 
@@ -954,6 +954,6 @@ owns.
 
 <div align="center">
 
-_Creator Network · Feature catalogue · September 2026_
+_Influencer Ethiopia · Feature catalogue · September 2026_
 
 </div>

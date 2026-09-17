@@ -76,7 +76,7 @@
 				<!--
 					No name beside the mark on a phone.
 
-					`m.brand_name()` is "Creator Network" and the artwork says
+					`m.brand_name()` is "Influencer Ethiopia" and the artwork says
 					"influencer Ethiopia" — setting the two side by side reads as two
 					brands rather than one. The mark alone is the whole logo, which is
 					what a textless mark is for.

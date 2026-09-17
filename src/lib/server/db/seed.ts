@@ -381,7 +381,7 @@ const BLOG_SECTIONS = [
 	{
 		name: 'Platform notes',
 		slug: 'platform-notes',
-		description: 'What changed on Creator Network, and why it changed.',
+		description: 'What changed on Influencer Ethiopia, and why it changed.',
 		accent: 'indigo'
 	}
 ];
@@ -415,7 +415,7 @@ const BLOG_POSTS: SeedPost[] = [
 <blockquote>The question is never how many people will see it. It is how many of them will believe it.</blockquote>
 <p>None of this argues against scale. It argues against buying scale first and hoping credibility follows, which is the order most plans are still written in.</p>`,
 		tags: ['micro-creators', 'brand strategy', 'measurement'],
-		author: 'Creator Network',
+		author: 'Influencer Ethiopia',
 		daysAgo: 3,
 		featured: true
 	},
@@ -436,14 +436,14 @@ const BLOG_POSTS: SeedPost[] = [
 <p>Nothing kills a booking faster than a fourth round of revisions from someone who was not in the original conversation. Name the approver in the brief and hold to it.</p>
 <p>A brief with those four in it gets read to the end. One without them is a guess the creator has to price defensively, which is how a job that should cost you thirty thousand birr ends up quoted at eighty.</p>`,
 		tags: ['briefs', 'brand strategy', 'rates'],
-		author: 'Creator Network',
+		author: 'Influencer Ethiopia',
 		daysAgo: 12
 	},
 	{
 		title: 'Terms are frozen when both sides agree',
 		section: 'platform-notes',
 		excerpt:
-			'A booking on Creator Network records what was agreed at the moment it was agreed, and nothing later can quietly rewrite it. What that means in practice.',
+			'A booking on Influencer Ethiopia records what was agreed at the moment it was agreed, and nothing later can quietly rewrite it. What that means in practice.',
 		body: `<p>The most common dispute in creator work is not about money. It is about what was agreed, and it happens because the agreement lived in a chat thread that both sides remember differently.</p>
 <h2>What gets recorded</h2>
 <p>When a brand and a creator accept terms, the booking takes a copy: the price, the deliverables, the deadline, the number of revisions, and the currency. That copy does not change when a rate card changes, when a package is edited, or when a profile is updated.</p>
@@ -452,7 +452,7 @@ const BLOG_POSTS: SeedPost[] = [
 <ul><li>A rate that rises between agreement and delivery.</li><li>A deliverable list that grows after work has started.</li><li>A revision allowance that turns out to have been unlimited all along.</li></ul>
 <p>Changing any of it takes a counter-proposal that the other side accepts, which is recorded in turn. The history is the point: every state a booking passed through is kept, so "what did we agree" has one answer rather than two.</p>`,
 		tags: ['bookings', 'platform'],
-		author: 'Creator Network',
+		author: 'Influencer Ethiopia',
 		daysAgo: 24
 	},
 	{
@@ -470,7 +470,7 @@ const BLOG_POSTS: SeedPost[] = [
 <h2>Publish it</h2>
 <p>A published rate card ends the negotiation before it starts, and it protects you from the version of the conversation where you are asked to guess first. If a brand cannot meet it, they will say so, and that is a faster no than the alternative.</p>`,
 		tags: ['rates', 'getting started'],
-		author: 'Creator Network',
+		author: 'Influencer Ethiopia',
 		daysAgo: 40
 	}
 ];
@@ -1970,7 +1970,7 @@ async function seed() {
 
 	console.log('→ site settings');
 	await upsert(t.siteSettings, sql`1=1`, {
-		siteName: 'Creator Network',
+		siteName: 'Influencer Ethiopia',
 		tagline: "Connecting Ethiopia's digital influence.",
 		/* No hero text: empty is the translated copy in `messages/`, which is
 		   what a fresh install should show in both languages. */

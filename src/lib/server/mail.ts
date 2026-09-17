@@ -172,7 +172,7 @@ ${content.footnote ? `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;c
 export async function sendMail(
 	to: string | null | undefined,
 	content: MailContent,
-	siteName = 'Creator Network'
+	siteName = 'Influencer Ethiopia'
 ): Promise<boolean> {
 	if (!to) return false;
 

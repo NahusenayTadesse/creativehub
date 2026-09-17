@@ -1,7 +1,7 @@
 import * as m from '$lib/paraglide/messages';
 
 /**
- * The 0–100 Creator Network score. Derived from evidence only — no field on
+ * The 0–100 Influencer Ethiopia score. Derived from evidence only — no field on
  * the profile lets a creator set it, and the weights below are the ones the
  * public explainer modal shows.
  */

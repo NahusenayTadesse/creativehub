@@ -181,7 +181,7 @@ async function fetchVia(host: string, url: string): Promise<Fetched> {
 
 async function fetchHere(url: string): Promise<Fetched> {
 	const response = await fetch(url, {
-		headers: { 'User-Agent': 'creator-network avatar import' },
+		headers: { 'User-Agent': 'influencer-ethiopia avatar import' },
 		signal: AbortSignal.timeout(30_000)
 	});
 	return {

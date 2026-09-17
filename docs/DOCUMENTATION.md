@@ -1,6 +1,6 @@
 <div align="center">
 
-# Creator Network
+# Influencer Ethiopia
 
 ### Product & Technical Documentation
 
@@ -34,7 +34,7 @@
 
 ## 1. Overview
 
-Creator Network is a marketplace with two sides that need each other and cannot
+Influencer Ethiopia is a marketplace with two sides that need each other and cannot
 easily find each other.
 
 On one side are **organisations** — brands, startups, agencies, NGOs, government
@@ -1284,6 +1284,6 @@ it on the deal is a contained change with a direct effect on transaction value.
 
 <div align="center">
 
-_Creator Network · Product & Technical Documentation · September 2026_
+_Influencer Ethiopia · Product & Technical Documentation · September 2026_
 
 </div>
