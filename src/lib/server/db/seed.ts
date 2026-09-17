@@ -1975,15 +1975,15 @@ async function seed() {
 		/* No hero text: empty is the translated copy in `messages/`, which is
 		   what a fresh install should show in both languages. */
 		platformFeePercent: 15,
-		supportEmail: 'support@creatornetwork.et',
+		supportEmail: 'support@influencerethiopia.com',
 		supportPhone: '+251 11 000 0000'
 	});
 
 	console.log('→ accounts');
-	const adminId = await ensureUser('admin@creatornetwork.et', 'Platform Operator', 'admin');
+	const adminId = await ensureUser('admin@influencerethiopia.com', 'Platform Operator', 'admin');
 	/* A data-entry account, so the encoder's narrower view of /dashboard/admin is
 	   something anyone can sign in and see. */
-	await ensureUser('encoder@creatornetwork.et', 'Data Encoder', 'encoder');
+	await ensureUser('encoder@influencerethiopia.com', 'Data Encoder', 'encoder');
 
 	console.log(`→ ${BLOG_POSTS.length} blog posts`);
 	const sectionIds = new Map<string, number>();
