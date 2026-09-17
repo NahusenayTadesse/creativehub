@@ -120,7 +120,7 @@
 				label={m.lp_hero_title_end()}
 				name="heroTitleEnd"
 				type="text"
-				placeholder={m.hero_title_end()}
+				hint={m.lp_hero_title_end_hint()}
 			/>
 			<InputComp
 				{form}

@@ -6,17 +6,14 @@
 <https://commons.wikimedia.org/wiki/File:AddisView.jpg> — licensed
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 
-Used, adapted, in two files the homepage serves:
+Used, adapted, in the file the homepage serves:
 
-- `static/hero/addis-skyline.webp` — a crop of the skyline band, lightened.
-- `static/hero/addis-city.webp` — the left of the photo, cropped to fill the
-  right half of the hero on desktop, lightened.
 - `static/hero/creator-camera.webp` — the skyline behind the figure cut from
   `inspiration.jpeg` (below), with the figure composited over it.
 
-Both are adaptations, so both are shared under **CC BY-SA 4.0** too, and the
-credit the licence requires is printed in the site footer
-(`footer_photo_credit`). Keep that credit for as long as either file ships.
+It is an adaptation, so it is shared under **CC BY-SA 4.0** too, and the credit
+the licence requires is printed in the site footer (`footer_photo_credit`).
+Keep that credit for as long as the file ships.
 
 ## `inspiration.jpeg`
 
