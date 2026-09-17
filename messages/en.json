@@ -2367,10 +2367,6 @@
 	"lp_hero_accent_hint": "Typing either line replaces both. Leave this empty for a one-line headline.",
 	"lp_hero_subtitle": "Subheading",
 	"lp_preview": "Preview",
-	"lp_hero_image": "Hero picture",
-	"lp_hero_image_hint": "The photograph in the middle of the hero's collage, with creator cards pinned over its corners. A tall picture works best, around 900×1400.",
-	"lp_hero_image_none": "None",
-	"lp_hero_image_remove": "Remove the picture",
 	"lp_sections_heading": "Sections",
 	"lp_sections_note": "The hero always comes first. Reorder what follows it with the arrows, and untick a section to hide it.",
 	"lp_section_shown": "Shown on the page",
@@ -2405,11 +2401,6 @@
 	"home_gallery_slide_of": "Slide {index} of {total}",
 	"home_gallery_pause": "Pause the slideshow",
 	"home_gallery_play": "Play the slideshow",
-	"home_hero_collage_label": "Creators on the platform",
-	"home_hero_card_role": "{category} creator",
-	"home_hero_followers": "Followers",
-	"home_hero_engagement": "Engagement",
-	"home_hero_reach": "Campaign reach",
 	"home_hero_location_city": "Addis Ababa",
 	"home_hero_location_label": "Browse creators in Ethiopia",
 	"lp_hero_title_end": "Third line",
@@ -2433,5 +2424,7 @@
 	"home_stat_published_creators": "Published creators",
 	"home_stat_combined_reach": "Combined reach",
 	"home_stat_live_campaigns": "Live campaigns",
-	"lp_hero_title_end_hint": "Optional. A third line in plain ink under the coloured one."
+	"lp_hero_title_end_hint": "Optional. A third line in plain ink under the coloured one.",
+	"home_hero_gallery_label": "Influencer Ethiopia in pictures",
+	"home_hero_gallery_alt": "Influencer Ethiopia creator, picture {index} of {total}"
 }

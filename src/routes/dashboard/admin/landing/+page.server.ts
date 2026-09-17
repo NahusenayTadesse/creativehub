@@ -1,5 +1,4 @@
 import * as m from '$lib/paraglide/messages';
-import { fail, redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { eq } from 'drizzle-orm';
@@ -9,7 +8,6 @@ import * as t from '$lib/server/db/schema';
 import { requireRole, recordAudit } from '$lib/server/guards';
 import { landingSchema } from '$lib/schemas';
 import { getSettings, listGallerySlides } from '$lib/server/queries';
-import { saveUploadedFile, UploadError } from '$lib/server/upload';
 import { SECTION_VISIBILITY_FIELD, landingLayout } from '$lib/domain/landing';
 
 /**
@@ -37,10 +35,7 @@ export const load: PageServerLoad = async (event) => {
 			layout.map((section) => [SECTION_VISIBILITY_FIELD[section.key], section.visible])
 		)
 	});
-	/* The stored picture is not copied into the field — see the note on logos in
-	   the settings screen. The page previews it from `heroImage` instead. */
-
-	return { form, heroImage: settings?.heroImage ?? '', slideCount: slides.length };
+	return { form, slideCount: slides.length };
 };
 
 export const actions: Actions = {
@@ -51,23 +46,7 @@ export const actions: Actions = {
 			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
 		}
 
-		const { heroImage, sectionOrder, ...rest } = form.data;
-
-		let image: string | undefined;
-		if (heroImage instanceof File && heroImage.size > 0) {
-			try {
-				image = await saveUploadedFile(heroImage);
-			} catch (err) {
-				if (!(err instanceof UploadError)) throw err;
-				const text =
-					err.reason === 'too_large'
-						? m.as_logo_too_large()
-						: err.reason === 'bad_type'
-							? m.as_logo_bad_type()
-							: m.as_logo_content_mismatch();
-				return message(form, { type: 'error', text }, { status: 400 });
-			}
-		}
+		const { sectionOrder, ...rest } = form.data;
 
 		/* Order from the hidden fields, visibility from the checkboxes, and then
 		   through `landingLayout` so a tampered or partial post still stores
@@ -83,8 +62,7 @@ export const actions: Actions = {
 			/* Null rather than empty, so "use the translated subtitle" has one spelling. */
 			heroSubtitle: rest.heroSubtitle || null,
 			galleryIntervalSeconds: rest.galleryIntervalSeconds,
-			landingSections,
-			...(image ? { heroImage: image } : {})
+			landingSections
 		};
 
 		const existing = await getSettings();
@@ -105,41 +83,12 @@ export const actions: Actions = {
 			action: 'updated',
 			reason: [
 				`Landing order ${landingSections.map((section) => section.key).join(' → ')}`,
-				hidden.length ? `hidden ${hidden.join(', ')}` : null,
-				image ? 'replaced hero image' : null
+				hidden.length ? `hidden ${hidden.join(', ')}` : null
 			]
 				.filter(Boolean)
 				.join('; ')
 		});
 
 		return message(form, { type: 'success', text: m.lp_saved() });
-	},
-
-	/**
-	 * Takes the hero picture away, back to the plain panel.
-	 *
-	 * The file stays on disk, as a reset logo's does: a backup of this row may
-	 * still name it, and `npm run uploads:prune` clears true orphans.
-	 */
-	removeHeroImage: async (event) => {
-		const user = requireRole(event, 'admin');
-		const existing = await getSettings();
-		if (!existing) return fail(409, { message: m.srv_invalid_request() });
-
-		await db
-			.update(t.siteSettings)
-			.set({ heroImage: '', updatedBy: user.id })
-			.where(eq(t.siteSettings.id, existing.id));
-
-		await recordAudit({
-			actorId: user.id,
-			actorLabel: user.name,
-			entity: 'settings',
-			action: 'updated',
-			reason: 'Removed the hero image'
-		});
-
-		/* Unenhanced, so redirect rather than leave the browser on `?/removeHeroImage`. */
-		redirect(303, '/dashboard/admin/landing');
 	}
 };

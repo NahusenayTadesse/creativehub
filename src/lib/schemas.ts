@@ -869,8 +869,6 @@ export const landingSchema = z.object({
 	heroAccent: z.string().trim().max(250).default(''),
 	heroTitleEnd: z.string().trim().max(250).default(''),
 	heroSubtitle: optionalText,
-	/* An empty picker keeps the stored picture; removing it is its own action. */
-	heroImage: uploadOrUrl,
 	/* A minute is already longer than anyone waits on a slide; 0 stops it. */
 	galleryIntervalSeconds: z.coerce.number().int().min(0).max(60).default(6),
 	/* Posted as one hidden field per section, top to bottom. */

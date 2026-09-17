@@ -2367,10 +2367,6 @@
 	"lp_hero_accent_hint": "ከሁለቱ መስመሮች አንዱን መጻፍ ሁለቱንም ይተካል። ባለ አንድ መስመር አርዕስት ለማግኘት ይህን ባዶ ይተዉት።",
 	"lp_hero_subtitle": "ንዑስ አርዕስት",
 	"lp_preview": "ቅድመ እይታ",
-	"lp_hero_image": "የዋና ክፍል ምስል",
-	"lp_hero_image_hint": "በዋናው ክፍል ስብስብ መሃል ያለው ፎቶ፣ የፈጣሪ ካርዶች በማዕዘኖቹ ላይ ተሰክተው። ረጅም ምስል የተሻለ ነው፣ በግምት 900×1400።",
-	"lp_hero_image_none": "የለም",
-	"lp_hero_image_remove": "ምስሉን አስወግድ",
 	"lp_sections_heading": "ክፍሎች",
 	"lp_sections_note": "ዋናው ክፍል ሁልጊዜ ይቀድማል። የሚከተሉትን በቀስቶቹ ያስተካክሉ፣ ክፍልን ለመደበቅ ምልክቱን ያንሱ።",
 	"lp_section_shown": "በገጹ ላይ ይታያል",
@@ -2405,11 +2401,6 @@
 	"home_gallery_slide_of": "ስላይድ {index} ከ{total}",
 	"home_gallery_pause": "ተንሸራታቹን አቁም",
 	"home_gallery_play": "ተንሸራታቹን አጫውት",
-	"home_hero_collage_label": "በመድረኩ ላይ ያሉ ፈጣሪዎች",
-	"home_hero_card_role": "የ{category} ፈጣሪ",
-	"home_hero_followers": "ተከታዮች",
-	"home_hero_engagement": "ተሳትፎ",
-	"home_hero_reach": "የዘመቻ ተደራሽነት",
 	"home_hero_location_city": "አዲስ አበባ",
 	"home_hero_location_label": "በኢትዮጵያ ያሉ ፈጣሪዎችን ይመልከቱ",
 	"lp_hero_title_end": "ሦስተኛ መስመር",
@@ -2433,5 +2424,7 @@
 	"home_stat_published_creators": "የታተሙ ፈጣሪዎች",
 	"home_stat_combined_reach": "ጠቅላላ ተደራሽነት",
 	"home_stat_live_campaigns": "ንቁ ዘመቻዎች",
-	"lp_hero_title_end_hint": "አማራጭ። ከባለቀለሙ መስመር በታች በተራ ቀለም ሦስተኛ መስመር።"
+	"lp_hero_title_end_hint": "አማራጭ። ከባለቀለሙ መስመር በታች በተራ ቀለም ሦስተኛ መስመር።",
+	"home_hero_gallery_label": "ኢንፍሉዌንሰር ኢትዮጵያ በምስሎች",
+	"home_hero_gallery_alt": "የኢንፍሉዌንሰር ኢትዮጵያ ፈጣሪ፣ ምስል {index} ከ{total}"
 }

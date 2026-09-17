@@ -1387,7 +1387,12 @@ export const siteSettings = mysqlTable('site_settings', {
 	/** The third line, back in plain ink. Read only alongside a custom title. */
 	heroTitleEnd: varchar('hero_title_end', { length: 250 }).default('').notNull(),
 	heroSubtitle: text('hero_subtitle'),
-	/** Drawn behind the hero's text. Empty keeps the plain panel. */
+	/**
+	 * Unused since 2026-09-17, when the hero's photograph gave way to a stack of
+	 * creator cards. Kept rather than dropped, so an upload made before then is
+	 * not destroyed by a migration; still on the upload-prune list for the same
+	 * reason.
+	 */
 	heroImage: varchar('hero_image', { length: 500 }).default('').notNull(),
 	/** How long a gallery slide stays up before the next one. 0 never advances. */
 	galleryIntervalSeconds: int('gallery_interval_seconds').default(6).notNull(),

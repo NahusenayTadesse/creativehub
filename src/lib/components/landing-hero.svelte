@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { ResolvedPathname } from '$app/types';
-	import { ArrowRight, BarChart3, ChevronRight, MapPin, Search, ShieldCheck } from '@lucide/svelte';
+	import { ArrowRight, ChevronRight, MapPin, Search, ShieldCheck } from '@lucide/svelte';
 	import AppImage from '$lib/components/app-image.svelte';
 	import PlatformGlyph from '$lib/components/platform-glyph.svelte';
 	import InputComp from '$lib/formComponents/InputComp.svelte';
@@ -38,15 +40,12 @@
 	let {
 		headline,
 		subtitle,
-		image = '',
 		creators = [],
 		partners = [],
 		stats
 	}: {
 		headline: { title: string; accent: string; end: string };
 		subtitle: string;
-		/** The operator's hero picture. The shipped photograph when unset. */
-		image?: string;
 		/** In the order they should fill the collage; the first three are drawn. */
 		creators?: Creator[];
 		/** Operator-managed logos, from /dashboard/admin/partners. None, no tile. */
@@ -66,12 +65,96 @@
 
 	/* ---------------- The collage ---------------- */
 
-	/* A stand-in cut from the design mockup (assets-src/landing/inspiration.jpeg)
-	   until a real photograph replaces it — through the landing page screen, or
-	   by replacing this file under a new name, since Cloudflare keeps a copy of
-	   an unchanged URL for up to a week. */
-	const picture = $derived(image || '/hero/creator-camera-demo.webp');
-	const collage = $derived(creators.slice(0, 3));
+	/* ---------------- The gallery ---------------- */
+
+	/*
+	 * Shipped pictures, shown whole: they mix portrait, square and landscape and
+	 * each carries the brand along its foot, so cropping any of them to fill the
+	 * tile would cut the part that matters. Built from the originals in
+	 * assets-src/landing/hero-gallery.
+	 */
+	const GALLERY = [1, 2, 3, 4, 5, 6].map((n) => `/hero/gallery-${n}.webp`);
+	const ADVANCE_MS = 4500;
+
+	let current = $state(0);
+	let paused = $state(false);
+	let reducedMotion = $state(false);
+	let touchStartX = 0;
+	let touchStartY = 0;
+
+	/*
+	 * Where each picture comes from and leaves to — offset, tilt — so no two
+	 * changes look alike. The same idea as the hero gallery in tmax, tightened
+	 * for photographs: shorter distances and durations, since a whole picture
+	 * flying far reads as slow where a product cut-out reads as playful.
+	 */
+	const motions = [
+		{ inX: -120, inY: 60, outX: 120, outY: -70, inRotate: -14, outRotate: 12 },
+		{ inX: 130, inY: -50, outX: -110, outY: 80, inRotate: 13, outRotate: -12 },
+		{ inX: 0, inY: 130, outX: 0, outY: -130, inRotate: 9, outRotate: -9 },
+		{ inX: -90, inY: -100, outX: 110, outY: 110, inRotate: -16, outRotate: 14 },
+		{ inX: 100, inY: 100, outX: -110, outY: -90, inRotate: 15, outRotate: -14 },
+		{ inX: -130, inY: -30, outX: 130, outY: 40, inRotate: -10, outRotate: 10 }
+	];
+
+	const go = (index: number) => (current = (index + GALLERY.length) % GALLERY.length);
+
+	/* One timer per picture, restarted by every change however it happened, and
+	   held while the reader's pointer or focus is on the gallery. */
+	$effect(() => {
+		if (paused) return;
+		void current;
+		const timer = setTimeout(() => go(current + 1), ADVANCE_MS);
+		return () => clearTimeout(timer);
+	});
+
+	onMount(() => {
+		reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		/* The pictures after the first are fetched now, so a change never shows a
+		   half-loaded image mid-flight. */
+		for (const src of GALLERY.slice(1)) new Image().src = src;
+	});
+
+	function onTouchStart(event: TouchEvent) {
+		touchStartX = event.touches[0].clientX;
+		touchStartY = event.touches[0].clientY;
+	}
+
+	function onTouchEnd(event: TouchEvent) {
+		const dx = event.changedTouches[0].clientX - touchStartX;
+		const dy = event.changedTouches[0].clientY - touchStartY;
+		if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) go(current + (dx < 0 ? 1 : -1));
+	}
+
+	type Motion = (typeof motions)[number];
+
+	function pictureIn(_: Element, { motion }: { motion: Motion }) {
+		if (reducedMotion) return { duration: 250, css: (t: number) => `opacity: ${t}` };
+		return {
+			duration: 650,
+			easing: cubicOut,
+			css: (t: number, u: number) => `
+				opacity: ${t};
+				transform: translate3d(${motion.inX * u}px, ${motion.inY * u}px, 0) rotate(${motion.inRotate * u}deg) scale(${0.8 + t * 0.2});
+				filter: blur(${u * 10}px);
+			`
+		};
+	}
+
+	function pictureOut(_: Element, { motion }: { motion: Motion }) {
+		if (reducedMotion) return { duration: 200, css: (t: number) => `opacity: ${t}` };
+		return {
+			duration: 420,
+			easing: cubicOut,
+			css: (t: number, u: number) => `
+				opacity: ${t};
+				transform: translate3d(${motion.outX * u}px, ${motion.outY * u}px, 0) rotate(${motion.outRotate * u}deg) scale(${0.88 + t * 0.12});
+				filter: blur(${u * 8}px);
+			`
+		};
+	}
+
+	/* ---------------- The creators, floating ---------------- */
 
 	const platformColor = (name: string | null) =>
 		page.data.reference?.platforms?.find((platform: { name: string }) => platform.name === name)
@@ -88,16 +171,16 @@
 		return (ethiopia ? `${discover}?country=${ethiopia.id}` : discover) as ResolvedPathname;
 	});
 
-	/*
-	 * Three corners of the picture, leaving the top right clear: that is where
-	 * the face is in the shipped photograph, and a collage that covers its own
-	 * subject is just a stack of cards. The middle slot waits for `sm` — on a
-	 * phone two cards over one picture is already the most it holds.
-	 */
-	const slots = [
-		'left-0 top-0 w-[42%] sm:w-[32%]',
-		'left-0 bottom-14 hidden w-[32%] sm:block',
-		'right-0 bottom-2 w-[42%] sm:w-[32%]'
+	const bubbles = $derived(creators.slice(0, 5));
+
+	/* Around the gallery's edge, half on and half off it, so they frame the
+	   picture instead of covering it. Each drifts on its own clock. */
+	const orbit = [
+		{ place: '-left-3 top-[9%]', delay: '0s' },
+		{ place: '-right-3 top-[24%]', delay: '-1.6s' },
+		{ place: '-left-4 bottom-[26%]', delay: '-3.1s' },
+		{ place: '-right-4 bottom-[18%]', delay: '-2.3s' },
+		{ place: 'left-[38%] top-2 sm:-top-5', delay: '-4.4s' }
 	];
 
 	const hardShadow = 'shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))]';
@@ -212,121 +295,128 @@
 			</div>
 		</div>
 
-		<!-- ---------------- The platform, pictured ---------------- -->
+		<!-- ---------------- The gallery, with creators floating round it ---------------- -->
 		<div class="flex flex-col gap-4 sm:gap-6 lg:col-span-5">
 			<div
-				class="relative h-[400px] sm:h-[480px] lg:h-auto lg:min-h-[470px] lg:flex-1"
-				role="group"
-				aria-label={m.home_hero_collage_label()}
+				class="relative h-[440px] sm:h-[520px] lg:h-auto lg:min-h-[520px] lg:flex-1"
+				role="region"
+				aria-roledescription="carousel"
+				aria-label={m.home_hero_gallery_label()}
+				onpointerenter={() => (paused = true)}
+				onpointerleave={() => (paused = false)}
+				onfocusin={() => (paused = true)}
+				onfocusout={() => (paused = false)}
 			>
-				<!-- The photograph, inset so the cards can overhang its edges. -->
+				<!-- The tile: the brand's ocean-to-emerald ground, a light vignette and two
+				     soft glows, behind whichever picture is up. -->
+				<!-- Swipe is an extra: the dots are the keyboard and screen-reader way
+				     through, so the touch handlers need no role of their own. -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
-					class="absolute inset-y-5 right-[4%] left-[12%] overflow-hidden rounded-3xl border-2 border-edge bg-inverse shadow-[6px_6px_0px_0px_rgb(var(--bento-shadow))]"
+					class="hero-gallery absolute inset-0 touch-pan-y overflow-hidden rounded-3xl border-2 border-edge shadow-[6px_6px_0px_0px_rgb(var(--bento-shadow))]"
+					ontouchstart={onTouchStart}
+					ontouchend={onTouchEnd}
 				>
-					<AppImage
-						src={picture}
-						alt=""
-						kind="cover"
-						seed="hero"
-						loading="eager"
-						class="h-full w-full object-cover"
-					/>
+					<div
+						class="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-white/25 blur-3xl"
+					></div>
+					<div
+						class="pointer-events-none absolute -right-20 bottom-6 h-72 w-72 rounded-full bg-[#2edcae]/35 blur-3xl"
+					></div>
+					<div
+						class="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_50%_25%,transparent,rgba(2,12,25,0.35))]"
+					></div>
+
+					{#key current}
+						<div
+							in:pictureIn={{ motion: motions[current] }}
+							out:pictureOut={{ motion: motions[current] }}
+							class="absolute inset-0 z-[5] flex items-center justify-center px-5 pt-12 pb-12 sm:px-7 sm:pt-14 sm:pb-14"
+						>
+							<img
+								src={GALLERY[current]}
+								alt={m.home_hero_gallery_alt({ index: current + 1, total: GALLERY.length })}
+								class="hero-picture max-h-full max-w-full rounded-2xl border-2 border-edge object-contain"
+								draggable="false"
+								decoding="async"
+								fetchpriority={current === 0 ? 'high' : 'auto'}
+							/>
+						</div>
+					{/key}
+
+					<div class="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-2">
+						{#each GALLERY as src, index (src)}
+							<button
+								type="button"
+								aria-label={m.home_gallery_go_to({ index: index + 1 })}
+								aria-current={index === current}
+								onclick={() => go(index)}
+								class="h-2 rounded-full border border-edge transition-all duration-500 {index ===
+								current
+									? 'w-8 bg-white'
+									: 'w-2 bg-white/50 hover:bg-white/80'}"
+							></button>
+						{/each}
+					</div>
 				</div>
 
-				<!-- Creators, each a link to their profile. -->
-				{#each collage as creator, index (creator.id)}
-					<a
-						href={resolve(`/creators/${creator.username}`)}
-						class="absolute {slots[
-							index
-						]} max-w-[190px] rounded-2xl border-2 border-edge bg-surface p-1.5 {hardShadow} transition-all hover:-translate-y-0.5 hover:shadow-[5px_5px_0px_0px_rgb(var(--bento-shadow))] focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none"
-					>
-						<AppImage
-							src={creator.avatar}
-							alt={creator.fullName}
-							kind="avatar"
-							seed={creator.username}
-							label={creator.fullName}
-							class="aspect-[16/11] w-full rounded-xl border-2 border-edge object-cover"
-							loading="eager"
-						/>
-						<div class="px-1 pt-2 pb-0.5">
-							<p class="truncate text-[11px] font-black text-ink">
-								{creator.categories[0]
-									? m.home_hero_card_role({ category: creator.categories[0] })
-									: creator.fullName}
-							</p>
-							{#if creator.city || creator.countryName}
-								<p
-									class="mt-0.5 flex items-center gap-1 truncate text-[10px] font-bold text-ink-dim"
-								>
-									<MapPin class="h-2.5 w-2.5 shrink-0" />
-									<span class="truncate">{creator.city || creator.countryName}</span>
-								</p>
-							{/if}
-							<div class="mt-1.5 flex items-end justify-between gap-2">
-								<div class="min-w-0">
-									{#if index === 1 && creator.engagementRate > 0}
-										<p class="text-sm leading-none font-black text-ink">
-											{creator.engagementRate}%
-										</p>
-										<p class="mt-1 text-[9px] font-black tracking-wider text-ink-dim uppercase">
-											{m.home_hero_engagement()}
-										</p>
-									{:else}
-										<p class="text-sm leading-none font-black text-ink">
-											{formatReach(creator.totalReach)}
-										</p>
-										<p class="mt-1 text-[9px] font-black tracking-wider text-ink-dim uppercase">
-											{m.home_hero_followers()}
-										</p>
-									{/if}
-								</div>
-								<PlatformGlyph
-									name={creator.platformName}
-									color={platformColor(creator.platformName)}
-									class="size-5"
-								/>
-							</div>
-						</div>
-					</a>
-				{/each}
-
-				<!-- The home market, pinned to the top of the picture. -->
-				<a
-					href={homeMarketHref}
-					aria-label={m.home_hero_location_label()}
-					class="absolute top-2 left-1/2 hidden -translate-x-1/2 items-center gap-1.5 rounded-full border-2 border-edge bg-inverse px-3 py-1.5 text-[11px] font-black whitespace-nowrap text-inverse-ink {hardShadow} transition-colors hover:bg-inverse-hover sm:flex"
-				>
-					<MapPin class="h-3.5 w-3.5 text-inverse-brand" />
-					{m.home_hero_location_city()}
-					<ChevronRight class="h-3.5 w-3.5 text-inverse-ink-dim" />
-				</a>
-
-				<!-- The platform's combined reach, on the mint tile the site uses for
-				     a settled, positive figure. Bottom left on a phone, where the
-				     hidden middle card leaves room; centred from `sm`. -->
-				{#if stats.totalReach}
+				<!-- Creators, small and round, drifting on the tile's edge. -->
+				{#each bubbles as creator, index (creator.id)}
 					<div
-						class="absolute bottom-0 left-2 flex items-center gap-2.5 rounded-2xl border-2 border-edge bg-tile-mint px-3 py-2 whitespace-nowrap sm:left-1/2 sm:-translate-x-1/2 {hardShadow}"
+						class="hero-bubble absolute z-30 {orbit[index].place}"
+						style:--float-delay={orbit[index].delay}
 					>
-						<span
-							class="grid size-8 place-items-center rounded-xl border-2 border-edge bg-inverse text-inverse-ink"
+						<a
+							href={resolve(`/creators/${creator.username}`)}
+							title={creator.fullName}
+							class="group flex flex-col items-center gap-1 focus-visible:outline-none"
 						>
-							<BarChart3 class="h-4 w-4" />
-						</span>
-						<span>
-							<span class="block text-lg leading-none font-black text-ink">
-								{formatReach(stats.totalReach)}
+							<span class="relative block">
+								<AppImage
+									src={creator.avatar}
+									alt={creator.fullName}
+									kind="avatar"
+									seed={creator.username}
+									label={creator.fullName}
+									class="size-14 rounded-full border-2 border-edge object-cover {hardShadow} transition-transform duration-300 group-hover:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-brand sm:size-16"
+									width="64"
+									height="64"
+								/>
+								<span
+									class="absolute -right-1 -bottom-1 grid size-6 place-items-center rounded-full border-2 border-edge bg-surface"
+								>
+									<PlatformGlyph
+										name={creator.platformName}
+										color={platformColor(creator.platformName)}
+										class="size-3.5"
+									/>
+								</span>
 							</span>
 							<span
-								class="mt-1 block text-[9px] font-black tracking-wider text-tile-mint-ink uppercase"
+								class="max-w-[6.5rem] truncate rounded-full border-2 border-edge bg-surface px-2 py-0.5 text-[10px] leading-tight font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 							>
-								{m.home_hero_reach()}
+								{creator.fullName.split(' ')[0]}
+								<span class="text-brand-fg">· {formatReach(creator.totalReach)}</span>
 							</span>
-						</span>
+						</a>
 					</div>
-				{/if}
+				{/each}
+
+				<!-- The home market, pinned to the tile's top corner. -->
+				<div
+					class="hero-bubble absolute top-3 right-3 z-30 hidden sm:block"
+					style:--float-delay="-0.8s"
+				>
+					<a
+						href={homeMarketHref}
+						aria-label={m.home_hero_location_label()}
+						class="flex items-center gap-1.5 rounded-full border-2 border-edge bg-inverse px-3 py-1.5 text-[11px] font-black whitespace-nowrap text-inverse-ink {hardShadow} transition-colors hover:bg-inverse-hover"
+					>
+						<MapPin class="h-3.5 w-3.5 text-inverse-brand" />
+						{m.home_hero_location_city()}
+						<ChevronRight class="h-3.5 w-3.5 text-inverse-ink-dim" />
+					</a>
+				</div>
 			</div>
 
 			<!-- Partners an operator has added. Each logo sits on a white plate:
@@ -378,3 +468,53 @@
 		</div>
 	</div>
 </section>
+
+<style>
+	/* The tile's ground: the logo's gradient, deep ocean into emerald. */
+	.hero-gallery {
+		background: linear-gradient(145deg, #0157a8 0%, #017f8c 55%, #10b88a 100%);
+	}
+
+	/* The picture on show, drifting like the device in tmax's hero. */
+	.hero-picture {
+		animation: picture-float 5s ease-in-out infinite;
+		box-shadow: 0 24px 40px rgb(2 12 25 / 0.35);
+		user-select: none;
+		-webkit-user-drag: none;
+	}
+	@keyframes picture-float {
+		0%,
+		100% {
+			transform: translateY(0) rotate(-0.8deg);
+		}
+		50% {
+			transform: translateY(-12px) rotate(0.8deg);
+		}
+	}
+
+	/* The creator bubbles drift on their own clocks. `translate` is animated, so
+	   the hover scale on the avatar inside is never overwritten. */
+	.hero-bubble {
+		animation: bubble-float 5.5s ease-in-out var(--float-delay, 0s) infinite;
+	}
+	.hero-bubble:hover,
+	.hero-bubble:focus-within {
+		animation-play-state: paused;
+	}
+	@keyframes bubble-float {
+		0%,
+		100% {
+			translate: 0 0;
+		}
+		50% {
+			translate: 0 -10px;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.hero-picture,
+		.hero-bubble {
+			animation: none;
+		}
+	}
+</style>
