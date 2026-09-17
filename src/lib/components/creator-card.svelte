@@ -27,9 +27,15 @@
 	const profileHref = $derived(resolve(`/creators/${creator.username}`));
 </script>
 
+<!--
+	Every card is the same height whatever its creator wrote. `h-full` fills the
+	grid cell or carousel slot, and every variable line below holds a fixed
+	height — one line for the name and the place, exactly two for the bio — so a
+	row of cards lines up without anything spilling out of one.
+-->
 <div
 	id="creator-card-{creator.id}"
-	class="group flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-edge bg-surface shadow-[4px_4px_0px_0px_rgb(var(--bento-shadow))] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[6px_6px_0px_0px_rgb(var(--bento-shadow))]"
+	class="group flex h-full w-full flex-col justify-between overflow-hidden rounded-3xl border-2 border-edge bg-surface shadow-[4px_4px_0px_0px_rgb(var(--bento-shadow))] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[6px_6px_0px_0px_rgb(var(--bento-shadow))]"
 >
 	<div>
 		<!-- Cover with score, save and quick-view controls -->
@@ -116,13 +122,17 @@
 		<div class="px-4 pt-7 pb-4">
 			<div class="mb-1 flex items-start justify-between gap-2">
 				<div class="min-w-0">
+					<!-- `truncate`, not `line-clamp-1`: this link is `block`, and a block
+					     display overrides the box display line-clamp depends on, so the
+					     clamp silently did nothing and long names wrapped. -->
 					<a
 						href={profileHref}
-						class="line-clamp-1 block text-base font-black text-ink transition-colors group-hover:text-brand-fg"
+						title={creator.fullName}
+						class="block truncate text-base font-black text-ink transition-colors group-hover:text-brand-fg"
 					>
 						{creator.fullName}
 					</a>
-					<p class="text-xs font-bold text-ink-dim">@{creator.username}</p>
+					<p class="truncate text-xs font-bold text-ink-dim">@{creator.username}</p>
 				</div>
 				<div class="flex shrink-0 flex-col items-end gap-1">
 					<VerificationBadge level={creator.verificationLevel} />
@@ -130,30 +140,45 @@
 				</div>
 			</div>
 
-			<div class="mt-2 mb-3 flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
+			<!--
+				One line, always, so every card is the same height. That leaves about
+				240px for a country, a city and a category, which is not enough for all
+				three in full: with a city present the country is shown by its flag (its
+				name stays in the tooltip and for screen readers), the city keeps enough
+				width to be read, and the category shortens with an ellipsis.
+			-->
+			<div class="mt-2 mb-3 flex h-6 min-w-0 items-center gap-1.5 text-xs text-ink-soft">
 				<span
-					class="inline-flex items-center gap-1 rounded-lg border border-edge-mid bg-well px-2 py-0.5 text-[11px] font-bold text-ink"
+					class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-edge-mid bg-well px-2 py-0.5 text-[11px] font-bold whitespace-nowrap text-ink"
+					title={creator.countryName ?? 'Ethiopia'}
 				>
-					<span class="text-sm">{creator.countryFlag ?? '🌍'}</span>
-					<span>{creator.countryName ?? 'Ethiopia'}</span>
+					<span class="text-sm" aria-hidden={creator.city ? 'true' : undefined}>
+						{creator.countryFlag ?? '🌍'}
+					</span>
+					<span class={creator.city ? 'sr-only' : ''}>{creator.countryName ?? 'Ethiopia'}</span>
 				</span>
 				{#if creator.city}
-					<span class="flex items-center gap-1 text-[11px] font-medium text-ink-dim">
+					<span
+						class="flex min-w-[4.5rem] shrink items-center gap-1 text-[11px] font-medium text-ink-dim"
+						title={creator.city}
+					>
 						<MapPin class="h-3 w-3 shrink-0 text-brand-fg" />
-						{creator.city}
+						<span class="truncate">{creator.city}</span>
 					</span>
 				{/if}
 				{#if creator.categories?.[0]}
-					<span>•</span>
+					<span class="shrink-0" aria-hidden="true">•</span>
 					<span
-						class="truncate rounded-md border border-edge bg-tile-indigo px-2 py-0.5 text-[10px] font-black tracking-wider text-ink uppercase"
+						class="min-w-0 truncate rounded-md border border-edge bg-tile-indigo px-2 py-0.5 text-[10px] font-black tracking-wide text-ink uppercase"
+						title={creator.categories[0]}
 					>
 						{creator.categories[0]}
 					</span>
 				{/if}
 			</div>
 
-			<p class="mb-4 line-clamp-2 text-xs leading-relaxed font-medium text-ink-soft">
+			<!-- Two lines of height whether the bio fills them or not. -->
+			<p class="mb-4 line-clamp-2 h-[2lh] text-xs leading-relaxed font-medium text-ink-soft">
 				{creator.bio}
 			</p>
 
@@ -199,7 +224,9 @@
 		class="flex flex-col gap-3 border-t-2 border-edge bg-panel px-4 pt-3 pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2"
 	>
 		<div>
-			<span class="block text-[9px] font-black tracking-wider text-ink-dim uppercase">
+			<span
+				class="block text-[9px] font-black tracking-wider whitespace-nowrap text-ink-dim uppercase"
+			>
 				{m.starting_from()}
 			</span>
 			<span class="text-sm font-black whitespace-nowrap text-ink">

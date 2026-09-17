@@ -378,7 +378,7 @@
 							<Carousel.Content class="py-2">
 								{#each strip.creators as creator (creator.id)}
 									<Carousel.Item
-										class="basis-[84%] last:pe-2 sm:basis-[47%] lg:basis-[31.5%] xl:basis-[23.8%]"
+										class="flex basis-[84%] last:pe-2 sm:basis-[47%] lg:basis-[31.5%] xl:basis-[23.8%]"
 									>
 										<CreatorCard {creator} />
 									</Carousel.Item>
