@@ -870,6 +870,144 @@ export async function getCampaignBySlug(slug: string) {
 	return (rows.at(0) as any) ?? null;
 }
 
+/**
+ * Still open, on the database's clock.
+ *
+ * `curdate()` rather than a `Date` built here: the dev database keeps EAT and
+ * production keeps UTC, so a boundary computed in the node process disagrees
+ * with the column it is compared against for three hours a day. A brief with no
+ * deadline never closes on its own and is always in.
+ */
+const briefStillOpen = sql`(${t.campaigns.deadline} is null or ${t.campaigns.deadline} >= curdate())`;
+
+/** Published, live, not deleted, and not past its own deadline. */
+const openBriefConditions = () => [
+	isNull(t.campaigns.deletedAt),
+	eq(t.campaigns.isActive, true),
+	eq(t.campaigns.status, 'published'),
+	briefStillOpen
+];
+
+/**
+ * The homepage brief strip: what a creator could apply to today.
+ *
+ * Dated briefs lead, soonest first, because the strip is there to show that the
+ * work is real and closing; an undated one is still open but has no countdown
+ * to sort by, so it follows the dated ones rather than heading them — which is
+ * what a plain `asc(deadline)` would do, MySQL sorting nulls first.
+ */
+export async function listOpenBriefs(limit = 3) {
+	return db
+		.select({
+			id: t.campaigns.id,
+			slug: t.campaigns.slug,
+			title: t.campaigns.title,
+			description: t.campaigns.description,
+			deliverables: t.campaigns.deliverables,
+			deadline: t.campaigns.deadline,
+			compensationType: t.campaigns.compensationType,
+			budgetMin: t.campaigns.budgetMin,
+			budgetMax: t.campaigns.budgetMax,
+			currencyCode: t.campaigns.currencyCode,
+			applicationsCount: t.campaigns.applicationsCount,
+			organizationName: t.organizations.name,
+			organizationLogo: t.organizations.logo
+		})
+		.from(t.campaigns)
+		.innerJoin(t.organizations, eq(t.organizations.id, t.campaigns.organizationId))
+		.where(and(...openBriefConditions()))
+		.orderBy(
+			sql`${t.campaigns.deadline} is null`,
+			asc(t.campaigns.deadline),
+			desc(t.campaigns.createdAt)
+		)
+		.limit(limit);
+}
+
+export type OpenBrief = Awaited<ReturnType<typeof listOpenBriefs>>[number];
+
+/**
+ * The homepage brand strip.
+ *
+ * Both figures are correlated subqueries rather than joins: a brand joined to
+ * its briefs *and* its bookings multiplies one against the other, and the
+ * counts come out as the product rather than the totals.
+ *
+ * "Hired" is deliberately wider than "completed" — a creator in production has
+ * been hired, and a brand that only ever finishes work next quarter would
+ * otherwise read as having hired nobody. Only the two states before a deal
+ * exists, and an abandoned one, are excluded.
+ */
+export async function listLandingBrands(limit = 4) {
+	const openBriefs = sql<number>`(
+		select count(*) from ${t.campaigns}
+		where ${t.campaigns.organizationId} = ${t.organizations.id}
+			and ${t.campaigns.status} = 'published'
+			and ${t.campaigns.isActive} = true
+			and ${t.campaigns.deletedAt} is null
+			and (${t.campaigns.deadline} is null or ${t.campaigns.deadline} >= curdate())
+	)`;
+
+	const creatorsHired = sql<number>`(
+		select count(distinct ${t.bookings.creatorId}) from ${t.bookings}
+		where ${t.bookings.organizationId} = ${t.organizations.id}
+			and ${t.bookings.status} not in ('proposed', 'negotiating', 'cancelled')
+	)`;
+
+	const rows = await db
+		.select({
+			id: t.organizations.id,
+			name: t.organizations.name,
+			slug: t.organizations.slug,
+			logo: t.organizations.logo,
+			orgType: t.organizations.orgType,
+			city: t.organizations.city,
+			countryName: t.countries.name,
+			countryFlag: t.countries.flag,
+			verificationLevel: t.organizations.verificationLevel,
+			openBriefs,
+			creatorsHired
+		})
+		.from(t.organizations)
+		.leftJoin(t.countries, eq(t.countries.id, t.organizations.countryId))
+		.where(live(t.organizations))
+		/* Brands with work on offer lead; the operator's order breaks the tie. */
+		.orderBy(
+			desc(openBriefs),
+			desc(creatorsHired),
+			asc(t.organizations.sortOrder),
+			asc(t.organizations.id)
+		)
+		.limit(limit);
+
+	if (!rows.length) return [];
+
+	/* What each one is shopping for, one query for the whole strip rather than
+	   one per brand. Grouped so a brand with six fashion briefs says "Fashion"
+	   once. */
+	const wanted = await db
+		.select({ organizationId: t.campaigns.organizationId, name: t.categories.name })
+		.from(t.campaigns)
+		.innerJoin(t.categories, eq(t.categories.id, t.campaigns.categoryId))
+		.where(
+			and(
+				inArray(
+					t.campaigns.organizationId,
+					rows.map((row) => row.id)
+				),
+				...openBriefConditions()
+			)
+		)
+		.groupBy(t.campaigns.organizationId, t.categories.name);
+
+	return rows.map((row) => ({
+		...row,
+		wants: wanted.filter((item) => item.organizationId === row.id).map((item) => item.name)
+	}));
+}
+
+export type LandingBrand = Awaited<ReturnType<typeof listLandingBrands>>[number];
+
 /* ------------------------------------------------------------------ *
  * Bookings
  * ------------------------------------------------------------------ */

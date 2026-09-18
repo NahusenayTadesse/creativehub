@@ -5,6 +5,8 @@ import {
 	listTrendingLanes,
 	getPlatformStats,
 	listGallerySlides,
+	listLandingBrands,
+	listOpenBriefs,
 	listPartners
 } from '$lib/server/queries';
 import { maybeAutoRefresh } from '$lib/server/trending-service';
@@ -28,7 +30,7 @@ export const load: PageServerLoad = async ({ parent }) => {
 			.map((section) => section.key)
 	);
 
-	const [featured, trending, lanes, stats, gallery, partners] = await Promise.all([
+	const [featured, trending, lanes, stats, gallery, briefs, brands, partners] = await Promise.all([
 		listFeaturedCreators(),
 		listTrendingCreators(),
 		/* The same board, cut by category, market and channel. Empty until a run
@@ -37,9 +39,11 @@ export const load: PageServerLoad = async ({ parent }) => {
 		shown.has('trending') ? listTrendingLanes() : [],
 		getPlatformStats(),
 		shown.has('gallery') ? listGallerySlides() : [],
+		shown.has('campaigns') ? listOpenBriefs() : [],
+		shown.has('brands') ? listLandingBrands() : [],
 		/* The hero is always shown, so its partner strip is always read. */
 		listPartners()
 	]);
 
-	return { featured, trending, lanes, stats, gallery, partners };
+	return { featured, trending, lanes, stats, gallery, briefs, brands, partners };
 };
