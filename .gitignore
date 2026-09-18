@@ -49,3 +49,8 @@ build*.zip
 # Typeset documents — rebuilt from the markdown beside them by
 # `node docs/build-pdf.mjs`, so the source is what belongs in the repository.
 *.pdf
+
+# Design references and brand source art — 49MB of mockups and PNGs handed over
+# for the branding work. Source material, not source code: the site's own assets
+# live in `static/brand/`, built from `assets-src/brand/`.
+/Influencer Ethiopia branding alignment/

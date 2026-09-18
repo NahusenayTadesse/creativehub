@@ -1,7 +1,11 @@
 import type { PageServerLoad } from './$types';
 import { listBookings, bookingFacet } from '$lib/server/queries';
+import { requireUser } from '$lib/server/guards';
+import { unreadMessageCounts } from '$lib/server/inbox';
 
-export const load: PageServerLoad = async ({ url, parent }) => {
+export const load: PageServerLoad = async (event) => {
+	const { url, parent } = event;
+	const user = requireUser(event);
 	const { role, creator, organization } = await parent();
 
 	/* Whose deals these are is settled here, from the session, and passed to the
@@ -13,5 +17,12 @@ export const load: PageServerLoad = async ({ url, parent }) => {
 		bookingFacet(url, 'tab', scope)
 	]);
 
-	return { bookings, tabCounts };
+	/* Counted for this page of deals only — the listing is paged, and a count
+	   per deal is only worth having next to a deal on screen. */
+	const unread = await unreadMessageCounts(
+		user.id,
+		bookings.rows.map((booking) => booking.id)
+	);
+
+	return { bookings, tabCounts, unread };
 };

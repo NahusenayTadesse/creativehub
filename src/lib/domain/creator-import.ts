@@ -402,6 +402,30 @@ export function categoriesFor(bio: string): { slugs: string[]; unmapped: string[
    here because the mapping below and its tests have always asked for it here. */
 export { profileUrlFor } from './social-link';
 
+/**
+ * When the researcher last looked, from the CSV's `Source Updated` column.
+ *
+ * The export writes a month more often than a day — "2026-05" — so a year, a
+ * month and a full date are all read, each as the start of that period in UTC.
+ * That date is what the channel's figures are labelled with, so anything that
+ * cannot be read, or that claims to be from the future, is null rather than a
+ * guess; the importer falls back to the day it ran.
+ */
+export function parseSourceDate(value: string | null | undefined, now = new Date()): Date | null {
+	const match = (value ?? '').trim().match(/^(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?$/);
+	if (!match) return null;
+
+	const year = Number(match[1]);
+	const month = match[2] ? Number(match[2]) : 1;
+	const day = match[3] ? Number(match[3]) : 1;
+	if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+	const date = new Date(Date.UTC(year, month - 1, day));
+	/* 2026-02-31 rolls into March; a date that moved is a date that was wrong. */
+	if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+	return date.getTime() > now.getTime() ? null : date;
+}
+
 /* ------------------------------------------------------------------ *
  * Row mapping
  * ------------------------------------------------------------------ */
@@ -611,7 +635,12 @@ export function mapCreatorRow(row: CsvRow, index: number): ImportedCreator {
 			portfolioCount: 0,
 			verificationLevel: 'unverified',
 			engagementRate,
+			/* Found in public, never confirmed — see `$lib/domain/stat-source`. */
+			engagementConfirmed: false,
+			responseRate: null,
+			onTimeRate: null,
 			averageRating: 0,
+			reviewsCount: 0,
 			completedBookings: 0
 		}),
 		/* Scraped, not checked: an operator raises this after verifying. */

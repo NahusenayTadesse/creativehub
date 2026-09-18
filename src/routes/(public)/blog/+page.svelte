@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import * as m from '$lib/paraglide/messages';
+	import PageMeta from '$lib/components/page-meta.svelte';
 	import BlogCard from '$lib/components/blog-card.svelte';
 	import PaginationBar from '$lib/components/pagination-bar.svelte';
 	import SearchInput from '$lib/components/search-input.svelte';
@@ -28,11 +29,11 @@
 	const rows = $derived(data.posts.rows.filter((post) => post.id !== data.featured?.id));
 </script>
 
-<svelte:head>
-	<title>{m.blog_meta_title()}</title>
-	<meta name="description" content={m.blog_meta_description()} />
+<!-- Canonical on the unfiltered index: a section, a tag or page three is the
+     same listing cut differently, not a page of its own to rank. -->
+<PageMeta title={m.blog_meta_title()} description={m.blog_meta_description()} path="/blog">
 	<link rel="alternate" type="application/rss+xml" title={m.blog_title()} href="/blog/rss.xml" />
-</svelte:head>
+</PageMeta>
 
 <div class="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
 	<div

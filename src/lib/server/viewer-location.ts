@@ -3,6 +3,8 @@ import { getRequestEvent } from '$app/server';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import type { ViewerLocation } from '$lib/domain/trending';
+import { clientAddress } from '$lib/server/bot-defence';
+import { countryCodeFor } from '$lib/server/geoip';
 
 /**
  * Where the reader is, for the lists that put their own market first.
@@ -10,21 +12,23 @@ import type { ViewerLocation } from '$lib/domain/trending';
  * Nothing here asks the browser. A creator's or a brand's own profile already
  * says where they are, and it says so more reliably than an IP does — a reader
  * who told us their country once should not be re-guessed on every request.
- * The proxy header is the fallback for the signed-out visitor, and "we do not
- * know" is a perfectly good third answer: it turns the personalisation off for
- * that reader rather than inventing a location for them.
+ * For the signed-out visitor it is a country header, when a proxy sets one,
+ * and otherwise the country their IP address is in, looked up in a file on
+ * this machine — see $lib/server/geoip.ts. "We do not know" is a perfectly good
+ * last answer: it turns the personalisation off for that reader rather than
+ * inventing a location for them.
  */
 
 export type ResolvedViewerLocation = ViewerLocation & {
-	source: 'creator' | 'organization' | 'header';
+	source: 'creator' | 'organization' | 'header' | 'ip';
 };
 
 /**
  * Country codes the proxies in front of this app may set.
  *
- * Nothing sets one in the default deployment; the entry exists so that putting
- * Cloudflare in front of the site starts personalising signed-out readers
- * without a code change.
+ * Nothing sets one in the default deployment, where the IP lookup does the
+ * work. A proxy's answer is preferred when there is one: Cloudflare's own
+ * database is fresher than a monthly file.
  */
 const GEO_HEADERS = ['cf-ipcountry', 'x-vercel-ip-country', 'x-geo-country', 'x-country-code'];
 
@@ -83,16 +87,21 @@ async function resolveViewerLocation(
 		}
 	}
 
-	return fromHeaders(event.request.headers);
-}
-
-/** The country a proxy says the request came from, if one said anything. */
-async function fromHeaders(headers: Headers): Promise<ResolvedViewerLocation | null> {
-	const code = GEO_HEADERS.map((header) => headers.get(header)?.trim().toUpperCase())
+	const header = GEO_HEADERS.map((name) => event.request.headers.get(name)?.trim().toUpperCase())
 		.filter((value): value is string => !!value && !UNKNOWN_CODES.has(value))
 		.at(0);
-	if (!code) return null;
+	if (header) return fromCode(header, 'header');
 
+	const address = clientAddress(event);
+	const code = address ? countryCodeFor(address) : null;
+	return code && !UNKNOWN_CODES.has(code) ? fromCode(code, 'ip') : null;
+}
+
+/** A country code as one of the markets the platform operates in, if it is one. */
+async function fromCode(
+	code: string,
+	source: 'header' | 'ip'
+): Promise<ResolvedViewerLocation | null> {
 	const country = (
 		await db
 			.select({ id: t.countries.id })
@@ -110,5 +119,5 @@ async function fromHeaders(headers: Headers): Promise<ResolvedViewerLocation | n
 	).at(0);
 	if (!country) return null;
 
-	return { countryId: country.id, regionId: null, city: null, source: 'header' };
+	return { countryId: country.id, regionId: null, city: null, source };
 }

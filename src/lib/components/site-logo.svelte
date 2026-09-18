@@ -5,16 +5,17 @@
 	/**
 	 * The brand, drawn at whatever size the caller asks for.
 	 *
-	 * Three images and never more than one visible. The wide wordmark carries
-	 * the name and the tagline and needs about 140px to stay legible, which a
-	 * 360px phone header does not have once a menu button and a language toggle
-	 * are on it — so below `sm` this falls back to the textless square, which is
-	 * the whole reason that file exists.
+	 * Three images and never more than one visible. The wide wordmark is mostly
+	 * illustration — the name takes well under half its height — so it needs to
+	 * be drawn about 56px tall before "ETHIOPIA" reads as letters, and about
+	 * 170px wide, which a 360px phone header does not have once a menu button
+	 * and a language toggle are on it. Below `sm` this falls back to the square
+	 * icon, which is the whole reason that file exists.
 	 *
 	 * The theme swap is two files rather than one file and a CSS filter, because
-	 * the only filter that lifts black text to white also turns the red mark
-	 * cyan. `scripts/build-brand-assets.sh` generates the dark copy by masking
-	 * the negation to the greyscale parts.
+	 * any filter that lifts the navy text to white also inverts the illustrated
+	 * icon. `scripts/build-brand-assets.sh` generates the dark copy by recolouring
+	 * only the text.
 	 *
 	 * Every variant is in the markup at all times and hidden with CSS, not with
 	 * `{#if}`: the theme is stamped on `<html>` before first paint and the
@@ -36,7 +37,7 @@
 		 * Pins the dark artwork whatever the theme says.
 		 *
 		 * For the footer, which is a slab: a band that stays dark in *both*
-		 * themes. Left to swap on `.dark`, it would draw the black-text wordmark
+		 * themes. Left to swap on `.dark`, it would draw the navy-text wordmark
 		 * onto a near-black ground for every light-theme reader.
 		 */
 		onSlab = false

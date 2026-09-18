@@ -104,11 +104,17 @@ interface CrudOptions {
 	 * its own verdict in the same write rather than in a second one.
 	 *
 	 * Throw `CrudRefusal` to turn the write down with a sentence the form shows.
+	 *
+	 * On edit, `id` is the row about to be written — `values` never carries it —
+	 * for a hook that has to compare against what the row holds now. It is the id
+	 * the form posted, not yet proven to be this actor's: read it through the
+	 * same scope the write uses.
 	 */
 	beforeWrite?: (
 		event: RequestEvent,
 		values: Record<string, any>,
-		action: 'add' | 'edit'
+		action: 'add' | 'edit',
+		id?: number
 	) => Promise<Record<string, unknown> | void> | Record<string, unknown> | void;
 	/**
 	 * Runs before every action, and must throw to refuse.
@@ -340,7 +346,7 @@ export function contentCrud({
 					: undefined;
 
 				const values = await toRow(data);
-				const derived = (await beforeWrite?.(event, values, 'edit')) ?? {};
+				const derived = (await beforeWrite?.(event, values, 'edit', Number(data.id))) ?? {};
 				const result: any = await db
 					.update(table)
 					.set({

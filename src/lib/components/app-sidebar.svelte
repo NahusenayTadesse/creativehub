@@ -21,13 +21,15 @@
 		Languages,
 		Settings,
 		GalleryHorizontal,
+		LayoutTemplate,
 		Newspaper,
 		UserRoundCog,
 		ScrollText,
 		UserRoundCheck,
 		SlidersHorizontal,
 		Banknote,
-		Gavel
+		Gavel,
+		ChartNoAxesColumnIncreasing
 	} from '@lucide/svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
@@ -143,13 +145,29 @@
 			}
 		];
 
+		/* The two listings the catalogue is made of, shared for the same reason as
+		   the reference tables above: an encoder enters them, an operator also
+		   works them, and one list keeps the two sidebars saying the same thing. */
+		const catalogue = [
+			{ title: m.sb_creators(), url: resolve('/dashboard/admin/creators'), icon: Users },
+			{
+				title: m.sb_organisations(),
+				url: resolve('/dashboard/admin/organizations'),
+				icon: Building2
+			}
+		];
+
 		/*
-		 * The data encoder keeps the reference tables and sees nothing else. There
-		 * is no overview entry because /dashboard has nothing to show an account
-		 * with neither a profile nor an organisation — it sends them here instead.
+		 * The data encoder enters the catalogue and keeps the reference tables it
+		 * draws on, and sees nothing else. There is no overview entry because
+		 * /dashboard has nothing to show an account with neither a profile nor an
+		 * organisation — it sends them here instead.
 		 */
 		if (role === 'encoder') {
-			return withAccount([{ section: m.sb_reference_data(), items: referenceData }]);
+			return withAccount([
+				{ section: m.sb_marketplace(), items: catalogue },
+				{ section: m.sb_reference_data(), items: referenceData }
+			]);
 		}
 
 		if (role === 'business') {
@@ -217,6 +235,12 @@
 						counter: counts.claims
 					},
 					{
+						title: m.sb_stat_proofs(),
+						url: resolve('/dashboard/admin/figure-proofs'),
+						icon: ChartNoAxesColumnIncreasing,
+						counter: counts.statProofs
+					},
+					{
 						title: m.sb_all_bookings(),
 						url: resolve('/dashboard/bookings'),
 						icon: Handshake,
@@ -233,13 +257,9 @@
 			{
 				section: m.sb_marketplace(),
 				items: [
-					{ title: m.sb_creators(), url: resolve('/dashboard/admin/creators'), icon: Users },
+					catalogue[0],
 					{ title: m.sb_trending(), url: resolve('/dashboard/admin/trending'), icon: Flame },
-					{
-						title: m.sb_organisations(),
-						url: resolve('/dashboard/admin/organizations'),
-						icon: Building2
-					},
+					catalogue[1],
 					{ title: m.sb_users_roles(), url: resolve('/dashboard/admin/users'), icon: UserRoundCog }
 				]
 			},
@@ -258,6 +278,16 @@
 				section: m.sb_reference_data(),
 				items: [
 					...referenceData,
+					{
+						title: m.sb_landing_page(),
+						url: resolve('/dashboard/admin/landing'),
+						icon: LayoutTemplate
+					},
+					{
+						title: m.sb_partners(),
+						url: resolve('/dashboard/admin/partners'),
+						icon: Handshake
+					},
 					{ title: m.sb_site_settings(), url: resolve('/dashboard/admin/settings'), icon: Settings }
 				]
 			}
@@ -289,7 +319,7 @@
 			     at every width, so there is no phone case to fall back for — the
 			     panel is off-canvas on a phone and full width when it is open. -->
 			<a href={resolve('/')} title={m.sb_go_public_site()} class="flex flex-col items-start gap-1">
-				<SiteLogo {logos} variant="wordmark" heightClass="h-8" />
+				<SiteLogo {logos} variant="wordmark" heightClass="h-11" />
 				<div class="text-[10px] font-bold tracking-widest text-ink-dim uppercase">
 					{m.sb_role_dashboard({ role: roleLabel })}
 				</div>

@@ -13,12 +13,23 @@ import { assetUrl } from '$lib/assets';
  * why the dark wordmark is a separate file rather than a CSS filter.
  */
 
+/**
+ * Bumped whenever the files in `static/brand/` (or the favicons) are rebuilt.
+ *
+ * Cloudflare sits in front of the site and keeps static files for up to a week,
+ * keyed on the full URL. Replacing a file under the same name therefore changes
+ * nothing for visitors until that copy expires — which is how the new identity
+ * shipped and the old red logo went on being served. A new query string is a
+ * new URL, so it is fetched fresh at once.
+ */
+export const BRAND_VERSION = '2026-09-17';
+
 /** What ships in `static/`. Absolute paths, so `assetUrl` passes them through. */
 export const DEFAULT_LOGOS = {
-	wordmark: '/brand/wordmark.webp',
-	wordmarkDark: '/brand/wordmark-dark.webp',
-	mark: '/brand/mark.webp',
-	partners: '/brand/partners.webp'
+	wordmark: `/brand/wordmark.webp?v=${BRAND_VERSION}`,
+	wordmarkDark: `/brand/wordmark-dark.webp?v=${BRAND_VERSION}`,
+	mark: `/brand/mark.webp?v=${BRAND_VERSION}`,
+	partners: `/brand/partners.webp?v=${BRAND_VERSION}`
 } as const;
 
 export type Logos = {

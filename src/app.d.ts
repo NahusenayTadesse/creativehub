@@ -29,6 +29,12 @@ declare global {
 			 * not tell, which is a settled answer rather than a missing one.
 			 */
 			viewerLocation?: Promise<import('$lib/server/viewer-location').ResolvedViewerLocation | null>;
+			/**
+			 * The market whose own trending board this reader is served, or null
+			 * for the shared board — see `getViewerMarket` in
+			 * $lib/server/trending-service.ts.
+			 */
+			trendingMarket?: Promise<number | null>;
 		}
 
 		// interface Error {}

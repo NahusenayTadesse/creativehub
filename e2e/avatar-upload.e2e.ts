@@ -90,7 +90,7 @@ test('saving again without touching the picker keeps the photo', async ({ page }
 });
 
 test('an operator can put a photo on any creator', async ({ page }) => {
-	await signIn(page, 'admin@creatornetwork.et');
+	await signIn(page, 'admin@influencerethiopia.com');
 	await page.goto('/dashboard/admin/creators');
 
 	await page.getByRole('button', { name: /edit/i }).first().click();

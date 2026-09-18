@@ -32,7 +32,7 @@
 <div class="flex min-h-screen items-center justify-center px-4 py-12">
 	<div class="w-full max-w-md space-y-6">
 		<a href={resolve('/')} class="flex items-center justify-center">
-			<SiteLogo {logos} variant="wordmark" heightClass="h-12" />
+			<SiteLogo {logos} variant="wordmark" heightClass="h-16" />
 		</a>
 
 		<div class="bento-card bento-card-static space-y-5">

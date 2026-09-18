@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
+	import PageMeta from '$lib/components/page-meta.svelte';
 	import { page } from '$app/state';
 	import { Search, Plus, Briefcase, Ticket, Gift, Globe } from '@lucide/svelte';
 	import CampaignCard from '$lib/components/campaign-card.svelte';
@@ -30,7 +31,11 @@
 	const canApply = $derived(Boolean(data.creatorId));
 </script>
 
-<svelte:head><title>{m.campaigns_meta_title()}</title></svelte:head>
+<PageMeta
+	title={m.campaigns_meta_title()}
+	description={m.campaigns_meta_description()}
+	path="/campaigns"
+/>
 
 <div id="campaigns-view-container" class="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
 	<!-- Header -->

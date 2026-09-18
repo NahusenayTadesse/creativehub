@@ -6,12 +6,23 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ------------------------------------------------------------------ *
- * The Creator Network palette, in two themes.
+ * The Influencer Ethiopia palette, in two themes.
  *
  * The product is a neo-brutalist bento system: a flat ground, cards with a
- * hard 2px border and a solid offset shadow, emerald as the single accent,
- * and four pastel tiles that carry meaning (mint is settled, yellow is
- * pending).
+ * hard 2px border and a solid offset shadow, one accent, and four pastel
+ * tiles that carry meaning (mint is settled, yellow is pending).
+ *
+ * The colours are sampled from the logo in `assets-src/brand/`: the ink is
+ * the wordmark's navy (#001020, lifted a step to #0a1a2f so a border reads as
+ * a colour rather than as black), supporting copy is its slate (#384860), and
+ * the accent is the ocean end of the dot's gradient — #0172a4 as a fill with
+ * white text, a brighter cyan on the dark theme. The gradient's emerald end is
+ * the accent wherever the ground is navy (the inverse tile, the footer), and
+ * the sun in the icon is the yellow tile.
+ *
+ * Every text pair was checked for WCAG AA (4.5:1) in both themes when this
+ * palette was set. Re-check if you move a value: `brand` in particular carries
+ * white text in the light theme and navy in the dark one.
  *
  * Dark mode inverts the ink rather than softening it. The border and the
  * offset shadow — the loudest thing on every card, and the whole point of the
@@ -26,51 +37,53 @@
 
 :root {
 	/* --- neutrals ------------------------------------------------- */
-	--ground: #f3f4f6; /* the page behind the cards */
+	--ground: #f2f5f9; /* the page behind the cards */
 	--surface: #ffffff; /* the card itself */
-	--panel: #f8fafc; /* a quieter block inside a card */
-	--well: #f1f5f9; /* an inset: track, thumbnail, empty state */
+	--panel: #f7f9fc; /* a quieter block inside a card */
+	--well: #edf2f7; /* an inset: track, thumbnail, empty state */
 
-	--ink: #0f172a; /* body and headings */
-	--ink-soft: #475569; /* supporting copy */
-	--ink-dim: #64748b; /* eyebrows, labels, captions */
-	--ink-faint: #94a3b8; /* placeholders, disabled, meta */
+	--ink: #0a1a2f; /* body and headings */
+	--ink-soft: #384860; /* supporting copy */
+	--ink-dim: #56677e; /* eyebrows, labels, captions */
+	--ink-faint: #8e9bb0; /* placeholders, disabled, meta */
 
-	--edge: #0f172a; /* the hard structural border */
-	--edge-soft: #e2e8f0; /* a hairline between rows */
-	--edge-mid: #cbd5e1; /* a visible but unemphatic rule */
+	--edge: #0a1a2f; /* the hard structural border */
+	--edge-soft: #dfe6ee; /* a hairline between rows */
+	--edge-mid: #c5d0dd; /* a visible but unemphatic rule */
 
 	/* The emphatic tile — the one figure on a page that outranks the rest.
 	   It is the inverse of the page, so it flips with the theme rather than
 	   staying dark and vanishing into a dark ground. */
-	--inverse: #0f172a;
+	--inverse: #0a1a2f;
 	--inverse-ink: #ffffff;
-	--inverse-hover: #1e293b; /* its hover — a step back toward the page */
-	--inverse-ink-dim: #94a3b8; /* supporting copy *on* the inverse surface */
-	--inverse-brand: #34d399; /* emerald that sits on the inverse surface */
-	--inverse-brand-soft: #04241b; /* and a tinted chip on that same surface */
-	--inverse-brand-edge: #14523f;
+	--inverse-hover: #15294a; /* its hover — a step back toward the page */
+	--inverse-ink-dim: #9fb0c6; /* supporting copy *on* the inverse surface */
+	--inverse-brand: #2edcae; /* the logo's emerald, on the navy inverse surface */
+	--inverse-brand-to: #4cc9e0; /* the gradient's ocean end, for `.text-brand-gradient` */
+	--inverse-brand-soft: #04262f; /* and a tinted chip on that same surface */
+	--inverse-brand-edge: #0f5f63;
 
 	/* A slab is a region that stays dark in both themes — the footer, and any
 	   band that exists to ground the page rather than to stand out on it. An
 	   emphatic tile inverts; a slab does not, because a near-white block at the
 	   foot of a dark page is a lamp, not a footer. */
-	--slab: #030712;
-	--slab-raised: #111827;
+	--slab: #020c19;
+	--slab-raised: #0b1829;
 	--slab-ink: #ffffff;
-	--slab-ink-dim: #94a3b8;
-	--slab-edge: #1e293b;
-	--slab-brand: #34d399;
+	--slab-ink-dim: #93a5bd;
+	--slab-edge: #172b45;
+	--slab-brand: #2edcae;
+	--slab-brand-to: #4cc9e0; /* the ocean end, for `.text-brand-gradient-slab` */
 
 	/* --- brand ---------------------------------------------------- */
-	--brand: #059669; /* a filled control */
-	--brand-strong: #047857; /* its hover */
+	--brand: #0172a4; /* a filled control */
+	--brand-strong: #015a83; /* its hover */
 	--brand-ink: #ffffff; /* text on that fill */
-	--brand-fg: #059669; /* emerald as text on a surface */
-	--brand-soft: #d1fae5; /* a tinted chip */
-	--brand-soft-fg: #065f46; /* text on that chip */
-	--brand-edge: #059669;
-	--brand-ink-deep: #0f172a; /* where the design puts dark ink on emerald */
+	--brand-fg: #016c9c; /* the accent as text on a surface */
+	--brand-soft: #dcf1f7; /* a tinted chip */
+	--brand-soft-fg: #044a69; /* text on that chip */
+	--brand-edge: #0172a4;
+	--brand-ink-deep: #ffffff; /* ink on the accent fill where the dark theme wants navy; white here */
 
 	/* --- status --------------------------------------------------- */
 	--warn: #f59e0b;
@@ -111,18 +124,18 @@
 	--tint-rose-fg: #e11d48;
 
 	/* --- bento surfaces ------------------------------------------- */
-	--bento-ink: 15 23 42; /* border, as an rgb triple */
-	--bento-shadow: 15 23 42; /* the offset shadow */
-	--bento-shadow-accent: 16 185 129; /* the emerald offset, used sparingly */
+	--bento-ink: 10 26 47; /* border, as an rgb triple */
+	--bento-shadow: 10 26 47; /* the offset shadow */
+	--bento-shadow-accent: 1 114 164; /* the accent offset, used sparingly */
 	--bento-surface: #ffffff;
-	--bento-ground: #f3f4f6;
-	--bento-dark: #0f172a;
-	--bento-mint: #dcfce7;
-	--bento-yellow: #fef9c3;
+	--bento-ground: #f2f5f9;
+	--bento-dark: #0a1a2f;
+	--bento-mint: #d6f5ec;
+	--bento-yellow: #fff4c2;
 	--bento-peach: #ffedd5;
 	--bento-indigo: #e0e7ff;
-	--bento-mint-ink: #065f46;
-	--bento-yellow-ink: #854d0e;
+	--bento-mint-ink: #06594e;
+	--bento-yellow-ink: #7a5200;
 	--bento-peach-ink: #9a3412;
 	--bento-indigo-ink: #312e81;
 
@@ -135,27 +148,27 @@
 	--popover-foreground: var(--ink);
 	--primary: var(--brand);
 	--primary-foreground: var(--brand-ink);
-	--secondary: #dcfce7;
+	--secondary: #dcf1f7;
 	--secondary-foreground: var(--ink);
 	--muted: var(--well);
 	--muted-foreground: var(--ink-dim);
-	--accent: #dcfce7;
+	--accent: #dcf1f7;
 	--accent-foreground: var(--ink);
 	--destructive: var(--danger);
 	--border: var(--edge);
 	--input: var(--edge);
 	--ring: var(--brand);
-	--chart-1: #10b981;
-	--chart-2: #6366f1;
-	--chart-3: #f59e0b;
-	--chart-4: #0f172a;
+	--chart-1: #0172a4;
+	--chart-2: #10b88a;
+	--chart-3: #f2b705;
+	--chart-4: #0a1a2f;
 	--chart-5: #f43f5e;
 	--radius: 1rem;
 	--sidebar: var(--surface);
 	--sidebar-foreground: var(--ink);
 	--sidebar-primary: var(--brand);
 	--sidebar-primary-foreground: var(--brand-ink);
-	--sidebar-accent: #dcfce7;
+	--sidebar-accent: #dcf1f7;
 	--sidebar-accent-foreground: var(--ink);
 	--sidebar-border: var(--edge);
 	--sidebar-ring: var(--brand);
@@ -164,7 +177,7 @@
 	   panel from it, which takes more on a dark ground than on a light one. */
 	--overlay: rgb(0 0 0 / 0.2);
 
-	--selection: #a7f3d0;
+	--selection: #b9e6f2;
 	color-scheme: light;
 }
 
@@ -173,45 +186,49 @@
  * which theme it is in.
  */
 .dark {
-	--ground: #0b1120;
-	--surface: #151e31;
-	--panel: #182133;
-	--well: #1e2a3f;
+	--ground: #07111f;
+	--surface: #0f1c2e;
+	--panel: #122136;
+	--well: #16263c;
 
-	--ink: #e8edf5;
-	--ink-soft: #b6c2d4;
-	--ink-dim: #94a3b8;
-	--ink-faint: #6b7c96;
+	--ink: #e8eef6;
+	--ink-soft: #b3c1d4;
+	--ink-dim: #8fa1b9;
+	--ink-faint: #62758f;
 
-	--edge: #e2e8f0;
-	--edge-soft: #2c3852;
-	--edge-mid: #46536e;
+	--edge: #dde6f1;
+	--edge-soft: #22344d;
+	--edge-mid: #3a4d68;
 
-	--inverse: #e8edf5;
-	--inverse-ink: #0b1120;
-	--inverse-hover: #d4dced;
-	--inverse-ink-dim: #4a5568;
-	--inverse-brand: #047857;
-	--inverse-brand-soft: #d1fae5;
-	--inverse-brand-edge: #6ee7b7;
+	--inverse: #e8eef6;
+	--inverse-ink: #07111f;
+	--inverse-hover: #d0dbe9;
+	--inverse-ink-dim: #46576f;
+	--inverse-brand: #04795c; /* 4.6:1 on the light inverse tile */
+	--inverse-brand-to: #016791;
+	--inverse-brand-soft: #dcf1f7;
+	--inverse-brand-edge: #4cc9e0;
 
 	/* Already dark, so it barely moves — just enough below the page ground to
 	   still read as a separate band. */
-	--slab: #060b14;
-	--slab-raised: #101725;
-	--slab-ink: #e8edf5;
-	--slab-ink-dim: #8496b0;
-	--slab-edge: #1c2740;
-	--slab-brand: #34d399;
+	--slab: #030a14;
+	--slab-raised: #0b1727;
+	--slab-ink: #e8eef6;
+	--slab-ink-dim: #8497b1;
+	--slab-edge: #182a42;
+	--slab-brand: #2edcae;
+	/* Both slab stops keep their light-theme values: the ground under them does
+	   not change with the theme, so neither should they. */
+	--slab-brand-to: #4cc9e0;
 
-	--brand: #10b981;
-	--brand-strong: #34d399;
-	--brand-ink: #04231a;
-	--brand-fg: #34d399;
-	--brand-soft: #06291f;
-	--brand-soft-fg: #6ee7b7;
-	--brand-edge: #10b981;
-	--brand-ink-deep: #04231a;
+	--brand: #27c3d9;
+	--brand-strong: #5fd3e3;
+	--brand-ink: #032230;
+	--brand-fg: #4cc9e0;
+	--brand-soft: #07293a;
+	--brand-soft-fg: #8ddcec;
+	--brand-edge: #27c3d9;
+	--brand-ink-deep: #032230;
 
 	--warn: #fbbf24;
 	--warn-soft: #33270d;
@@ -246,36 +263,36 @@
 	--tint-violet-solid-hover: #9333ea;
 	--tint-rose-fg: #fb7185;
 
-	--bento-ink: 226 232 240;
-	--bento-shadow: 203 213 225;
-	--bento-shadow-accent: 52 211 153;
-	--bento-surface: #151e31;
-	--bento-ground: #0b1120;
-	--bento-dark: #e8edf5;
-	--bento-mint: #052e22;
-	--bento-yellow: #302a11;
+	--bento-ink: 221 230 241;
+	--bento-shadow: 195 208 224;
+	--bento-shadow-accent: 39 195 217;
+	--bento-surface: #0f1c2e;
+	--bento-ground: #07111f;
+	--bento-dark: #e8eef6;
+	--bento-mint: #06302c;
+	--bento-yellow: #2e2a0d;
 	--bento-peach: #33210f;
 	--bento-indigo: #1c1c46;
-	--bento-mint-ink: #6ee7b7;
-	--bento-yellow-ink: #fcd34d;
+	--bento-mint-ink: #6fe3c7;
+	--bento-yellow-ink: #fde68a;
 	--bento-peach-ink: #fdba74;
 	--bento-indigo-ink: #a5b4fc;
 
-	--secondary: #06291f;
+	--secondary: #07293a;
 	--secondary-foreground: var(--ink);
-	--accent: #06291f;
+	--accent: #07293a;
 	--accent-foreground: var(--ink);
-	--chart-1: #34d399;
-	--chart-2: #818cf8;
-	--chart-3: #fbbf24;
+	--chart-1: #4cc9e0;
+	--chart-2: #34d399;
+	--chart-3: #fcd34d;
 	--chart-4: #e2e8f0;
 	--chart-5: #fb7185;
-	--sidebar-accent: #06291f;
+	--sidebar-accent: #07293a;
 	--sidebar-accent-foreground: var(--ink);
 
 	--overlay: rgb(0 0 0 / 0.6);
 
-	--selection: #065f46;
+	--selection: #0b4a63;
 	color-scheme: dark;
 }
 
@@ -300,6 +317,7 @@
 	--color-inverse-hover: var(--inverse-hover);
 	--color-inverse-ink-dim: var(--inverse-ink-dim);
 	--color-inverse-brand: var(--inverse-brand);
+	--color-inverse-brand-to: var(--inverse-brand-to);
 	--color-inverse-brand-soft: var(--inverse-brand-soft);
 	--color-inverse-brand-edge: var(--inverse-brand-edge);
 	--color-slab: var(--slab);
@@ -308,6 +326,7 @@
 	--color-slab-ink-dim: var(--slab-ink-dim);
 	--color-slab-edge: var(--slab-edge);
 	--color-slab-brand: var(--slab-brand);
+	--color-slab-brand-to: var(--slab-brand-to);
 	--color-brand: var(--brand);
 	--color-brand-strong: var(--brand-strong);
 	--color-brand-ink: var(--brand-ink);
@@ -846,4 +865,32 @@
 	to {
 		visibility: hidden;
 	}
+}
+
+/*
+ * The logo's dot, as text: emerald into ocean. For a headline's accent line on
+ * the inverse tile and nowhere busier — it is the one flourish the palette
+ * allows itself. Both stops clear 4.5:1 on the tile in either theme.
+ */
+.text-brand-gradient {
+	background-image: linear-gradient(90deg, var(--inverse-brand), var(--inverse-brand-to));
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+}
+
+/*
+ * The same sweep, for a headline sitting on a slab.
+ *
+ * `.text-brand-gradient` above is tuned for the *inverse* tile, which goes
+ * light in the dark theme and takes both its stops dark with it. A slab keeps
+ * its ground in both themes, so a headline on one needs stops that stay
+ * bright — otherwise the accent line turns dark-on-dark the moment the reader
+ * switches theme. Both clear 4.5:1 on `--slab` and `--slab-raised`.
+ */
+.text-brand-gradient-slab {
+	background-image: linear-gradient(90deg, var(--slab-brand), var(--slab-brand-to));
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
 }

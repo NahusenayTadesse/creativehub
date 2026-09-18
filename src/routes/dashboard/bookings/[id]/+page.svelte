@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
 	import type { BookingStatus } from '$lib/domain/booking';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { resolve } from '$app/paths';
@@ -21,7 +22,8 @@
 		MessageSquare,
 		Gavel,
 		Undo2,
-		XCircle
+		XCircle,
+		RefreshCw
 	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
@@ -201,6 +203,79 @@
 		message: chatMessage
 	} = chatSuper;
 
+	/* ---------------- The live thread ----------------
+	 *
+	 * While the page is visible it asks `thread` every ten seconds for messages
+	 * newer than the last one on screen, and adds them where they belong. It does
+	 * not reload the page: a reload re-runs every form here and would take a
+	 * half-written counter-offer with it. When the rest of the deal changes — a
+	 * new offer, a submission, a status — it says so and lets the reader refresh.
+	 */
+	const THREAD_POLL_MS = 10_000;
+
+	type ThreadMessage = (typeof data.messages)[number];
+
+	let arrived = $state<ThreadMessage[]>([]);
+	let dealChanged = $state(false);
+	let threadBox = $state<HTMLDivElement | null>(null);
+
+	const thread = $derived.by(() => {
+		const seen = new Set(data.messages.map((msg) => msg.id));
+		return [...data.messages, ...arrived.filter((msg) => !seen.has(msg.id))];
+	});
+
+	/* A reload brings everything with it; what was added live is now in `data`. */
+	$effect(() => {
+		void data.messages;
+		void data.version;
+		untrack(() => {
+			arrived = [];
+			dealChanged = false;
+		});
+	});
+
+	$effect(() => {
+		const bookingId = booking.id;
+		const loadedVersion = data.version;
+		let stopped = false;
+
+		const ask = async () => {
+			if (document.visibilityState !== 'visible') return;
+			const after = untrack(() => thread.at(-1)?.id ?? 0);
+			try {
+				const response = await fetch(
+					`${resolve(`/dashboard/bookings/${bookingId}`)}/thread?after=${after}`
+				);
+				if (!response.ok || stopped) return;
+				const body: { messages: ThreadMessage[]; version: string } = await response.json();
+
+				if (body.messages.length) {
+					/* Follow the conversation only if the reader was already at the end
+					   of it; someone scrolled back to read an old message stays put. */
+					const box = untrack(() => threadBox);
+					const atEnd = !box || box.scrollHeight - box.scrollTop - box.clientHeight < 48;
+					arrived = [...untrack(() => arrived), ...body.messages];
+					if (atEnd && box) {
+						await tick();
+						box.scrollTop = box.scrollHeight;
+					}
+				}
+				if (body.version !== loadedVersion) dealChanged = true;
+			} catch {
+				/* A dropped connection: the next tick asks again. */
+			}
+		};
+
+		const timer = setInterval(ask, THREAD_POLL_MS);
+		const onVisible = () => void ask();
+		document.addEventListener('visibilitychange', onVisible);
+		return () => {
+			stopped = true;
+			clearInterval(timer);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
+	});
+
 	const disputeSuper = superForm(
 		untrack(() => data.disputeForm),
 		{
@@ -340,6 +415,25 @@
 <svelte:head><title>{m.bk_meta_title({ ref: booking.reference })}</title></svelte:head>
 
 <div class="space-y-6">
+	{#if dealChanged}
+		<!-- Not applied automatically: refreshing re-runs every form on the page,
+		     so the reader chooses when, after finishing whatever they were typing. -->
+		<div
+			role="status"
+			class="bento-card-yellow sticky top-20 z-20 flex flex-wrap items-center justify-between gap-3"
+		>
+			<p class="text-xs font-black text-warn-fg">{m.bk_deal_changed()}</p>
+			<button
+				type="button"
+				onclick={() => invalidateAll()}
+				class="inline-flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-3 py-1.5 text-xs font-black text-ink hover:bg-well"
+			>
+				<RefreshCw class="h-3.5 w-3.5" />
+				{m.bk_deal_refresh()}
+			</button>
+		</div>
+	{/if}
+
 	<a
 		href={resolve('/dashboard/bookings')}
 		class="inline-flex items-center gap-1.5 rounded-lg border border-edge-soft bg-surface px-3 py-1.5 text-xs font-semibold text-ink-soft hover:text-ink"
@@ -1123,8 +1217,12 @@
 					</p>
 				</div>
 
-				<div class="thin-scroll max-h-80 space-y-3 overflow-y-auto pr-1">
-					{#each data.messages as msg (msg.id)}
+				<div
+					bind:this={threadBox}
+					aria-live="polite"
+					class="thin-scroll max-h-80 space-y-3 overflow-y-auto pr-1"
+				>
+					{#each thread as msg (msg.id)}
 						{@const mine = msg.senderId === data.user?.id}
 						<div class="flex flex-col {mine ? 'items-end' : 'items-start'}">
 							<span class="mb-1 text-[10px] font-semibold text-ink-faint">{msg.senderName}</span>

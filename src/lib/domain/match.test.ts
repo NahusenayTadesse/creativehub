@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { ADJACENT_CATEGORIES, calculateMatch, type MatchInput } from './match';
+import {
+	ADJACENT_CATEGORIES,
+	MATCH_NOTIFY_THRESHOLD,
+	MATCH_WEEKLY_CAP,
+	calculateMatch,
+	selectCampaignMatches,
+	type MatchCandidate,
+	type MatchInput
+} from './match';
 
 const campaign = (over: Partial<MatchInput['campaign']> = {}): MatchInput['campaign'] => ({
 	categoryId: 1,
@@ -201,5 +209,62 @@ describe('ADJACENT_CATEGORIES', () => {
 		for (const [slug, neighbours] of Object.entries(ADJACENT_CATEGORIES)) {
 			expect(new Set(neighbours).size, slug).toBe(neighbours.length);
 		}
+	});
+});
+
+describe('selectCampaignMatches', () => {
+	/* A strong fit by default: same category, market and platform, well inside budget. */
+	const candidate = (id: number, over: Partial<MatchCandidate> = {}): MatchCandidate => ({
+		...creator({ averageRating: 4.9, completedBookings: 12, engagementRate: 9 }),
+		id,
+		userId: `user-${id}`,
+		availability: 'available',
+		...over
+	});
+
+	it('picks strong fits, best first', () => {
+		const picked = selectCampaignMatches(campaign(), [
+			candidate(1, { categoryIds: [99], categories: ['Other'], platformId: 77, platformIds: [77] }),
+			candidate(2),
+			candidate(3, { verificationLevel: 'cn_verified' })
+		]);
+		expect(picked.map((match) => match.creatorId)).toEqual([3, 2]);
+		for (const match of picked) {
+			expect(match.breakdown.total).toBeGreaterThanOrEqual(MATCH_NOTIFY_THRESHOLD);
+		}
+	});
+
+	it('leaves out creators who are away, have applied, or have had enough this week', () => {
+		const picked = selectCampaignMatches(
+			campaign(),
+			[candidate(1, { availability: 'away' }), candidate(2), candidate(3), candidate(4)],
+			{
+				appliedCreatorIds: new Set([2]),
+				recentByUser: new Map([['user-3', MATCH_WEEKLY_CAP]])
+			}
+		);
+		expect(picked.map((match) => match.creatorId)).toEqual([4]);
+	});
+
+	it('does not offer a brief to someone whose reach is outside its range', () => {
+		const brief = campaign({ followerMin: 100_000, followerMax: 500_000 });
+		const picked = selectCampaignMatches(brief, [
+			candidate(1, { totalReach: 2_000 }),
+			candidate(2, { totalReach: 900_000 }),
+			candidate(3, { totalReach: 200_000 })
+		]);
+		expect(picked.map((match) => match.creatorId)).toEqual([3]);
+	});
+
+	it('treats a follower maximum of 0 as no ceiling', () => {
+		const picked = selectCampaignMatches(campaign({ followerMin: 0, followerMax: 0 }), [
+			candidate(1, { totalReach: 40_000_000 })
+		]);
+		expect(picked).toHaveLength(1);
+	});
+
+	it('stops at the limit', () => {
+		const pool = Array.from({ length: 40 }, (_, i) => candidate(i + 1));
+		expect(selectCampaignMatches(campaign(), pool, { limit: 5 })).toHaveLength(5);
 	});
 });

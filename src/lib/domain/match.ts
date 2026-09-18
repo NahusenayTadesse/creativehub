@@ -262,3 +262,83 @@ export function calculateMatch({
 				: m.match_angle_paid({ channel: creator.platformName ?? m.match_channel() })
 	};
 }
+
+/* ------------------------------------------------------------------ *
+ * Telling creators about a brief
+ * ------------------------------------------------------------------ */
+
+/** A fit this good is worth a notification; below it, the brief is found by browsing. */
+export const MATCH_NOTIFY_THRESHOLD = 80;
+
+/** At most this many creators are told about one brief. */
+export const MATCH_NOTIFY_LIMIT = 25;
+
+/** At most this many match notifications reach one creator in seven days. */
+export const MATCH_WEEKLY_CAP = 3;
+
+export type MatchCandidate = MatchInput['creator'] & {
+	id: number;
+	userId: string;
+	availability: string;
+};
+
+export type MatchSelection = {
+	creatorId: number;
+	userId: string;
+	breakdown: MatchBreakdown;
+};
+
+/**
+ * Who hears about a newly published brief.
+ *
+ * A creator is left out when they have said they are away, when they have
+ * already applied, when they have had `MATCH_WEEKLY_CAP` of these this week,
+ * or when their reach sits outside the brief's follower range — the fit score
+ * alone gives budget partial credit, and a brief asking for 100K followers is
+ * not an opportunity for someone with 2K. Of the rest, those scoring at least
+ * `MATCH_NOTIFY_THRESHOLD`, best first, up to `MATCH_NOTIFY_LIMIT`.
+ *
+ * Pure, so the rules can be read and tested without a brief ever being posted.
+ */
+export function selectCampaignMatches(
+	campaign: MatchInput['campaign'],
+	candidates: MatchCandidate[],
+	options: {
+		adjacentCategoryIds?: number[];
+		appliedCreatorIds?: Set<number>;
+		/** How many match notifications each user has had in the last seven days. */
+		recentByUser?: Map<string, number>;
+		threshold?: number;
+		limit?: number;
+		weeklyCap?: number;
+	} = {}
+): MatchSelection[] {
+	const threshold = options.threshold ?? MATCH_NOTIFY_THRESHOLD;
+	const limit = options.limit ?? MATCH_NOTIFY_LIMIT;
+	const weeklyCap = options.weeklyCap ?? MATCH_WEEKLY_CAP;
+
+	const inRange = (reach: number) =>
+		reach >= campaign.followerMin &&
+		(campaign.followerMax <= 0 || reach <= campaign.followerMax * 1.5);
+
+	return candidates
+		.filter(
+			(creator) =>
+				creator.availability !== 'away' &&
+				!options.appliedCreatorIds?.has(creator.id) &&
+				(options.recentByUser?.get(creator.userId) ?? 0) < weeklyCap &&
+				inRange(creator.totalReach)
+		)
+		.map((creator) => ({
+			creatorId: creator.id,
+			userId: creator.userId,
+			breakdown: calculateMatch({
+				campaign,
+				creator,
+				adjacentCategoryIds: options.adjacentCategoryIds ?? []
+			})
+		}))
+		.filter((match) => match.breakdown.total >= threshold)
+		.sort((a, b) => b.breakdown.total - a.breakdown.total || a.creatorId - b.creatorId)
+		.slice(0, limit);
+}

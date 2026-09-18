@@ -113,6 +113,7 @@
 	editForm={data.editForm}
 	deleteForm={data.deleteForm}
 	fileFields={['avatar', 'cover']}
+	canDelete={data.canDelete}
 	nameKey="fullName"
 	emptyMessage={m.ac_empty()}
 >

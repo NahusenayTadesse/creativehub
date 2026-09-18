@@ -8,6 +8,27 @@ import * as t from '$lib/server/db/schema';
 import { campaignAdd, campaignEdit } from '$lib/schemas';
 import { requireRole, getOrganizationFor, recordAudit } from '$lib/server/guards';
 import { getReferenceData } from '$lib/server/queries';
+import { notifyCampaignMatches } from '$lib/server/campaign-matches';
+
+/**
+ * Tells the best-fitting creators about a brief, without holding up the save.
+ *
+ * `notifyCampaignMatches` does nothing unless the brief is published and has
+ * never been announced, so this is safe to call after any successful write.
+ */
+function announceMatches(campaignId: number, actor: { id: string; label: string | null }) {
+	if (!campaignId) return;
+	void notifyCampaignMatches(campaignId, actor).catch((err) =>
+		console.error(
+			JSON.stringify({
+				level: 'error',
+				event: 'campaign_matches',
+				campaignId,
+				message: err instanceof Error ? err.message : String(err)
+			})
+		)
+	);
+}
 
 /** "Telebirr SuperApp 5G Launch" → "telebirr-superapp-5g-launch". */
 const slugify = (value: string) =>
@@ -164,6 +185,20 @@ export const actions = {
 				toState: String(form.get('status') ?? 'draft'),
 				reason: String(form.get('title') ?? '')
 			});
+
+			/* The insert does not hand back its id; the slug is unique and was
+			   derived here, so it finds the row just written. */
+			if (form.get('status') === 'published') {
+				const created = await db
+					.select({ id: t.campaigns.id })
+					.from(t.campaigns)
+					.where(eq(t.campaigns.slug, slug))
+					.limit(1);
+				announceMatches(created.at(0)?.id ?? 0, {
+					id: user.id,
+					label: organization?.name ?? 'Operator'
+				});
+			}
 		}
 
 		return result;
@@ -186,6 +221,10 @@ export const actions = {
 				action: 'updated',
 				toState: String(form.get('status') ?? '')
 			});
+
+			if (form.get('status') === 'published') {
+				announceMatches(id, { id: user.id, label: organization?.name ?? 'Operator' });
+			}
 		}
 
 		return result;

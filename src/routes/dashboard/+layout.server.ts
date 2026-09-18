@@ -3,7 +3,12 @@ import type { LayoutServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { requireUser, getCreatorFor, getOrganizationFor, isAdmin } from '$lib/server/guards';
-import { countPendingClaims, countPendingVerifications } from '$lib/server/queries';
+import { countUnreadNotifications, listNotifications } from '$lib/server/inbox';
+import {
+	countPendingClaims,
+	countPendingStatProofs,
+	countPendingVerifications
+} from '$lib/server/queries';
 
 /**
  * Establishes which "side" the signed-in user is acting as, once, for every
@@ -22,7 +27,7 @@ export const load: LayoutServerLoad = async (event) => {
 	const counts: Record<string, number> = {};
 
 	if (role === 'admin') {
-		const [bookings, verifications, introductions, claims] = await Promise.all([
+		const [bookings, verifications, introductions, claims, statProofs] = await Promise.all([
 			db
 				.select({ n: sql<number>`count(*)` })
 				.from(t.bookings)
@@ -41,12 +46,15 @@ export const load: LayoutServerLoad = async (event) => {
 					)
 				),
 			/* People asking for a profile we imported — see /dashboard/admin/claims. */
-			countPendingClaims()
+			countPendingClaims(),
+			/* Screenshots waiting to confirm a channel's figures. */
+			countPendingStatProofs()
 		]);
 		counts.bookings = Number(bookings[0]?.n ?? 0);
 		counts.verifications = verifications;
 		counts.introductions = Number(introductions[0]?.n ?? 0);
 		counts.claims = claims;
+		counts.statProofs = statProofs;
 	} else if (creator) {
 		const [bookings, applications] = await Promise.all([
 			db
@@ -95,11 +103,20 @@ export const load: LayoutServerLoad = async (event) => {
 		counts.applications = Number(applications[0]?.n ?? 0);
 	}
 
+	/* The bell in the header: how many are waiting, and the last few to show
+	   without leaving the page. Two indexed reads on every dashboard page. */
+	const [unreadNotifications, recentNotifications] = await Promise.all([
+		countUnreadNotifications(user.id),
+		listNotifications(user.id, { limit: 6 })
+	]);
+
 	return {
 		role,
 		isAdmin: isAdmin(user),
 		creator: creator ?? null,
 		organization: organization ?? null,
-		counts
+		counts,
+		unreadNotifications,
+		recentNotifications
 	};
 };

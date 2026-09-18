@@ -29,12 +29,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const DOCS = {
 	documentation: {
 		source: 'DOCUMENTATION.md',
-		target: 'Creator-Network-Documentation.pdf',
+		target: 'Influencer-Ethiopia-Documentation.pdf',
 		eyebrow: 'Documentation',
-		title: 'Creator Network',
+		title: 'Influencer Ethiopia',
 		subtitle: 'Product &amp; Technical Documentation',
-		running: 'Creator Network \u00b7 Product &amp; Technical Documentation',
-		pdfTitle: 'Creator Network - Product & Technical Documentation',
+		running: 'Influencer Ethiopia \u00b7 Product &amp; Technical Documentation',
+		pdfTitle: 'Influencer Ethiopia - Product & Technical Documentation',
 		pdfSubject: 'Architecture, product surfaces, security, operations and roadmap',
 		pdfKeywords: 'creator marketplace, SvelteKit, Drizzle ORM, documentation',
 		blurb:
@@ -48,12 +48,12 @@ const DOCS = {
 	},
 	features: {
 		source: 'FEATURES.md',
-		target: 'Creator-Network-Features.pdf',
+		target: 'Influencer-Ethiopia-Features.pdf',
 		eyebrow: 'Feature Catalogue',
-		title: 'Creator Network',
+		title: 'Influencer Ethiopia',
 		subtitle: 'The Complete Feature Catalogue',
-		running: 'Creator Network \u00b7 Feature Catalogue',
-		pdfTitle: 'Creator Network - The Complete Feature Catalogue',
+		running: 'Influencer Ethiopia \u00b7 Feature Catalogue',
+		pdfTitle: 'Influencer Ethiopia - The Complete Feature Catalogue',
 		pdfSubject: 'Every capability the platform ships, by surface and by role',
 		pdfKeywords: 'creator marketplace, features, discovery, bookings, trending, SvelteKit',
 		blurb:
@@ -419,7 +419,7 @@ writeFileSync(
 	marks,
 	[
 		`[ /Title (${DOC.pdfTitle})`,
-		'  /Author (Creator Network)',
+		'  /Author (Influencer Ethiopia)',
 		`  /Subject (${DOC.pdfSubject})`,
 		`  /Keywords (${DOC.pdfKeywords})`,
 		'  /DOCINFO pdfmark',

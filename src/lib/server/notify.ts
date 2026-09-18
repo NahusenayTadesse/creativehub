@@ -56,8 +56,8 @@ function getSiteName(): Promise<string> {
 		.select({ siteName: t.siteSettings.siteName })
 		.from(t.siteSettings)
 		.limit(1)
-		.then((rows) => rows.at(0)?.siteName ?? 'Creator Network')
-		.catch(() => 'Creator Network');
+		.then((rows) => rows.at(0)?.siteName ?? 'Influencer Ethiopia')
+		.catch(() => 'Influencer Ethiopia');
 	return siteNamePromise;
 }
 
@@ -81,6 +81,8 @@ async function loadRecipients(userIds: string[]): Promise<RecipientRow[]> {
 			dealsApp: t.userSettings.dealsApp,
 			messagesEmail: t.userSettings.messagesEmail,
 			messagesApp: t.userSettings.messagesApp,
+			opportunitiesEmail: t.userSettings.opportunitiesEmail,
+			opportunitiesApp: t.userSettings.opportunitiesApp,
 			accountEmail: t.userSettings.accountEmail,
 			productEmail: t.userSettings.productEmail
 		})
@@ -100,6 +102,8 @@ async function loadRecipients(userIds: string[]): Promise<RecipientRow[]> {
 						dealsApp: r.dealsApp!,
 						messagesEmail: r.messagesEmail!,
 						messagesApp: r.messagesApp!,
+						opportunitiesEmail: r.opportunitiesEmail!,
+						opportunitiesApp: r.opportunitiesApp!,
 						accountEmail: r.accountEmail!,
 						productEmail: r.productEmail!
 					}

@@ -8,7 +8,7 @@
 	/* The fee and the contact address are the two facts in here that are set in
 	   the admin settings, so they are read rather than written into the prose. */
 	const fee = $derived(data.settings?.platformFeePercent ?? 15);
-	const email = $derived(data.settings?.supportEmail ?? 'support@creatornetwork.et');
+	const email = $derived(data.settings?.supportEmail ?? 'support@influencerethiopia.com');
 
 	const UPDATED = '25 August 2026';
 </script>

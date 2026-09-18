@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppImage from '$lib/components/app-image.svelte';
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import DynamicIcon, { iconNames } from '$lib/components/dynamic-icon.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
@@ -16,6 +17,7 @@
 			type: 'select',
 			items: iconNames.map((name) => ({ value: name, name }))
 		},
+		{ name: 'image', label: m.ca_image(), type: 'file', placeholder: m.ca_image_hint() },
 		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
 		{
 			name: 'isActive',
@@ -36,6 +38,7 @@
 	rows={data.rows}
 	list={data.list}
 	{fields}
+	fileFields={['image']}
 	addForm={data.addForm}
 	editForm={data.editForm}
 	deleteForm={data.deleteForm}
@@ -43,6 +46,18 @@
 >
 	{#snippet row(category)}
 		<div class="space-y-2">
+			<!-- The tile's picture as the homepage crops it, when there is one. -->
+			{#if category.image}
+				<AppImage
+					src={category.image}
+					alt={category.name}
+					kind="cover"
+					seed={category.slug}
+					class="h-24 w-full rounded-2xl border-2 border-edge object-cover"
+					loading="lazy"
+					decoding="async"
+				/>
+			{/if}
 			<div class="flex items-start justify-between gap-2">
 				<div
 					class="flex h-10 w-10 items-center justify-center rounded-2xl border-2 border-edge bg-inverse text-inverse-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"

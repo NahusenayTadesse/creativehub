@@ -15,6 +15,7 @@ import * as disputes from '$lib/server/disputes';
 import * as refunds from '$lib/server/refunds';
 import { requireBookingAccess, recordAudit } from '$lib/server/guards';
 import { refreshCreatorCompletedBookings, refreshCreatorRating } from '$lib/server/score-service';
+import { dealVersion, markBookingRead, markNotificationsReadForLink } from '$lib/server/inbox';
 import { canTransition, splitFee, type BookingStatus } from '$lib/domain/booking';
 import {
 	cancelAgreeProblem,
@@ -51,8 +52,16 @@ export const load: PageServerLoad = async (event) => {
 	const id = Number(event.params.id);
 	if (!Number.isFinite(id)) error(404, m.srv_booking_not_found());
 
-	const { side } = await requireBookingAccess(event, id);
-	const detail = await getBookingDetail(id);
+	const { side, user, booking: row } = await requireBookingAccess(event, id);
+	const [detail, version] = await Promise.all([
+		getBookingDetail(id),
+		/* What the live thread compares against — see `dealVersion`. */
+		dealVersion(id, row.updatedAt),
+		/* Opening the deal is reading it: its messages stop counting as unread,
+		   and so do the notifications that pointed here. */
+		markBookingRead(user.id, id),
+		markNotificationsReadForLink(user.id, `/dashboard/bookings/${id}`)
+	]);
 	if (!detail) error(404, m.srv_booking_not_found());
 
 	const [proposalForm, submitForm, reviewForm, messageForm, disputeForm, respondForm, cancelForm] =
@@ -115,6 +124,7 @@ export const load: PageServerLoad = async (event) => {
 	return {
 		...current,
 		side,
+		version,
 		proposalForm,
 		submitForm,
 		reviewForm,

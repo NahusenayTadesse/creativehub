@@ -147,7 +147,7 @@
 			<div class="flex items-center gap-3">
 				<!-- `onSlab`, because this band is dark in both themes: the wordmark
 				     here must not follow the reader's theme the way the header's does. -->
-				<SiteLogo {logos} variant="wordmark" heightClass="h-8" onSlab />
+				<SiteLogo {logos} variant="wordmark" heightClass="h-12" onSlab />
 				<span class="text-slab-ink-dim">|</span>
 				<span class="text-slab-ink-dim">{m.footer_location()}</span>
 			</div>

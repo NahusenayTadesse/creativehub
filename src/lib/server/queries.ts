@@ -11,6 +11,7 @@ import {
 	eq,
 	gt,
 	inArray,
+	isNotNull,
 	isNull,
 	like,
 	lte,
@@ -27,9 +28,10 @@ import { user } from '$lib/server/db/auth.schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
 import { defineQuery, escapeLike, type PageResult, type RowOf } from '$lib/server/query';
 import { handleFromEmail, looksLikeSamePerson } from '$lib/domain/claim';
-import { laneKey, positionScore, type TrendingLaneKind } from '$lib/domain/trending';
+import { laneKey, positionScore, tierLabel, type TrendingLaneKind } from '$lib/domain/trending';
 import {
 	getLocalRanker,
+	getViewerMarket,
 	listPublishedLanes,
 	orderLanesForViewer
 } from '$lib/server/trending-service';
@@ -114,6 +116,7 @@ export const listCategories = () =>
 			name: t.categories.name,
 			slug: t.categories.slug,
 			icon: t.categories.icon,
+			image: t.categories.image,
 			/* The homepage prints this under each category tile. */
 			description: t.categories.description
 		})
@@ -136,6 +139,19 @@ export const listLanguages = () =>
 		.orderBy(asc(t.languages.sortOrder));
 
 export const getSettings = async () => (await db.select().from(t.siteSettings).limit(1)).at(0);
+
+/** The hero's partner logos, in the order an operator arranged them. */
+export const listPartners = () =>
+	db
+		.select({
+			id: t.partners.id,
+			name: t.partners.name,
+			logo: t.partners.logo,
+			websiteUrl: t.partners.websiteUrl
+		})
+		.from(t.partners)
+		.where(live(t.partners))
+		.orderBy(asc(t.partners.sortOrder), asc(t.partners.id));
 
 /**
  * The homepage gallery, in the order an admin arranged it. Named columns
@@ -354,6 +370,24 @@ export function listCreators(
 	});
 }
 
+/**
+ * Every published creator somebody has claimed, as cards.
+ *
+ * The audience for "a brief that fits you": an unclaimed profile has nobody to
+ * tell. Not paged, because a match is scored against all of them — which is
+ * fine while claimed supply numbers in the hundreds, and the query to revisit
+ * when it does not.
+ */
+export async function listClaimedCreatorCards() {
+	const rows = await creatorJoins(
+		db
+			.select({ ...creatorCardColumns, userId: t.creators.userId })
+			.from(t.creators)
+			.$dynamic()
+	).where(and(...publishedCreators(), isNotNull(t.creators.userId)));
+	return (await hydrateCreatorCards(rows)) as (CreatorCard & { userId: string })[];
+}
+
 /** How many published creators sit in each market, for the discovery chips. */
 export const creatorFacet = (url: URL, key: string) =>
 	creatorsQuery.facet(url, key, { where: publishedCreators() });
@@ -373,8 +407,14 @@ export async function listFeaturedCreators(limit = 6): Promise<CreatorCard[]> {
  * The flag is what the run wrote, so the set always matches; the ranks are read
  * separately only to put them back in the operator's order. Falls back to score
  * order when no board has been published yet.
+ *
+ * A reader who is to see their own country only is served that market's board
+ * instead, which the flag says nothing about — see `buildMarketBoards`.
  */
 export async function listTrendingCreators(limit = 8): Promise<CreatorCard[]> {
+	const market = await getViewerMarket();
+	if (market !== null) return listMarketTrendingCreators(market, limit);
+
 	const [board, local] = await Promise.all([
 		db
 			.select({ creatorId: t.trendingEntries.creatorId, rank: t.trendingEntries.rank })
@@ -414,6 +454,25 @@ export async function listTrendingCreators(limit = 8): Promise<CreatorCard[]> {
 	return page.rows;
 }
 
+/** One market's own board, in its own order. Nothing to re-rank: it is all local. */
+async function listMarketTrendingCreators(countryId: number, limit: number) {
+	const board = await db
+		.select({ creatorId: t.trendingMarketEntries.creatorId, rank: t.trendingMarketEntries.rank })
+		.from(t.trendingMarketEntries)
+		.where(eq(t.trendingMarketEntries.countryId, countryId))
+		.orderBy(asc(t.trendingMarketEntries.rank));
+	if (!board.length) return [];
+
+	const rankOf = new Map(board.map((entry) => [entry.creatorId, entry.rank]));
+	const page = await creatorsQuery.run(unfiltered(), {
+		where: [...publishedCreators(), inArray(t.creators.id, [...rankOf.keys()])],
+		perPage: limit,
+		/* Negated because ranking sorts high-to-low and rank 1 comes first. */
+		rank: { by: (row: any) => -(rankOf.get(row.id) ?? Infinity) }
+	});
+	return page.rows;
+}
+
 /**
  * How many distinct creators the lane strip may put on the page.
  *
@@ -431,6 +490,8 @@ export type TrendingLane = {
 	kind: TrendingLaneKind;
 	/** The reference row behind the lane, so a chip can link to its filter. */
 	refId: number | null;
+	/** The key of a lane with no reference row — a city, a size band. */
+	refKey: string | null;
 	label: string;
 	creators: CreatorCard[];
 };
@@ -440,10 +501,11 @@ export type TrendingLane = {
  *
  * The cards are fetched once for the union of every lane and handed back out
  * by reference: a creator in three lanes is one query row and one object, not
- * three. Lanes arrive in the order the reader's own location earned them.
+ * three. Lanes arrive in the order the reader's own location earned them, and
+ * come from their market's own board when that is the board they are served.
  */
 export async function listTrendingLanes(): Promise<TrendingLane[]> {
-	const published = await orderLanesForViewer(await listPublishedLanes());
+	const published = await orderLanesForViewer(await listPublishedLanes(await getViewerMarket()));
 	if (!published.length) return [];
 
 	/* Walk the lanes in order, taking whole lanes while the union stays inside
@@ -474,7 +536,10 @@ export async function listTrendingLanes(): Promise<TrendingLane[]> {
 				key: laneKey(lane),
 				kind: lane.kind,
 				refId: lane.refId,
-				label: lane.label,
+				refKey: lane.refKey,
+				/* A size band is stored under whatever language the run happened in;
+				   it is re-labelled for this reader from its key. */
+				label: lane.kind === 'tier' && lane.refKey ? tierLabel(lane.refKey) : lane.label,
 				creators: lane.entries
 					.map((entry) => cardOf.get(entry.creatorId))
 					.filter((card): card is CreatorCard => !!card)
@@ -536,6 +601,10 @@ async function hydrateCreator(creator: typeof t.creators.$inferSelect) {
 					handle: t.socialAccounts.handle,
 					followers: t.socialAccounts.followers,
 					engagementRate: t.socialAccounts.engagementRate,
+					followersSource: t.socialAccounts.followersSource,
+					followersUpdatedAt: t.socialAccounts.followersUpdatedAt,
+					engagementSource: t.socialAccounts.engagementSource,
+					engagementUpdatedAt: t.socialAccounts.engagementUpdatedAt,
 					isVerified: t.socialAccounts.isVerified,
 					profileUrl: t.socialAccounts.profileUrl,
 					platformId: t.socialAccounts.platformId,
@@ -800,6 +869,144 @@ export async function getCampaignBySlug(slug: string) {
 		.limit(1);
 	return (rows.at(0) as any) ?? null;
 }
+
+/**
+ * Still open, on the database's clock.
+ *
+ * `curdate()` rather than a `Date` built here: the dev database keeps EAT and
+ * production keeps UTC, so a boundary computed in the node process disagrees
+ * with the column it is compared against for three hours a day. A brief with no
+ * deadline never closes on its own and is always in.
+ */
+const briefStillOpen = sql`(${t.campaigns.deadline} is null or ${t.campaigns.deadline} >= curdate())`;
+
+/** Published, live, not deleted, and not past its own deadline. */
+const openBriefConditions = () => [
+	isNull(t.campaigns.deletedAt),
+	eq(t.campaigns.isActive, true),
+	eq(t.campaigns.status, 'published'),
+	briefStillOpen
+];
+
+/**
+ * The homepage brief strip: what a creator could apply to today.
+ *
+ * Dated briefs lead, soonest first, because the strip is there to show that the
+ * work is real and closing; an undated one is still open but has no countdown
+ * to sort by, so it follows the dated ones rather than heading them — which is
+ * what a plain `asc(deadline)` would do, MySQL sorting nulls first.
+ */
+export async function listOpenBriefs(limit = 3) {
+	return db
+		.select({
+			id: t.campaigns.id,
+			slug: t.campaigns.slug,
+			title: t.campaigns.title,
+			description: t.campaigns.description,
+			deliverables: t.campaigns.deliverables,
+			deadline: t.campaigns.deadline,
+			compensationType: t.campaigns.compensationType,
+			budgetMin: t.campaigns.budgetMin,
+			budgetMax: t.campaigns.budgetMax,
+			currencyCode: t.campaigns.currencyCode,
+			applicationsCount: t.campaigns.applicationsCount,
+			organizationName: t.organizations.name,
+			organizationLogo: t.organizations.logo
+		})
+		.from(t.campaigns)
+		.innerJoin(t.organizations, eq(t.organizations.id, t.campaigns.organizationId))
+		.where(and(...openBriefConditions()))
+		.orderBy(
+			sql`${t.campaigns.deadline} is null`,
+			asc(t.campaigns.deadline),
+			desc(t.campaigns.createdAt)
+		)
+		.limit(limit);
+}
+
+export type OpenBrief = Awaited<ReturnType<typeof listOpenBriefs>>[number];
+
+/**
+ * The homepage brand strip.
+ *
+ * Both figures are correlated subqueries rather than joins: a brand joined to
+ * its briefs *and* its bookings multiplies one against the other, and the
+ * counts come out as the product rather than the totals.
+ *
+ * "Hired" is deliberately wider than "completed" — a creator in production has
+ * been hired, and a brand that only ever finishes work next quarter would
+ * otherwise read as having hired nobody. Only the two states before a deal
+ * exists, and an abandoned one, are excluded.
+ */
+export async function listLandingBrands(limit = 4) {
+	const openBriefs = sql<number>`(
+		select count(*) from ${t.campaigns}
+		where ${t.campaigns.organizationId} = ${t.organizations.id}
+			and ${t.campaigns.status} = 'published'
+			and ${t.campaigns.isActive} = true
+			and ${t.campaigns.deletedAt} is null
+			and (${t.campaigns.deadline} is null or ${t.campaigns.deadline} >= curdate())
+	)`;
+
+	const creatorsHired = sql<number>`(
+		select count(distinct ${t.bookings.creatorId}) from ${t.bookings}
+		where ${t.bookings.organizationId} = ${t.organizations.id}
+			and ${t.bookings.status} not in ('proposed', 'negotiating', 'cancelled')
+	)`;
+
+	const rows = await db
+		.select({
+			id: t.organizations.id,
+			name: t.organizations.name,
+			slug: t.organizations.slug,
+			logo: t.organizations.logo,
+			orgType: t.organizations.orgType,
+			city: t.organizations.city,
+			countryName: t.countries.name,
+			countryFlag: t.countries.flag,
+			verificationLevel: t.organizations.verificationLevel,
+			openBriefs,
+			creatorsHired
+		})
+		.from(t.organizations)
+		.leftJoin(t.countries, eq(t.countries.id, t.organizations.countryId))
+		.where(live(t.organizations))
+		/* Brands with work on offer lead; the operator's order breaks the tie. */
+		.orderBy(
+			desc(openBriefs),
+			desc(creatorsHired),
+			asc(t.organizations.sortOrder),
+			asc(t.organizations.id)
+		)
+		.limit(limit);
+
+	if (!rows.length) return [];
+
+	/* What each one is shopping for, one query for the whole strip rather than
+	   one per brand. Grouped so a brand with six fashion briefs says "Fashion"
+	   once. */
+	const wanted = await db
+		.select({ organizationId: t.campaigns.organizationId, name: t.categories.name })
+		.from(t.campaigns)
+		.innerJoin(t.categories, eq(t.categories.id, t.campaigns.categoryId))
+		.where(
+			and(
+				inArray(
+					t.campaigns.organizationId,
+					rows.map((row) => row.id)
+				),
+				...openBriefConditions()
+			)
+		)
+		.groupBy(t.campaigns.organizationId, t.categories.name);
+
+	return rows.map((row) => ({
+		...row,
+		wants: wanted.filter((item) => item.organizationId === row.id).map((item) => item.name)
+	}));
+}
+
+export type LandingBrand = Awaited<ReturnType<typeof listLandingBrands>>[number];
 
 /* ------------------------------------------------------------------ *
  * Bookings
@@ -1217,6 +1424,66 @@ export const verificationQuery = defineQuery({
 });
 
 export const listVerificationRequests = (url: URL) => verificationQuery.run(url);
+
+/**
+ * The queue at /dashboard/admin/figure-proofs: screenshots of a creator's own
+ * analytics, offered as the source of a channel's figures.
+ *
+ * Carries the channel as it stands beside what the proof claims, so an operator
+ * reads the difference without opening the profile.
+ */
+export const statProofQuery = defineQuery({
+	table: t.statProofs,
+	columns: {
+		id: t.statProofs.id,
+		status: t.statProofs.status,
+		screenshot: t.statProofs.screenshot,
+		followers: t.statProofs.followers,
+		engagementRate: t.statProofs.engagementRate,
+		adminNotes: t.statProofs.adminNotes,
+		createdAt: t.statProofs.createdAt,
+		reviewedAt: t.statProofs.reviewedAt,
+		socialAccountId: t.statProofs.socialAccountId,
+		handle: t.socialAccounts.handle,
+		profileUrl: t.socialAccounts.profileUrl,
+		currentFollowers: t.socialAccounts.followers,
+		currentEngagementRate: t.socialAccounts.engagementRate,
+		followersSource: t.socialAccounts.followersSource,
+		platformName: t.platforms.name,
+		creatorId: t.statProofs.creatorId,
+		creatorName: t.creators.fullName,
+		creatorUsername: t.creators.username,
+		creatorAvatar: t.creators.avatar
+	},
+	joins: (qb: any) =>
+		qb
+			.innerJoin(t.socialAccounts, eq(t.socialAccounts.id, t.statProofs.socialAccountId))
+			.leftJoin(t.platforms, eq(t.platforms.id, t.socialAccounts.platformId))
+			.innerJoin(t.creators, eq(t.creators.id, t.statProofs.creatorId)),
+	search: [t.creators.fullName, t.creators.username, t.socialAccounts.handle],
+	filters: {
+		status: {
+			type: 'enum',
+			column: t.statProofs.status,
+			values: t.statProofStatusEnum
+		}
+	},
+	sort: {
+		oldest: { column: t.statProofs.createdAt, direction: 'asc' },
+		newest: { column: t.statProofs.createdAt, direction: 'desc' }
+	},
+	/* A queue is worked from the front: whoever has waited longest goes first. */
+	defaultSort: 'oldest',
+	tiebreaker: t.statProofs.id
+});
+
+export const countPendingStatProofs = async () => {
+	const rows = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(t.statProofs)
+		.where(eq(t.statProofs.status, 'pending'));
+	return Number(rows[0]?.count ?? 0);
+};
 
 /**
  * The queue at /dashboard/admin/claims: people asking for a profile that was

@@ -7,7 +7,7 @@
 	import PaginationBar from '$lib/components/pagination-bar.svelte';
 	import NoResults from '$lib/components/no-results.svelte';
 	import SearchInput from '$lib/components/search-input.svelte';
-	import { ArrowRight, Inbox } from '@lucide/svelte';
+	import { ArrowRight, Inbox, MessageSquare } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { withParams } from '$lib/query';
 	import * as m from '$lib/paraglide/messages';
@@ -111,6 +111,14 @@
 									</span>
 									<BookingStatusBadge status={booking.status} />
 									<CompensationBadge type={booking.compensationType} />
+									{#if data.unread[booking.id]}
+										<span
+											class="inline-flex items-center gap-1 rounded-md border-2 border-brand-edge bg-brand px-1.5 py-0.5 text-[10px] font-black text-brand-ink"
+										>
+											<MessageSquare class="h-3 w-3" aria-hidden="true" />
+											{m.bl_unread_messages({ count: data.unread[booking.id] })}
+										</span>
+									{/if}
 								</div>
 								<h3 class="truncate text-sm font-black text-ink">{booking.title}</h3>
 								<p class="truncate text-[11px] font-bold text-ink-dim">

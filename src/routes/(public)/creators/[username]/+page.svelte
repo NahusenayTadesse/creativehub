@@ -15,7 +15,9 @@
 		ArrowLeft,
 		CircleCheckBig,
 		Hand,
-		Loader
+		Loader,
+		MessageCircleReply,
+		CalendarCheck
 	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
@@ -25,6 +27,10 @@
 	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import { formatReach } from '$lib/domain/money';
 	import { scoreWeights } from '$lib/domain/score';
+	import StatSourceNote from '$lib/components/stat-source-note.svelte';
+	import PageMeta from '$lib/components/page-meta.svelte';
+	import { page } from '$app/state';
+	import { assetUrl } from '$lib/assets';
 
 	let { data } = $props();
 
@@ -34,6 +40,100 @@
 	);
 
 	const creator = $derived(data.creator);
+
+	/* ---------------- What a search engine and a link preview see ---------------- */
+
+	const profilePath = $derived(`/creators/${creator.username}`);
+	const absolute = (value: string | null | undefined) => {
+		const url = assetUrl(value);
+		if (!url) return null;
+		return /^https?:\/\//.test(url) ? url : new URL(url, page.url.origin).href;
+	};
+
+	/* The bio when there is one. An imported profile often has none, and a
+	   results page showing the site's generic description under every creator
+	   would make them indistinguishable — so the facts on the card stand in. */
+	const metaDescription = $derived.by(() => {
+		if (creator.bio?.trim()) return creator.bio;
+		const details = [
+			creator.categories
+				.slice(0, 3)
+				.map((category) => category.name)
+				.join(', '),
+			[creator.city, creator.country?.name].filter(Boolean).join(', '),
+			creator.totalReach > 0
+				? m.profile_meta_followers({ reach: formatReach(creator.totalReach) })
+				: ''
+		].filter(Boolean);
+		return details.length
+			? m.profile_meta_description({ name: creator.fullName, details: details.join(' · ') })
+			: m.profile_meta_description_short({ name: creator.fullName });
+	});
+
+	/**
+	 * The profile as schema.org describes one: a ProfilePage about a Person.
+	 *
+	 * Built only from what the page renders, so the structured data cannot say
+	 * something the reader cannot see. Ratings are deliberately left out: review
+	 * markup about a person, collected by the site that hosts them, is what
+	 * search engines treat as self-serving, and it risks the whole site's
+	 * rich results rather than earning stars.
+	 */
+	const profileJsonLd = $derived.by(() => {
+		const url = new URL(profilePath, page.url.origin).href;
+		const channels = creator.socialAccounts.filter((account) =>
+			/^https?:\/\//.test(account.profileUrl ?? '')
+		);
+		return {
+			'@context': 'https://schema.org',
+			'@type': 'ProfilePage',
+			url,
+			...(creator.updatedAt ? { dateModified: new Date(creator.updatedAt).toISOString() } : {}),
+			mainEntity: {
+				'@type': 'Person',
+				name: creator.fullName,
+				alternateName: `@${creator.username}`,
+				identifier: creator.username,
+				url,
+				...(creator.bio?.trim() ? { description: creator.bio } : {}),
+				...(absolute(creator.avatar) ? { image: absolute(creator.avatar) } : {}),
+				...(creator.city || creator.country
+					? {
+							address: {
+								'@type': 'PostalAddress',
+								...(creator.city ? { addressLocality: creator.city } : {}),
+								...(creator.country ? { addressCountry: creator.country.name } : {})
+							}
+						}
+					: {}),
+				...(creator.categories.length
+					? { knowsAbout: creator.categories.map((category) => category.name) }
+					: {}),
+				...(creator.languages.length
+					? { knowsLanguage: creator.languages.map((language) => language.name) }
+					: {}),
+				...(channels.length ? { sameAs: channels.map((account) => account.profileUrl) } : {}),
+				...(creator.socialAccounts.length
+					? {
+							interactionStatistic: creator.socialAccounts.map((account) => ({
+								'@type': 'InteractionCounter',
+								interactionType: 'https://schema.org/FollowAction',
+								userInteractionCount: account.followers,
+								...(account.platformName
+									? {
+											interactionService: {
+												'@type': 'WebSite',
+												name: account.platformName,
+												...(account.profileUrl ? { url: account.profileUrl } : {})
+											}
+										}
+									: {})
+							}))
+						}
+					: {})
+			}
+		};
+	});
 
 	let scoreOpen = $state(false);
 	let bookingOpen = $state(false);
@@ -156,10 +256,18 @@
 	}
 </script>
 
-<svelte:head>
-	<title>{m.profile_meta_title({ name: creator.fullName, username: creator.username })}</title>
-	<meta name="description" content={creator.bio ?? ''} />
-</svelte:head>
+<PageMeta
+	title={m.profile_meta_title({ name: creator.fullName, username: creator.username })}
+	description={metaDescription}
+	path={profilePath}
+	image={creator.avatar || creator.cover}
+	type="profile"
+	wideImage={!creator.avatar && !!creator.cover}
+	noIndex={!creator.isPublished}
+	jsonLd={profileJsonLd}
+>
+	<meta property="profile:username" content={creator.username} />
+</PageMeta>
 
 <div class="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
 	<a
@@ -200,7 +308,7 @@
 				onclick={() => (scoreOpen = true)}
 				class="absolute top-4 left-4 flex items-center gap-1.5 rounded-xl border border-white/20 bg-black/70 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md transition-colors hover:bg-black/90"
 			>
-				<Award class="h-4 w-4 text-emerald-400" />
+				<Award class="h-4 w-4 text-slab-brand" />
 				<span>{m.profile_creator_score({ score: creator.score })}</span>
 			</button>
 		</div>
@@ -357,6 +465,27 @@
 					<span class="text-lg font-extrabold text-ink">{creator.completedBookings}</span>
 				</div>
 			</div>
+
+			<!-- Measured, not stated: shown only once there is enough to go on. -->
+			{#if creator.responseRate !== null || creator.onTimeRate !== null}
+				<ul class="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs font-bold text-ink-soft">
+					{#if creator.responseRate !== null}
+						<li class="flex items-center gap-1.5">
+							<MessageCircleReply class="h-3.5 w-3.5 text-brand-fg" aria-hidden="true" />
+							{m.profile_response_rate({
+								rate: creator.responseRate,
+								count: creator.responseSample
+							})}
+						</li>
+					{/if}
+					{#if creator.onTimeRate !== null}
+						<li class="flex items-center gap-1.5">
+							<CalendarCheck class="h-3.5 w-3.5 text-brand-fg" aria-hidden="true" />
+							{m.profile_on_time_rate({ rate: creator.onTimeRate, count: creator.onTimeSample })}
+						</li>
+					{/if}
+				</ul>
+			{/if}
 		</div>
 	</div>
 
@@ -398,6 +527,16 @@
 									>{account.engagementRate.toFixed(1)}%</span
 								>
 							</div>
+						</div>
+						<div class="mt-2">
+							<StatSourceNote
+								platform={account.platformName ?? ''}
+								followersSource={account.followersSource}
+								followersUpdatedAt={account.followersUpdatedAt}
+								engagementSource={account.engagementSource}
+								engagementUpdatedAt={account.engagementUpdatedAt}
+								engagementRate={account.engagementRate}
+							/>
 						</div>
 					</div>
 				{/each}

@@ -1,13 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
 	LOCAL_FIRST_BONUS,
+	TIER_FLOORS,
 	TRENDING_LANE_KINDS,
 	TRENDING_SIGNALS,
+	TRENDING_SIGNAL_GROUPS,
 	buildLanes,
 	compareCandidates,
 	decayWeight,
+	followerTier,
+	growthPercent,
+	measureAudience,
+	momentumValue,
+	smoothedRating,
+	trendingPresets,
+	type AudienceOptions,
+	type ChannelFigures,
 	laneKey,
 	laneLocalRank,
+	effectiveLocalRanking,
 	localBonus,
 	matchesLocation,
 	newcomerValue,
@@ -348,6 +359,26 @@ describe('localBonus', () => {
 		expect(localBonus(true, 'first', 0)).toBeGreaterThan(100);
 		expect(localBonus(true, 'first', 0)).toBe(LOCAL_FIRST_BONUS);
 	});
+
+	/* `only` is enforced by serving a market's own board; any other list it
+	   reaches must still show something, so it orders the way `first` does. */
+	it('orders like first in only', () => {
+		expect(localBonus(true, 'only', 0)).toBe(LOCAL_FIRST_BONUS);
+		expect(localBonus(false, 'only', 40)).toBe(0);
+	});
+});
+
+describe('effectiveLocalRanking', () => {
+	it('restricts automatic mode to the reader market, whatever was saved', () => {
+		expect(effectiveLocalRanking('automatic', 'off')).toBe('only');
+		expect(effectiveLocalRanking('automatic', 'boost')).toBe('only');
+	});
+
+	it('keeps the operator choice in the other modes', () => {
+		expect(effectiveLocalRanking('hybrid', 'boost')).toBe('boost');
+		expect(effectiveLocalRanking('manual', 'off')).toBe('off');
+		expect(effectiveLocalRanking('hybrid', 'only')).toBe('only');
+	});
 });
 
 describe('positionScore', () => {
@@ -496,5 +527,203 @@ describe('laneKey', () => {
 	it('separates a reference lane from a city lane of the same name', () => {
 		expect(laneKey({ kind: 'category', refId: 4, refKey: null })).toBe('category:4');
 		expect(laneKey({ kind: 'city', refId: null, refKey: 'addis ababa' })).toBe('city:addis ababa');
+	});
+});
+
+describe('signals and presets', () => {
+	it('shows every signal in exactly one group', () => {
+		const grouped = TRENDING_SIGNAL_GROUPS.flatMap((group) => [...group.signals]);
+		expect([...grouped].sort()).toEqual([...TRENDING_SIGNALS].sort());
+	});
+
+	it('gives every built-in preset a weight for every signal', () => {
+		for (const preset of trendingPresets()) {
+			expect(Object.keys(preset.weights).sort(), preset.key).toEqual([...TRENDING_SIGNALS].sort());
+			expect(
+				Object.values(preset.weights).some((weight) => weight > 0),
+				preset.key
+			).toBe(true);
+		}
+	});
+});
+
+describe('normalizeValues — log', () => {
+	it('keeps order but stops one huge account flattening the rest', () => {
+		const [small, medium, huge] = normalizeValues([1_000, 10_000, 10_000_000], 'log');
+		const linear = normalizeValues([1_000, 10_000, 10_000_000], 'minmax');
+		expect(small).toBe(0);
+		expect(huge).toBe(1);
+		expect(medium).toBeGreaterThan(small);
+		/* On a straight line the 10K account is indistinguishable from the 1K one. */
+		expect(medium).toBeGreaterThan(linear[1] * 100);
+	});
+
+	it('puts negative growth below zero growth', () => {
+		const [shrinking, flat, growing] = normalizeValues([-50, 0, 50], 'log');
+		expect(shrinking).toBeLessThan(flat);
+		expect(flat).toBeLessThan(growing);
+	});
+});
+
+describe('followerTier', () => {
+	it('places a creator in the highest band whose floor they clear', () => {
+		expect(followerTier(0)).toBe('nano');
+		expect(followerTier(TIER_FLOORS.micro - 1)).toBe('nano');
+		expect(followerTier(TIER_FLOORS.micro)).toBe('micro');
+		expect(followerTier(250_000)).toBe('mid');
+		expect(followerTier(999_999)).toBe('macro');
+		expect(followerTier(40_000_000)).toBe('mega');
+	});
+});
+
+describe('measureAudience', () => {
+	const channel = (overrides: Partial<ChannelFigures>): ChannelFigures => ({
+		platformId: 1,
+		followers: 0,
+		engagementRate: 0,
+		followersSource: 'self_reported',
+		engagementSource: 'self_reported',
+		followersUpdatedAt: null,
+		...overrides
+	});
+	const options = (overrides: Partial<AudienceOptions> = {}): AudienceOptions => ({
+		reachMode: 'total',
+		engagementMode: 'average',
+		platformIds: [],
+		engagementCap: 0,
+		unconfirmedDiscount: 0,
+		primaryPlatformId: null,
+		...overrides
+	});
+
+	const tiktok = channel({ platformId: 1, followers: 90_000, engagementRate: 8 });
+	const instagram = channel({ platformId: 2, followers: 10_000, engagementRate: 2 });
+
+	it('sums every channel and averages the rates by default', () => {
+		const audience = measureAudience([tiktok, instagram], options());
+		expect(audience.reach).toBe(100_000);
+		expect(audience.engagement).toBe(5);
+		expect(audience.engagedAudience).toBe(90_000 * 0.08 + 10_000 * 0.02);
+		expect(audience.channelCount).toBe(2);
+	});
+
+	it('weights engagement by followers, or takes the best channel, when asked', () => {
+		expect(
+			measureAudience([tiktok, instagram], options({ engagementMode: 'weighted' })).engagement
+		).toBe(7.4);
+		expect(
+			measureAudience([tiktok, instagram], options({ engagementMode: 'best' })).engagement
+		).toBe(8);
+	});
+
+	it('leaves channels with no rate out of the average rather than counting them as 0', () => {
+		const silent = channel({ platformId: 3, followers: 5_000 });
+		expect(measureAudience([tiktok, silent], options()).engagement).toBe(8);
+	});
+
+	it('counts only the platforms it is told to', () => {
+		const audience = measureAudience([tiktok, instagram], options({ platformIds: [2] }));
+		expect(audience.reach).toBe(10_000);
+		expect(audience.engagement).toBe(2);
+	});
+
+	it('reads the primary platform, falling back to the biggest channel', () => {
+		expect(
+			measureAudience([tiktok, instagram], options({ reachMode: 'primary', primaryPlatformId: 2 }))
+				.reach
+		).toBe(10_000);
+		expect(
+			measureAudience([tiktok, instagram], options({ reachMode: 'primary', primaryPlatformId: 9 }))
+				.reach
+		).toBe(90_000);
+		expect(measureAudience([tiktok, instagram], options({ reachMode: 'largest' })).reach).toBe(
+			90_000
+		);
+	});
+
+	it('caps engagement for scoring but reports it as stated', () => {
+		const bought = channel({ followers: 1_000, engagementRate: 60 });
+		const audience = measureAudience([bought], options({ engagementCap: 20 }));
+		expect(audience.engagement).toBe(60);
+		expect(audience.scoredEngagement).toBe(20);
+	});
+
+	it('discounts unconfirmed figures and leaves confirmed ones whole', () => {
+		const checked = channel({ platformId: 1, followers: 50_000, followersSource: 'platform' });
+		const claimed = channel({ platformId: 2, followers: 50_000 });
+		const audience = measureAudience([checked, claimed], options({ unconfirmedDiscount: 40 }));
+		expect(audience.reach).toBe(100_000);
+		expect(audience.scoredReach).toBe(80_000);
+		expect(audience.confirmedShare).toBe(0.5);
+	});
+
+	it('reports the biggest channel and the freshest figure', () => {
+		const older = new Date('2026-08-01T00:00:00Z');
+		const newer = new Date('2026-09-01T00:00:00Z');
+		const audience = measureAudience(
+			[
+				{ ...tiktok, followersUpdatedAt: older },
+				{ ...instagram, followersUpdatedAt: newer }
+			],
+			options()
+		);
+		expect(audience.largestChannel).toBe(90_000);
+		expect(audience.freshestUpdate).toEqual(newer);
+	});
+
+	it('is all zeros for a creator with no channels', () => {
+		expect(measureAudience([], options())).toMatchObject({
+			reach: 0,
+			engagement: 0,
+			engagedAudience: 0,
+			confirmedShare: 0,
+			channelCount: 0
+		});
+	});
+});
+
+describe('growthPercent', () => {
+	it('is the change since the baseline, in percent', () => {
+		expect(growthPercent(12_000, 10_000)).toBe(20);
+		expect(growthPercent(5_000, 10_000)).toBe(-50);
+	});
+
+	it('is 0 with nothing to compare against', () => {
+		expect(growthPercent(12_000, 0)).toBe(0);
+	});
+
+	it('holds extreme changes inside -100…+1000', () => {
+		expect(growthPercent(9_000, 10)).toBe(1000);
+		expect(growthPercent(0, 10)).toBe(-100);
+	});
+});
+
+describe('momentumValue', () => {
+	it('reads no activity in either window as flat, not falling', () => {
+		expect(momentumValue(0, 0)).toBe(1);
+	});
+
+	it('rises when this window beats the last, and falls when it does not', () => {
+		expect(momentumValue(5, 0)).toBe(6);
+		expect(momentumValue(1, 4)).toBe(0.4);
+		expect(momentumValue(10, 10)).toBe(1);
+	});
+});
+
+describe('smoothedRating', () => {
+	it('pulls a thin rating towards the platform average', () => {
+		const one = smoothedRating(5, 1, 4, 4);
+		const many = smoothedRating(5, 40, 4, 4);
+		expect(one).toBe(4.2);
+		expect(many).toBeGreaterThan(one);
+		expect(many).toBeLessThan(5);
+	});
+
+	it('leaves the rating alone with smoothing off', () => {
+		expect(smoothedRating(4.7, 3, 4, 0)).toBe(4.7);
+	});
+
+	it('does not hand a creator with no reviews the average', () => {
+		expect(smoothedRating(0, 0, 4.5, 10)).toBe(0);
 	});
 });

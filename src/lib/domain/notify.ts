@@ -13,6 +13,12 @@ export type NotifyCategory =
 	| 'deals'
 	/** A message on a booking thread. */
 	| 'messages'
+	/**
+	 * A newly published brief that fits a creator. Something that happened, and
+	 * for their benefit rather than ours, which is why it is on by default where
+	 * `product` is off — and why it is capped per week where it is sent.
+	 */
+	| 'opportunities'
 	/** Verification, claims, and the state of the account. */
 	| 'account'
 	/** Anything sent because we want to, not because something happened. */
@@ -25,6 +31,8 @@ export type Preferences = {
 	dealsApp: boolean;
 	messagesEmail: boolean;
 	messagesApp: boolean;
+	opportunitiesEmail: boolean;
+	opportunitiesApp: boolean;
 	accountEmail: boolean;
 	productEmail: boolean;
 };
@@ -42,6 +50,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
 	dealsApp: true,
 	messagesEmail: true,
 	messagesApp: true,
+	opportunitiesEmail: true,
+	opportunitiesApp: true,
 	accountEmail: true,
 	productEmail: false
 };
@@ -60,6 +70,7 @@ type Rule = keyof Preferences | 'always' | 'never';
 const RULES: Record<NotifyCategory, Record<NotifyChannel, Rule>> = {
 	deals: { email: 'dealsEmail', app: 'dealsApp' },
 	messages: { email: 'messagesEmail', app: 'messagesApp' },
+	opportunities: { email: 'opportunitiesEmail', app: 'opportunitiesApp' },
 	account: { email: 'accountEmail', app: 'always' },
 	product: { email: 'productEmail', app: 'never' },
 	security: { email: 'always', app: 'always' }
@@ -93,6 +104,7 @@ export const EDITABLE: {
 }[] = [
 	{ category: 'deals', channels: ['email', 'app'] },
 	{ category: 'messages', channels: ['email', 'app'] },
+	{ category: 'opportunities', channels: ['email', 'app'] },
 	{ category: 'account', channels: ['email'] },
 	{ category: 'product', channels: ['email'] }
 ];

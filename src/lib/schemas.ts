@@ -5,6 +5,8 @@ import { idSchema, sortOrderField } from '$lib/server/crud';
 import { BLOG_ACCENTS, BLOG_STATUSES } from '$lib/blog';
 import { ROLES, STAFF_ROLES } from '$lib/roles';
 import { BAN_DURATIONS } from '$lib/bans';
+import { FOLLOWER_TIERS, TRENDING_SIGNALS, WEIGHT_COLUMN } from '$lib/domain/trending';
+import { LANDING_SECTIONS } from '$lib/domain/landing';
 
 export { idSchema, sortOrderField };
 export { BLOG_ACCENTS, BLOG_STATUSES };
@@ -219,6 +221,8 @@ export const categoryAdd = z.object({
 		.regex(/^[a-z0-9-]+$/, { error: () => m.val_slug_format() }),
 	description: optionalText,
 	icon: z.string().trim().max(60).default('Sparkles'),
+	/* Optional on add as well as edit: a tile with no picture draws its icon. */
+	image: uploadOrUrl,
 	isActive: active,
 	sortOrder: sortOrderField
 });
@@ -327,6 +331,33 @@ export const socialAdd = z.object({
 	sortOrder: sortOrderField
 });
 export const socialEdit = socialAdd.extend(idSchema.shape);
+
+/**
+ * A creator backing a channel's figures with a screenshot of their analytics.
+ *
+ * The screenshot is required and is checked as an upload by the action — type,
+ * size and magic number — because a `File` that validates here is only what the
+ * browser claimed. The engagement rate is optional: plenty of analytics screens
+ * show a follower count and nothing that reads as a rate.
+ */
+export const statProofSubmit = z.object({
+	socialAccountId: refId,
+	screenshot: z
+		.instanceof(File, { error: () => m.val_screenshot_required() })
+		.refine((file) => file.size > 0, { error: () => m.val_screenshot_required() }),
+	followers: z.coerce
+		.number()
+		.int()
+		.min(1, { error: () => m.val_greater_than_zero() }),
+	engagementRate: z.coerce.number().min(0).max(100).optional()
+});
+
+/** An operator's answer to one proof. Rejecting needs a note; the action checks it. */
+export const statProofDecision = z.object({
+	id: refId,
+	status: z.enum(['approved', 'rejected']),
+	adminNotes: optionalText
+});
 
 export const packageAdd = z.object({
 	title: name(200),
@@ -718,6 +749,8 @@ export const notificationPreferences = z.object({
 	dealsApp: pref,
 	messagesEmail: pref,
 	messagesApp: pref,
+	opportunitiesEmail: pref,
+	opportunitiesApp: pref,
 	accountEmail: pref,
 	productEmail: pref
 });
@@ -808,8 +841,6 @@ export const settingsSchema = z.object({
 	id: z.coerce.number().optional(),
 	siteName: name(180),
 	tagline: z.string().trim().max(250),
-	heroTitle: z.string().trim().max(250),
-	heroSubtitle: optionalText,
 	/* Four pickers rather than one. Each is optional, and an empty one means
 	   "keep whatever is stored" — the settings action reads a cleared checkbox,
 	   not an empty picker, as the instruction to go back to the shipped mark. */
@@ -824,6 +855,54 @@ export const settingsSchema = z.object({
 	supportEmail: z.string().trim().max(200).optional().default(''),
 	supportPhone: z.string().trim().max(60).optional().default('')
 });
+
+/* ------------------------------------------------------------------ *
+ * Landing page
+ * ------------------------------------------------------------------ */
+
+/** Shown unless unticked. `false` is what an unticked `checkboxSingle` posts. */
+const shown = z.coerce.boolean().default(true);
+
+export const landingSchema = z.object({
+	/* Empty is the translated copy, so none of the three is required. */
+	heroTitle: z.string().trim().max(250).default(''),
+	heroAccent: z.string().trim().max(250).default(''),
+	heroTitleEnd: z.string().trim().max(250).default(''),
+	heroSubtitle: optionalText,
+	/* A minute is already longer than anyone waits on a slide; 0 stops it. */
+	galleryIntervalSeconds: z.coerce.number().int().min(0).max(60).default(6),
+	/* Posted as one hidden field per section, top to bottom. */
+	sectionOrder: z.array(z.enum(LANDING_SECTIONS)).default([...LANDING_SECTIONS]),
+	showGallery: shown,
+	showTrending: shown,
+	showCategories: shown,
+	showCampaigns: shown,
+	showBrands: shown,
+	showCompensation: shown,
+	showHowItWorks: shown
+});
+
+/* ------------------------------------------------------------------ *
+ * Partners
+ * ------------------------------------------------------------------ */
+
+const partnerFields = {
+	name: name(180),
+	logo: uploadOrUrl,
+	websiteUrl: optionalUrl,
+	isActive: active,
+	sortOrder: sortOrderField
+};
+
+/* A partner with no logo would be a blank space in the hero, so add insists on
+   one; an edit's empty picker keeps the stored logo, as a gallery slide's does. */
+export const partnerAdd = z
+	.object(partnerFields)
+	.refine((v) => (v.logo instanceof File ? v.logo.size > 0 : Boolean(v.logo)), {
+		path: ['logo'],
+		error: () => m.val_image_required()
+	});
+export const partnerEdit = z.object({ ...partnerFields, ...idSchema.shape });
 
 /* ------------------------------------------------------------------ *
  * Homepage gallery
@@ -861,6 +940,12 @@ const weight = z.coerce.number().int().min(0).max(100).default(0);
 /** How many lanes of one kind to publish. 0 switches that kind off. */
 const laneCount = z.coerce.number().int().min(0).max(12);
 
+/** A capped whole number where 0 means "off". */
+const offOr = (max: number) => z.coerce.number().int().min(0).max(max).default(0);
+
+/** A repeated form field of reference ids — platforms, categories. */
+const idList = z.array(z.coerce.number().int().positive()).default([]);
+
 export const trendingConfigSchema = z.object({
 	id: z.coerce.number().optional(),
 	mode: z.enum(['manual', 'automatic', 'hybrid']).default('hybrid'),
@@ -868,7 +953,7 @@ export const trendingConfigSchema = z.object({
 	windowDays: z.coerce.number().int().min(1).max(365).default(30),
 	/** 0 disables decay — every event in the window then counts the same. */
 	halfLifeDays: z.coerce.number().int().min(0).max(180).default(7),
-	normalization: z.enum(['percentile', 'minmax']).default('percentile'),
+	normalization: z.enum(['percentile', 'minmax', 'log']).default('percentile'),
 
 	weightScore: weight,
 	weightReach: weight,
@@ -880,6 +965,22 @@ export const trendingConfigSchema = z.object({
 	weightSaves: weight,
 	weightNewcomer: weight,
 	weightVerification: weight,
+	weightEngagedAudience: weight,
+	weightGrowth: weight,
+	weightConfirmed: weight,
+	weightMomentum: weight,
+	weightResponsiveness: weight,
+	weightReliability: weight,
+
+	/* Audience: which channels count, and how their figures are combined. */
+	reachMode: z.enum(['total', 'primary', 'largest']).default('total'),
+	engagementMode: z.enum(['average', 'weighted', 'best']).default('average'),
+	audiencePlatformIds: idList,
+	/** Percent; 0 is no cap. */
+	engagementCap: z.coerce.number().min(0).max(100).default(0),
+	unconfirmedDiscount: offOr(100),
+	growthConfirmedOnly: z.coerce.boolean().default(false),
+	ratingPriorReviews: offOr(100),
 
 	minScore: z.coerce.number().int().min(0).max(100).default(0),
 	minFollowers: count,
@@ -888,10 +989,33 @@ export const trendingConfigSchema = z.object({
 	requireAvailable: z.coerce.boolean().default(false),
 	requireChannel: z.coerce.boolean().default(false),
 	requireActivity: z.coerce.boolean().default(false),
+	maxFollowers: offOr(2_000_000_000),
+	followerTiers: z.array(z.enum(FOLLOWER_TIERS)).default([]),
+	minChannelFollowers: offOr(2_000_000_000),
+	minEngagementRate: z.coerce.number().min(0).max(100).default(0),
+	maxEngagementRate: z.coerce.number().min(0).max(100).default(0),
+	requirePlatformIds: idList,
+	requireConfirmedStats: z.coerce.boolean().default(false),
+	maxStatsAgeDays: offOr(3650),
+	requireClaimed: z.coerce.boolean().default(false),
+	minCompletedBookings: offOr(1000),
+	minResponseRate: offOr(100),
+	minProfileAgeDays: offOr(3650),
+	maxProfileAgeDays: offOr(3650),
+	includeCategoryIds: idList,
+	excludeCategoryIds: idList,
 
 	/** 0 means uncapped. */
 	maxPerCategory: z.coerce.number().int().min(0).max(48).default(0),
 	maxPerCountry: z.coerce.number().int().min(0).max(48).default(0),
+	maxPerCity: offOr(48),
+	maxPerTier: offOr(48),
+	maxPerPlatform: offOr(48),
+	/** Points on the 0–100 scale. */
+	incumbentBonus: offOr(50),
+	maxNewPerRun: offOr(48),
+	newcomerSlots: offOr(48),
+	newcomerMaxAgeDays: z.coerce.number().int().min(1).max(365).default(30),
 	maxTenureDays: z.coerce.number().int().min(0).max(365).default(0),
 	cooldownDays: z.coerce.number().int().min(0).max(365).default(0),
 
@@ -899,7 +1023,7 @@ export const trendingConfigSchema = z.object({
 
 	/** 0 means every market — the board is not restricted to one country. */
 	countryId: z.coerce.number().int().min(0).default(0),
-	localRanking: z.enum(['off', 'boost', 'first']).default('off'),
+	localRanking: z.enum(['off', 'boost', 'first', 'only']).default('off'),
 	localMatch: z.enum(['country', 'region', 'city']).default('country'),
 	/** Points out of a hundred a local match is worth, in `boost`. */
 	localBoost: z.coerce.number().int().min(0).max(100).default(15),
@@ -917,6 +1041,7 @@ export const trendingConfigSchema = z.object({
 	maxCityLanes: laneCount.default(0),
 	maxPlatformLanes: laneCount.default(3),
 	maxLanguageLanes: laneCount.default(0),
+	maxTierLanes: laneCount.default(0),
 	laneLocalFirst: z.coerce.boolean().default(false),
 
 	autoRefresh: z.coerce.boolean().default(false),
@@ -931,9 +1056,27 @@ export const trendingOverrideSchema = z.object({
 	position: z.coerce.number().int().min(0).max(48).default(0),
 	multiplier: z.coerce.number().min(0.1).max(5).default(1),
 	note: z.string().trim().max(300).optional().default(''),
+	/** Blank means from the next run. */
+	startsAt: z.string().trim().max(20).optional().default(''),
 	/** Blank means the instruction stands until an operator removes it. */
 	expiresAt: z.string().trim().max(20).optional().default('')
 });
+
+/**
+ * Saving the sliders under a name. The weights arrive as their own fields —
+ * `weightScore`, `weightReach`… — posted from the settings form's current
+ * values, so what is saved is what the operator is looking at.
+ */
+export const trendingPresetSave = z.object({
+	name: z.string().trim().min(2).max(80),
+	description: z.string().trim().max(200).optional().default(''),
+	...(Object.fromEntries(TRENDING_SIGNALS.map((key) => [WEIGHT_COLUMN[key], weight])) as Record<
+		(typeof WEIGHT_COLUMN)[keyof typeof WEIGHT_COLUMN],
+		typeof weight
+	>)
+});
+
+export const trendingPresetRemove = z.object({ id: z.coerce.number().int().positive() });
 
 export const trendingOverrideRemove = z.object({ id: z.coerce.number() });
 

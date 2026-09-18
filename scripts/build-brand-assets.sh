@@ -1,35 +1,29 @@
 #!/usr/bin/env bash
 #
-# Derives everything the site draws from the three brand originals.
+# Derives everything the site draws from the brand originals.
 #
 # The originals live in `assets-src/brand/` rather than `static/`, because they
-# are 2.2MB of print-resolution PNG that nothing should ever be served: the
+# are megabytes of print-resolution PNG that nothing should ever be served: the
 # files under `static/brand/` are what the pages load, and they are built from
 # here. Re-run this after replacing an original — the outputs are committed, so
 # a deploy never needs ImageMagick.
 #
 #   npm run brand:assets
 #
-# Three things happen to each original, and the middle one is the interesting
-# one.
+# The originals:
 #
-# 1. The white ground is knocked out and the result trimmed. Both wide files
-#    are RGB with the background baked in, so left alone they render as a white
-#    slab on a dark page.
+#   wordmark.png   the lockup — illustrated icon, gradient dot, "influencer"
+#                  in navy and "ETHIOPIA" in slate — on a transparent ground
+#   mark.png       the illustrated icon alone, transparent
+#   partners.png   the co-branded lockup with Digital Construct (see below)
+#   wordmark-on-white.png, wordmark-lowercase-on-white.png
+#                  the same lockup flattened onto white, kept for print; the
+#                  site does not use them
+#   previous/      the red-mark identity these replaced
 #
-# 2. A dark-theme variant is generated. The wordmarks are black text beside a
-#    red mark, and black text on a dark page is invisible — but negating the
-#    whole image turns the red cyan. So the negation is masked to the greyscale
-#    parts only: a pixel is "the mark" when it is both saturated *and* light.
-#    Saturation alone is not enough. These PNGs carry compression noise, and
-#    inside a black glyph a pixel like rgb(10,2,3) is highly saturated while
-#    being nothing like red — a saturation-only mask leaves the heavy wordmark
-#    visibly speckled with black. The lightness gate is what removes it.
-#
-# 3. Everything is exported as WebP at roughly 3x its largest on-screen size.
-#
-# The square mark needs none of this: it ships RGBA with real transparency and
-# reads correctly on either theme, so it is only trimmed and resized.
+# The site's colour tokens in `src/routes/layout.css` are sampled from these
+# files — navy #001020, slate #384860, and the dot's emerald-to-ocean gradient
+# — so a new identity means revisiting that palette, not only re-running this.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -37,64 +31,56 @@ cd "$(dirname "$0")/.."
 SRC=assets-src/brand
 OUT=static/brand
 mkdir -p "$OUT"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
 
-# Saturated *and* light — see (2) above.
-mask() {
-	magick "$1" -alpha off -colorspace HSL \
-		\( -clone 0 -channel G -separate +channel -threshold 25% \) \
-		\( -clone 0 -channel B -separate +channel -threshold 20% \) \
-		-delete 0 -compose multiply -composite -morphology close disk:2 "$2"
-}
-
-# $1 source PNG, $2 output basename, $3 export height, $4 optional crop % of width
-wide() {
-	local src=$1 name=$2 height=$3 keep=${4:-100}
-	local tmp
-	tmp=$(mktemp -d)
-	trap 'rm -rf "$tmp"' RETURN
-
-	# The border restores a little breathing room; -trim leaves glyphs flush
-	# against the edge, which crops the outermost glyphs in a flex row.
-	magick "$src" -fuzz 8% -transparent white -trim +repage \
-		-gravity west -crop "${keep}%x100%+0+0" +repage \
-		-bordercolor none -border 12 "$tmp/flat.png"
-
-	mask "$tmp/flat.png" "$tmp/mask.png"
-
-	# Negated everywhere, then the original painted back wherever the mask says
-	# "this is the mark", then the original's alpha restored on top.
-	magick \( "$tmp/flat.png" -channel RGB -negate +channel \) "$tmp/flat.png" "$tmp/mask.png" -composite \
-		\( "$tmp/flat.png" -alpha extract \) -alpha off -compose CopyOpacity -composite "$tmp/dark.png"
-
-	magick "$tmp/flat.png" -resize "x${height}>" -define webp:lossless=false -quality 90 "$OUT/$name.webp"
-	magick "$tmp/dark.png" -resize "x${height}>" -define webp:lossless=false -quality 90 "$OUT/$name-dark.webp"
-}
-
-# 73%, which cuts the artwork just before the rule that separates the lockup
-# from its four-line strapline.
+# ---------------------------------------------------------------- wordmark
 #
-# The strapline goes, everywhere. It is set at about a twelfth of the lockup's
-# height, so at the sizes this site actually draws a logo — 44px in the header,
-# 32px in the footer, 48px on the sign-in pages — it renders as four grey
-# smudges rather than as words. Shipping it would be shipping noise; the full
-# lockup stays in assets-src/ for print, where it has the room it was drawn for.
+# The light-theme copy is the original, trimmed. The dark-theme copy is the one
+# with work in it: navy and slate text disappear on a dark ground, but the
+# illustrated icon and the gradient dot must not change at all. So only pixels
+# that are both right of the icon *and* low in chroma are recoloured — the icon
+# is excluded by position (its white shirts and black backpacks are as colourless
+# as the text), the dot by its chroma.
 #
-# To re-derive the number after replacing the original: the crop is the last
-# inked column before the divider, over the trimmed width. `-alpha extract`
-# resized to one row prints a per-column ink profile that makes both obvious.
-wide "$SRC/wordmark.png" wordmark 320 73
-
-# The partner lockup gets no dark variant, on purpose.
+# Chroma, not HSL saturation: the navy is #001020, and a colour that dark is
+# nearly 100% "saturated" in HSL terms — all of what little colour it has is
+# blue — so a saturation mask leaves "influencer" navy on a navy page.
 #
-# Half of it is somebody else's logo. Negating the greyscale parts turns the
-# white knockout inside Digital Construct's "D" into a hole and leaves their
-# navy wordmark at about 1.5:1 against a dark footer — a recolour of a brand
-# that is not ours to recolour. The footer draws this one on a light plate
-# instead, so both marks stay exactly as their owners drew them.
-magick "$SRC/partners.png" -fuzz 8% -transparent white -trim +repage \
-	-bordercolor none -border 12 -resize 'x320>' -quality 90 "$OUT/partners.webp"
+# SPLIT is where the icon ends, as a share of the trimmed width: the middle of
+# the empty columns between the icon and the "i". To re-derive it after
+# replacing the original, look for the gap in the alpha channel's per-column
+# profile between a quarter and a half of the way across.
+SPLIT=34.5
 
-# Already transparent, already square, correct on both themes.
+magick "$SRC/wordmark.png" -trim +repage -bordercolor none -border 12 "$tmp/flat.png"
+W=$(magick identify -format '%w' "$tmp/flat.png")
+H=$(magick identify -format '%h' "$tmp/flat.png")
+X=$(awk -v w="$W" -v s="$SPLIT" 'BEGIN { printf "%d", 12 + (w - 24) * s / 100 }')
+
+# White where the text is: chroma under 25% (navy is 13%, slate 16%, the dot's
+# emerald and ocean ends 65–85%) and right of X.
+magick "$tmp/flat.png" -alpha off -colorspace HCL -channel G -separate +channel \
+	-threshold 25% -negate \
+	\( -size "${W}x${H}" xc:white -fill black -draw "rectangle 0,0 $X,$H" \) \
+	-compose multiply -composite "$tmp/text-mask.png"
+
+# The text, lightened: inverted to greyscale so navy becomes near-white and slate
+# a mid grey, then cooled a touch so it sits with the palette rather than
+# reading as plain grey on navy.
+magick "$tmp/flat.png" -alpha off -channel RGB -negate +channel -colorspace Gray \
+	-colorspace sRGB -fill '#dbe8f7' -colorize 18% "$tmp/text-light.png"
+
+magick "$tmp/flat.png" -alpha off "$tmp/text-light.png" "$tmp/text-mask.png" -composite \
+	\( "$tmp/flat.png" -alpha extract \) -alpha off -compose CopyOpacity -composite "$tmp/dark.png"
+
+# About 3x the largest drawn height: 44px in the header, 48px on sign-in.
+magick "$tmp/flat.png" -resize 'x320>' -quality 90 "$OUT/wordmark.webp"
+magick "$tmp/dark.png" -resize 'x320>' -quality 90 "$OUT/wordmark-dark.webp"
+
+# ---------------------------------------------------------------- mark
+
+# Already transparent and square, and full colour on either theme.
 magick "$SRC/mark.png" -trim +repage -resize '512x512>' -quality 90 "$OUT/mark.webp"
 
 # Tab and home-screen icons. PNG rather than WebP: Safari still refuses a WebP
@@ -102,6 +88,25 @@ magick "$SRC/mark.png" -trim +repage -resize '512x512>' -quality 90 "$OUT/mark.w
 # that matters reads a sized PNG.
 magick "$SRC/mark.png" -trim +repage -resize 48x48 -background none -gravity center -extent 48x48 static/favicon.png
 magick "$SRC/mark.png" -trim +repage -resize 180x180 -background none -gravity center -extent 180x180 static/apple-touch-icon.png
+
+# ---------------------------------------------------------------- partners
+#
+# The co-branded lockup has no new original, so it is rebuilt: the new wordmark
+# on the left, and the "×" and Digital Construct's mark cut from the existing
+# lockup on the right, untouched. Their half is somebody else's logo, so it is
+# cropped and never recoloured, and the footer draws the result on a light
+# plate in both themes. The four-word strapline under the old lockup is left
+# out — at footer size it rendered as a grey smudge rather than as words.
+#
+# The crop is the top row of partners.png from just before the "×": columns
+# 860–1700, rows 260–560. Their half is drawn at 70% of our wordmark's height:
+# their mark is a solid block while ours is mostly illustration and letterforms,
+# and at equal heights theirs reads as the larger partner.
+magick "$tmp/flat.png" -trim +repage -resize 'x600' "$tmp/ours.png"
+magick "$SRC/partners.png" -crop 840x300+860+260 +repage \
+	-fuzz 8% -transparent white -trim +repage -resize 'x420' "$tmp/theirs.png"
+magick "$tmp/ours.png" \( -size 60x1 xc:none \) "$tmp/theirs.png" -background none -gravity center +append \
+	-bordercolor none -border 12 -resize 'x320>' -quality 90 "$OUT/partners.webp"
 
 echo "Brand assets written to $OUT and static/:"
 ls -la "$OUT" static/favicon.png static/apple-touch-icon.png

@@ -30,7 +30,9 @@
 		"fetch:avatars": "tsx scripts/fetch-avatars.ts",
 		"uploads:prune": "tsx scripts/prune-uploads.ts",
 		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
-		"verify:socials": "tsx scripts/verify-socials.ts"
+		"verify:socials": "tsx scripts/verify-socials.ts",
+		"stats:refresh": "tsx scripts/refresh-stats.ts",
+		"geoip:update": "bash scripts/geoip-update.sh"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -85,12 +87,14 @@
 		"browser-image-compression": "^2.0.2",
 		"embla-carousel-svelte": "^8.6.0",
 		"layerchart": "^2.2.0",
+		"mmdb-lib": "^3.0.3",
 		"mode-watcher": "^1.1.0",
 		"nodemailer": "^9.0.6",
 		"paneforge": "^1.0.2",
 		"papaparse": "^5.6.0",
 		"runed": "^0.37.1",
 		"sanitize-html": "^2.17.7",
+		"simple-icons": "^16.31.0",
 		"svelte-sonner": "^1.2.1",
 		"sveltekit-flash-message": "^2.4.6"
 	}

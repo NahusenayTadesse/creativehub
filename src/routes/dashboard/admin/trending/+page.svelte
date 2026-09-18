@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import InputComp from '$lib/formComponents/InputComp.svelte';
-	import type { TrendingPreview } from './+page.server';
+	import ChipSelect from '$lib/formComponents/ChipSelect.svelte';
+	import type { PreviewOutcome, TrendingPreview } from './+page.server';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
@@ -16,7 +17,11 @@
 		LANE_LIMIT_COLUMN,
 		TRENDING_LANE_KINDS,
 		TRENDING_SIGNALS,
+		TRENDING_SIGNAL_GROUPS,
 		WEIGHT_COLUMN,
+		effectiveLocalRanking,
+		followerTierMeta,
+		tierLabel,
 		trendingLaneKindMeta,
 		trendingPresets,
 		trendingSignalMeta,
@@ -41,7 +46,17 @@
 		History,
 		Inbox,
 		MapPin,
-		Rows3
+		Rows3,
+		Users,
+		ShieldCheck,
+		ArrowUp,
+		ArrowDown,
+		Search,
+		Save,
+		RotateCcw,
+		Upload,
+		X,
+		CalendarClock
 	} from '@lucide/svelte';
 
 	let { data } = $props();
@@ -60,12 +75,30 @@
 	} = superForm(
 		untrack(() => data.form),
 		{
+			/*
+			 * The settings are a draft until they are saved. Every other action on
+			 * this page — saving a preset, pinning a creator, freezing the board —
+			 * reloads the page data, and by default that reload would overwrite the
+			 * form with the saved settings and throw away whatever was being tuned.
+			 * `never` keeps this form's own results and ignores the reloads.
+			 */
+			applyAction: 'never',
 			onUpdate({ result }) {
 				preview =
 					result.type === 'success' ? ((result.data?.preview as TrendingPreview) ?? null) : null;
 			}
 		}
 	);
+
+	/* The one setting changed from outside the form: the freeze button. Without
+	   this the draft would still hold the old value, and the next save would
+	   quietly undo the freeze. */
+	$effect(() => {
+		const frozen = data.config.isFrozen;
+		untrack(() => {
+			if ($form.isFrozen !== frozen) $form.isFrozen = frozen;
+		});
+	});
 
 	const overrideSuper = superForm(
 		untrack(() => data.overrideForm),
@@ -88,6 +121,75 @@
 
 	const signals = $derived(trendingSignalMeta());
 	const presets = $derived(trendingPresets());
+	const signalGroups = $derived(
+		TRENDING_SIGNAL_GROUPS.map((group) => ({
+			...group,
+			label: {
+				audience: m.at_group_audience(),
+				demand: m.at_group_demand(),
+				quality: m.at_group_quality(),
+				profile: m.at_group_profile()
+			}[group.key],
+			meta: group.signals.map((key) => signals.find((signal) => signal.key === key)!)
+		}))
+	);
+
+	/* ---------------- Saved presets ---------------- */
+
+	const presetSuper = superForm(
+		untrack(() => data.presetForm),
+		{ id: 'preset', resetForm: true }
+	);
+	const presetForm = presetSuper.form;
+	const presetErrors = presetSuper.errors;
+	const presetMessage = presetSuper.message;
+
+	$effect(() => {
+		if (!$presetMessage) return;
+		if ($presetMessage.type === 'error') toast.error($presetMessage.text);
+		else toast.success($presetMessage.text);
+	});
+
+	/* ---------------- Whole-form actions ---------------- */
+
+	/** The knobs a snapshot or the defaults may set — never the id or bookkeeping. */
+	const settingKeys = $derived(Object.keys(data.defaults) as (keyof typeof data.defaults)[]);
+
+	/*
+	 * A setting missing from a snapshot is one that did not exist when that run
+	 * happened, and every setting added since starts switched off — so the
+	 * default is what that run actually used. Keeping the current value instead
+	 * would load a mixture no board was ever built from.
+	 */
+	function loadSettings(source: Record<string, unknown>, text: string) {
+		for (const key of settingKeys) {
+			($form as Record<string, unknown>)[key] = key in source ? source[key] : data.defaults[key];
+		}
+		preview = null;
+		toast.success(text);
+	}
+
+	/* ---------------- Explain one creator ---------------- */
+
+	let explainId = $state<number | null>(null);
+	const explainItems = $derived(
+		(preview?.outcomes ?? []).map((outcome) => ({
+			value: outcome.creatorId,
+			name: outcome.fullName
+		}))
+	);
+	const explained = $derived<PreviewOutcome | null>(
+		preview?.outcomes.find((outcome) => outcome.creatorId === Number(explainId)) ?? null
+	);
+
+	const movement = (rank: number | null, previousRank: number | null) => {
+		if (rank === null) return null;
+		if (previousRank === null) return { kind: 'new' as const, by: 0 };
+		if (previousRank === rank) return { kind: 'same' as const, by: 0 };
+		return previousRank > rank
+			? { kind: 'up' as const, by: previousRank - rank }
+			: { kind: 'down' as const, by: rank - previousRank };
+	};
 
 	const weightOf = (key: TrendingSignal) => Number($form[WEIGHT_COLUMN[key]] ?? 0);
 	const totalWeight = $derived(TRENDING_SIGNALS.reduce((sum, key) => sum + weightOf(key), 0));
@@ -104,6 +206,9 @@
 	const locale = $derived(getLocale() === 'am' ? 'am-ET' : 'en-GB');
 	const compact = (value: number) =>
 		new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+	/** A signal's raw value: followers read as 430K, rates and counts keep a decimal. */
+	const rawValue = (value: number) =>
+		Math.abs(value) >= 10_000 ? compact(value) : Number(value).toFixed(1);
 	const stamp = (value: Date | string | null) =>
 		value
 			? new Date(value).toLocaleString(locale, {
@@ -142,8 +247,53 @@
 
 	const normalizationItems = $derived([
 		{ value: 'percentile', name: m.at_norm_percentile() },
-		{ value: 'minmax', name: m.at_norm_minmax() }
+		{ value: 'minmax', name: m.at_norm_minmax() },
+		{ value: 'log', name: m.at_norm_log() }
 	]);
+
+	const normalizationHelp = $derived(
+		$form.normalization === 'percentile'
+			? m.at_norm_percentile_help()
+			: $form.normalization === 'log'
+				? m.at_norm_log_help()
+				: m.at_norm_minmax_help()
+	);
+
+	const reachModeItems = $derived([
+		{ value: 'total', name: m.at_reach_total() },
+		{ value: 'primary', name: m.at_reach_primary() },
+		{ value: 'largest', name: m.at_reach_largest() }
+	]);
+	const reachModeHelp = $derived(
+		$form.reachMode === 'primary'
+			? m.at_reach_primary_help()
+			: $form.reachMode === 'largest'
+				? m.at_reach_largest_help()
+				: m.at_reach_total_help()
+	);
+
+	const engagementModeItems = $derived([
+		{ value: 'average', name: m.at_engagement_average() },
+		{ value: 'weighted', name: m.at_engagement_weighted() },
+		{ value: 'best', name: m.at_engagement_best() }
+	]);
+	const engagementModeHelp = $derived(
+		$form.engagementMode === 'weighted'
+			? m.at_engagement_weighted_help()
+			: $form.engagementMode === 'best'
+				? m.at_engagement_best_help()
+				: m.at_engagement_average_help()
+	);
+
+	const platformItems = $derived(
+		data.reference.platforms.map((platform) => ({ value: platform.id, name: platform.name }))
+	);
+	const categoryItems = $derived(
+		data.reference.categories.map((category) => ({ value: category.id, name: category.name }))
+	);
+	const tierItems = $derived(
+		followerTierMeta().map((tier) => ({ value: tier.key, name: `${tier.label} · ${tier.range}` }))
+	);
 
 	/* 0 rather than an empty string: the field is a number everywhere else, and
 	   the schema coerces what the select posts. */
@@ -158,8 +308,14 @@
 	const localRankingItems = $derived([
 		{ value: 'off', name: m.at_local_off() },
 		{ value: 'boost', name: m.at_local_boost_mode() },
-		{ value: 'first', name: m.at_local_first_mode() }
+		{ value: 'first', name: m.at_local_first_mode() },
+		{ value: 'only', name: m.at_local_only_mode() }
 	]);
+
+	/* Automatic mode shows readers their own country only, whatever the select
+	   says — the same rule as `effectiveLocalRanking`, so the fields below dim
+	   for the setting that will actually run. */
+	const effectiveLocal = $derived(effectiveLocalRanking($form.mode, $form.localRanking));
 
 	const localMatchItems = $derived([
 		{ value: 'country', name: m.at_local_match_country() },
@@ -168,11 +324,15 @@
 	]);
 
 	const localRankingHelp = $derived(
-		$form.localRanking === 'first'
-			? m.at_local_first_help()
-			: $form.localRanking === 'boost'
-				? m.at_local_boost_help()
-				: m.at_local_off_help()
+		$form.mode === 'automatic'
+			? m.at_local_automatic_help()
+			: $form.localRanking === 'only'
+				? m.at_local_only_help()
+				: $form.localRanking === 'first'
+					? m.at_local_first_help()
+					: $form.localRanking === 'boost'
+						? m.at_local_boost_help()
+						: m.at_local_off_help()
 	);
 
 	const reasonLabel = (key: string) =>
@@ -188,7 +348,27 @@
 			blocked: m.at_reason_blocked(),
 			resting: m.at_reason_resting(),
 			category_cap: m.at_reason_category_cap(),
-			country_cap: m.at_reason_country_cap()
+			country_cap: m.at_reason_country_cap(),
+			city_cap: m.at_reason_city_cap(),
+			tier_cap: m.at_reason_tier_cap(),
+			platform_cap: m.at_reason_platform_cap(),
+			churn_limit: m.at_reason_churn_limit(),
+			slots: m.at_reason_slots(),
+			excluded_category: m.at_reason_excluded_category(),
+			not_in_categories: m.at_reason_not_in_categories(),
+			unclaimed: m.at_reason_unclaimed(),
+			no_platform: m.at_reason_no_platform(),
+			max_reach: m.at_reason_max_reach(),
+			tier: m.at_reason_tier(),
+			min_channel_followers: m.at_reason_min_channel_followers(),
+			min_engagement: m.at_reason_min_engagement(),
+			max_engagement: m.at_reason_max_engagement(),
+			unconfirmed_stats: m.at_reason_unconfirmed_stats(),
+			stale_stats: m.at_reason_stale_stats(),
+			min_bookings: m.at_reason_min_bookings(),
+			min_response_rate: m.at_reason_min_response_rate(),
+			profile_too_new: m.at_reason_profile_too_new(),
+			profile_too_old: m.at_reason_profile_too_old()
 		})[key] ?? key;
 
 	const sourceLabel = (key: string) =>
@@ -247,6 +427,22 @@
 		| 'minScore'
 		| 'minFollowers'
 		| 'minRating'
+		| 'maxFollowers'
+		| 'minChannelFollowers'
+		| 'maxStatsAgeDays'
+		| 'minCompletedBookings'
+		| 'minResponseRate'
+		| 'minProfileAgeDays'
+		| 'maxProfileAgeDays'
+		| 'ratingPriorReviews'
+		| 'maxPerCity'
+		| 'maxPerTier'
+		| 'maxPerPlatform'
+		| 'incumbentBonus'
+		| 'maxNewPerRun'
+		| 'newcomerSlots'
+		| 'newcomerMaxAgeDays'
+		| 'maxTierLanes'
 		| 'maxPerCategory'
 		| 'maxPerCountry'
 		| 'maxTenureDays'
@@ -266,16 +462,63 @@
 		| 'requireChannel'
 		| 'requireAvailable'
 		| 'requireActivity'
+		| 'requireClaimed'
+		| 'requireConfirmedStats'
+		| 'growthConfirmedOnly'
 		| 'pinnedFirst'
 		| 'laneLocalFirst'
 		| 'autoRefresh'
 		| 'isFrozen';
 
+	type DecimalField = 'minEngagementRate' | 'maxEngagementRate' | 'engagementCap';
+
 	const sectionTitle = 'flex items-center gap-2 text-sm font-black text-ink';
+	const chip =
+		'rounded-xl border-2 border-edge bg-surface px-2.5 py-1.5 text-[10px] font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]';
+
+	const sections = $derived([
+		{ id: 'board', label: m.at_nav_board() },
+		{ id: 'signals', label: m.at_nav_signals() },
+		{ id: 'audience', label: m.at_nav_audience() },
+		{ id: 'eligibility', label: m.at_nav_eligibility() },
+		{ id: 'location', label: m.at_nav_location() },
+		{ id: 'lanes', label: m.at_nav_lanes() },
+		{ id: 'fairness', label: m.at_nav_fairness() },
+		{ id: 'overrides', label: m.at_nav_overrides() },
+		{ id: 'history', label: m.at_nav_history() }
+	]);
 </script>
 
 {#snippet numberField(name: NumberField, label: string, help: string, min: number, max: number)}
 	<InputComp {form} {errors} {name} {label} {min} {max} type="number" hint={help} step={1} />
+{/snippet}
+
+{#snippet decimalField(name: DecimalField, label: string, help: string, max: number)}
+	<InputComp {form} {errors} {name} {label} min={0} {max} type="number" hint={help} step={0.1} />
+{/snippet}
+
+{#snippet moved(change: ReturnType<typeof movement>)}
+	{#if change?.kind === 'new'}
+		<span
+			class="rounded-md border border-brand-edge bg-brand-soft px-1 text-[9px] font-black text-brand-soft-fg"
+		>
+			{m.at_move_new()}
+		</span>
+	{:else if change?.kind === 'up'}
+		<span
+			class="flex items-center text-[10px] font-black text-brand-soft-fg"
+			title={m.at_move_up({ by: change.by })}
+		>
+			<ArrowUp class="h-3 w-3" />{change.by}
+		</span>
+	{:else if change?.kind === 'down'}
+		<span
+			class="flex items-center text-[10px] font-black text-danger-fg"
+			title={m.at_move_down({ by: change.by })}
+		>
+			<ArrowDown class="h-3 w-3" />{change.by}
+		</span>
+	{/if}
 {/snippet}
 
 {#snippet toggleField(name: ToggleFieldName, label: string, help: string)}
@@ -321,6 +564,14 @@
 			</form>
 		{/snippet}
 	</PageHeader>
+
+	<!-- A row of anchors: the screen is long, and the question an operator arrives
+	     with usually belongs to one section of it. -->
+	<nav aria-label={m.at_nav_label()} class="flex flex-wrap gap-2">
+		{#each sections as section (section.id)}
+			<a href="#{section.id}" class="{chip} hover:bg-brand-soft">{section.label}</a>
+		{/each}
+	</nav>
 
 	<!-- ================= STATUS ================= -->
 	<div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -372,7 +623,7 @@
 	{/if}
 
 	<!-- ================= LIVE BOARD ================= -->
-	<div class="bento-card bento-card-static space-y-4">
+	<div id="board" class="bento-card bento-card-static scroll-mt-20 space-y-4">
 		<div class="flex items-center justify-between">
 			<h2 class={sectionTitle}>
 				<Flame class="h-4 w-4 text-brand-fg" />
@@ -393,7 +644,7 @@
 				<p class="text-xs font-medium text-ink-soft">{m.at_board_empty_body()}</p>
 			</div>
 		{:else}
-			<div class="overflow-x-auto">
+			<div class="overflow-x-auto [contain:inline-size]">
 				<table class="w-full min-w-[720px] text-left">
 					<thead>
 						<tr
@@ -453,6 +704,13 @@
 													class="rounded-md border border-warn-edge bg-warn-soft px-1.5 py-0.5 text-[10px] font-black text-warn-fg"
 												>
 													×{entry.breakdown.multiplier}
+												</span>
+											{/if}
+											{#if entry.breakdown.bonus}
+												<span
+													class="rounded-md border border-info-edge bg-info-soft px-1.5 py-0.5 text-[10px] font-black text-info-fg"
+												>
+													{m.at_bonus_chip({ points: entry.breakdown.bonus })}
 												</span>
 											{/if}
 										</div>
@@ -530,7 +788,10 @@
 
 		<!-- Weights -->
 		<div
-			class="bento-card bento-card-static space-y-4 {$form.mode === 'manual' ? 'opacity-50' : ''}"
+			id="signals"
+			class="bento-card bento-card-static scroll-mt-20 space-y-4 {$form.mode === 'manual'
+				? 'opacity-50'
+				: ''}"
 		>
 			<div class="flex flex-wrap items-center justify-between gap-2">
 				<h2 class={sectionTitle}>
@@ -543,40 +804,86 @@
 			</div>
 			<p class="text-[11px] font-medium text-ink-soft">{m.at_signals_help()}</p>
 
-			<div class="flex flex-wrap gap-2">
-				{#each presets as preset (preset.key)}
-					<button
-						type="button"
-						title={preset.description}
-						onclick={() => applyPreset(preset.weights)}
-						class="rounded-xl border-2 border-edge bg-surface px-2.5 py-1.5 text-[10px] font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-soft"
-					>
-						{preset.label}
-					</button>
-				{/each}
+			<div class="space-y-2">
+				<span class="block text-[10px] font-black tracking-widest text-ink-dim uppercase">
+					{m.at_presets_builtin()}
+				</span>
+				<div class="flex flex-wrap gap-2">
+					{#each presets as preset (preset.key)}
+						<button
+							type="button"
+							title={preset.description}
+							onclick={() => applyPreset(preset.weights)}
+							class="{chip} hover:bg-brand-soft"
+						>
+							{preset.label}
+						</button>
+					{/each}
+				</div>
+
+				{#if data.presets.length}
+					<span class="block pt-1 text-[10px] font-black tracking-widest text-ink-dim uppercase">
+						{m.at_presets_saved()}
+					</span>
+					<div class="flex flex-wrap gap-2">
+						{#each data.presets as preset (preset.id)}
+							<span
+								class="flex items-center overflow-hidden rounded-xl border-2 border-edge bg-tile-mint"
+							>
+								<button
+									type="button"
+									title={preset.description ?? ''}
+									onclick={() => applyPreset(preset.weights)}
+									class="px-2.5 py-1.5 text-[10px] font-black text-ink hover:bg-brand-soft"
+								>
+									{preset.name}
+								</button>
+								<!-- Outside the settings form's submit path on purpose: it posts
+								     to its own action and must not save the sliders. -->
+								<button
+									type="submit"
+									form="delete-preset-{preset.id}"
+									aria-label={m.at_preset_delete({ name: preset.name })}
+									class="border-l-2 border-edge px-1.5 py-1.5 text-ink-dim hover:bg-danger-soft hover:text-danger-fg"
+								>
+									<X class="h-3 w-3" />
+								</button>
+							</span>
+						{/each}
+					</div>
+				{/if}
 			</div>
 
-			<div class="grid gap-4 md:grid-cols-2">
-				{#each signals as signal (signal.key)}
-					<InputComp
-						{form}
-						{errors}
-						name={WEIGHT_COLUMN[signal.key]}
-						type="range"
-						label={signal.label}
-						min={0}
-						max={100}
-						step={1}
-						hint={signal.help}
-						formatValue={(weight) =>
-							`${weight} · ${m.at_weight_share({ percent: shareOf(signal.key) })}`}
-						className="h-2 appearance-none rounded-full border-2 border-edge bg-well"
-					/>
+			<div class="space-y-5">
+				{#each signalGroups as group (group.key)}
+					<fieldset class="space-y-1">
+						<legend class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
+							{group.label}
+						</legend>
+						<div class="grid gap-4 md:grid-cols-2">
+							{#each group.meta as signal (signal.key)}
+								<InputComp
+									{form}
+									{errors}
+									name={WEIGHT_COLUMN[signal.key]}
+									type="range"
+									label={signal.label}
+									min={0}
+									max={100}
+									step={1}
+									hint={signal.help}
+									formatValue={(weight) =>
+										`${weight} · ${m.at_weight_share({ percent: shareOf(signal.key) })}`}
+									className="h-2 appearance-none rounded-full border-2 border-edge bg-well"
+								/>
+							{/each}
+						</div>
+					</fieldset>
 				{/each}
 			</div>
 		</div>
 
-		<!-- Basis -->
+		<!-- Basis + audience -->
 		<div class="grid gap-4 lg:grid-cols-2">
 			<div class="bento-card bento-card-static space-y-4">
 				<h2 class={sectionTitle}>
@@ -594,27 +901,173 @@
 						type="select"
 						label={m.at_normalization()}
 						items={normalizationItems}
-						hint={$form.normalization === 'percentile'
-							? m.at_norm_percentile_help()
-							: m.at_norm_minmax_help()}
+						hint={normalizationHelp}
 					/>
+					{@render numberField(
+						'ratingPriorReviews',
+						m.at_rating_prior(),
+						m.at_rating_prior_help(),
+						0,
+						100
+					)}
 				</div>
 			</div>
 
+			<div id="audience" class="bento-card bento-card-static scroll-mt-20 space-y-4">
+				<h2 class={sectionTitle}>
+					<Users class="h-4 w-4 text-brand-fg" />
+					{m.at_audience_title()}
+				</h2>
+				<p class="text-[11px] font-medium text-ink-soft">{m.at_audience_help()}</p>
+				<div class="grid gap-3 sm:grid-cols-2">
+					<InputComp
+						{form}
+						{errors}
+						name="reachMode"
+						type="select"
+						label={m.at_reach_mode()}
+						items={reachModeItems}
+						hint={reachModeHelp}
+					/>
+					<InputComp
+						{form}
+						{errors}
+						name="engagementMode"
+						type="select"
+						label={m.at_engagement_mode()}
+						items={engagementModeItems}
+						hint={engagementModeHelp}
+					/>
+					{@render decimalField(
+						'engagementCap',
+						m.at_engagement_cap(),
+						m.at_engagement_cap_help(),
+						100
+					)}
+				</div>
+
+				<InputComp
+					{form}
+					{errors}
+					name="unconfirmedDiscount"
+					type="range"
+					label={m.at_unconfirmed_discount()}
+					min={0}
+					max={100}
+					step={5}
+					hint={m.at_unconfirmed_discount_help()}
+					formatValue={(percent) => m.at_percent_off({ percent })}
+					className="h-2 appearance-none rounded-full border-2 border-edge bg-well"
+				/>
+
+				<ChipSelect
+					{form}
+					{errors}
+					name="audiencePlatformIds"
+					label={m.at_audience_platforms()}
+					hint={m.at_audience_platforms_help()}
+					items={platformItems}
+				/>
+
+				{@render toggleField(
+					'growthConfirmedOnly',
+					m.at_growth_confirmed_only(),
+					m.at_growth_confirmed_only_help()
+				)}
+			</div>
+		</div>
+
+		<!-- Eligibility -->
+		<div id="eligibility" class="grid scroll-mt-20 gap-4 lg:grid-cols-2">
 			<div class="bento-card bento-card-static space-y-4">
 				<h2 class={sectionTitle}>
 					<Filter class="h-4 w-4 text-brand-fg" />
-					{m.at_eligibility_title()}
+					{m.at_eligibility_audience_title()}
 				</h2>
 				<div class="grid gap-3 sm:grid-cols-2">
-					{@render numberField('minScore', m.at_min_score(), m.at_min_score_help(), 0, 100)}
 					{@render numberField(
 						'minFollowers',
 						m.at_min_followers(),
 						m.at_min_followers_help(),
 						0,
-						100000000
+						2000000000
 					)}
+					{@render numberField(
+						'maxFollowers',
+						m.at_max_followers(),
+						m.at_max_followers_help(),
+						0,
+						2000000000
+					)}
+					{@render numberField(
+						'minChannelFollowers',
+						m.at_min_channel_followers(),
+						m.at_min_channel_followers_help(),
+						0,
+						2000000000
+					)}
+					{@render numberField(
+						'maxStatsAgeDays',
+						m.at_max_stats_age(),
+						m.at_max_stats_age_help(),
+						0,
+						3650
+					)}
+					{@render decimalField(
+						'minEngagementRate',
+						m.at_min_engagement(),
+						m.at_min_engagement_help(),
+						100
+					)}
+					{@render decimalField(
+						'maxEngagementRate',
+						m.at_max_engagement(),
+						m.at_max_engagement_help(),
+						100
+					)}
+				</div>
+
+				<ChipSelect
+					{form}
+					{errors}
+					name="followerTiers"
+					label={m.at_follower_tiers()}
+					hint={m.at_follower_tiers_help()}
+					items={tierItems}
+					selectedClass="bg-tile-yellow"
+				/>
+
+				<ChipSelect
+					{form}
+					{errors}
+					name="requirePlatformIds"
+					label={m.at_require_platforms()}
+					hint={m.at_require_platforms_help()}
+					items={platformItems}
+					selectedClass="bg-tile-indigo"
+				/>
+
+				<div class="grid gap-2 sm:grid-cols-2">
+					{@render toggleField(
+						'requireChannel',
+						m.at_require_channel(),
+						m.at_require_channel_help()
+					)}
+					{@render toggleField(
+						'requireConfirmedStats',
+						m.at_require_confirmed(),
+						m.at_require_confirmed_help()
+					)}
+				</div>
+			</div>
+
+			<div class="bento-card bento-card-static space-y-4">
+				<h2 class={sectionTitle}>
+					<ShieldCheck class="h-4 w-4 text-brand-fg" />
+					{m.at_eligibility_profile_title()}
+				</h2>
+				<div class="grid gap-3 sm:grid-cols-2">
+					{@render numberField('minScore', m.at_min_score(), m.at_min_score_help(), 0, 100)}
 					{@render numberField('minRating', m.at_min_rating(), m.at_min_rating_help(), 0, 5)}
 					<InputComp
 						{form}
@@ -625,12 +1078,59 @@
 						items={verificationItems}
 						hint={m.at_min_verification_help()}
 					/>
+					{@render numberField(
+						'minCompletedBookings',
+						m.at_min_bookings(),
+						m.at_min_bookings_help(),
+						0,
+						1000
+					)}
+					{@render numberField(
+						'minResponseRate',
+						m.at_min_response_rate(),
+						m.at_min_response_rate_help(),
+						0,
+						100
+					)}
+					{@render numberField(
+						'minProfileAgeDays',
+						m.at_min_profile_age(),
+						m.at_min_profile_age_help(),
+						0,
+						3650
+					)}
+					{@render numberField(
+						'maxProfileAgeDays',
+						m.at_max_profile_age(),
+						m.at_max_profile_age_help(),
+						0,
+						3650
+					)}
 				</div>
+
+				<ChipSelect
+					{form}
+					{errors}
+					name="includeCategoryIds"
+					label={m.at_include_categories()}
+					hint={m.at_include_categories_help()}
+					items={categoryItems}
+				/>
+				<ChipSelect
+					{form}
+					{errors}
+					name="excludeCategoryIds"
+					label={m.at_exclude_categories()}
+					hint={m.at_exclude_categories_help()}
+					items={categoryItems}
+					selectedClass="bg-danger-soft"
+				/>
+
 				<div class="grid gap-2 sm:grid-cols-3">
 					{@render toggleField(
-						'requireChannel',
-						m.at_require_channel(),
-						m.at_require_channel_help()
+						'requireClaimed',
+						m.at_require_claimed(),
+						m.at_require_claimed_help()
 					)}
 					{@render toggleField(
 						'requireAvailable',
@@ -647,7 +1147,7 @@
 		</div>
 
 		<!-- Location -->
-		<div class="bento-card bento-card-static space-y-4">
+		<div id="location" class="bento-card bento-card-static scroll-mt-20 space-y-4">
 			<h2 class={sectionTitle}>
 				<MapPin class="h-4 w-4 text-brand-fg" />
 				{m.at_location_title()}
@@ -680,14 +1180,14 @@
 					type="select"
 					label={m.at_local_match()}
 					items={localMatchItems}
-					disabled={$form.localRanking === 'off'}
+					disabled={effectiveLocal === 'off' || effectiveLocal === 'only'}
 					hint={m.at_local_match_help()}
 				/>
 			</div>
 
 			<!-- Only `boost` reads the points, so the slider says so rather than
 			     sitting there looking live. -->
-			<div class={$form.localRanking === 'boost' ? '' : 'opacity-50'}>
+			<div class={effectiveLocal === 'boost' ? '' : 'opacity-50'}>
 				<InputComp
 					{form}
 					{errors}
@@ -697,8 +1197,8 @@
 					min={0}
 					max={100}
 					step={1}
-					disabled={$form.localRanking !== 'boost'}
-					hint={$form.localRanking === 'boost'
+					disabled={effectiveLocal !== 'boost'}
+					hint={effectiveLocal === 'boost'
 						? m.at_local_boost_field_help()
 						: m.at_local_boost_inactive()}
 					formatValue={(points) => m.at_local_boost_value({ points })}
@@ -708,7 +1208,7 @@
 		</div>
 
 		<!-- Lanes -->
-		<div class="bento-card bento-card-static space-y-4">
+		<div id="lanes" class="bento-card bento-card-static scroll-mt-20 space-y-4">
 			<div class="flex flex-wrap items-center justify-between gap-2">
 				<h2 class={sectionTitle}>
 					<Rows3 class="h-4 w-4 text-brand-fg" />
@@ -765,13 +1265,14 @@
 					0,
 					12
 				)}
+				{@render numberField('maxTierLanes', m.at_lane_kind_tier(), m.at_lane_count_help(), 0, 12)}
 			</div>
 
 			{@render toggleField('laneLocalFirst', m.at_lane_local_first(), m.at_lane_local_first_help())}
 		</div>
 
 		<!-- Fairness + automation -->
-		<div class="grid gap-4 lg:grid-cols-2">
+		<div id="fairness" class="grid scroll-mt-20 gap-4 lg:grid-cols-2">
 			<div class="bento-card bento-card-static space-y-4">
 				<h2 class={sectionTitle}>
 					<Shuffle class="h-4 w-4 text-brand-fg" />
@@ -781,8 +1282,61 @@
 				<div class="grid gap-3 sm:grid-cols-2">
 					{@render numberField('maxPerCategory', m.at_max_per_category(), m.at_cap_help(), 0, 48)}
 					{@render numberField('maxPerCountry', m.at_max_per_country(), m.at_cap_help(), 0, 48)}
+					{@render numberField('maxPerCity', m.at_max_per_city(), m.at_cap_help(), 0, 48)}
+					{@render numberField('maxPerTier', m.at_max_per_tier(), m.at_max_per_tier_help(), 0, 48)}
+					{@render numberField(
+						'maxPerPlatform',
+						m.at_max_per_platform(),
+						m.at_max_per_platform_help(),
+						0,
+						48
+					)}
+				</div>
+
+				<h3
+					class="border-t-2 border-edge-soft pt-3 text-[10px] font-black tracking-widest text-ink-dim uppercase"
+				>
+					{m.at_stability_title()}
+				</h3>
+				<div class="grid gap-3 sm:grid-cols-2">
+					{@render numberField(
+						'incumbentBonus',
+						m.at_incumbent_bonus(),
+						m.at_incumbent_bonus_help(),
+						0,
+						50
+					)}
+					{@render numberField(
+						'maxNewPerRun',
+						m.at_max_new_per_run(),
+						m.at_max_new_per_run_help(),
+						0,
+						48
+					)}
 					{@render numberField('maxTenureDays', m.at_max_tenure(), m.at_max_tenure_help(), 0, 365)}
 					{@render numberField('cooldownDays', m.at_cooldown(), m.at_cooldown_help(), 0, 365)}
+				</div>
+
+				<h3
+					class="border-t-2 border-edge-soft pt-3 text-[10px] font-black tracking-widest text-ink-dim uppercase"
+				>
+					{m.at_discovery_title()}
+				</h3>
+				<div class="grid gap-3 sm:grid-cols-2">
+					{@render numberField(
+						'newcomerSlots',
+						m.at_newcomer_slots(),
+						m.at_newcomer_slots_help(),
+						0,
+						48
+					)}
+					{@render numberField(
+						'newcomerMaxAgeDays',
+						m.at_newcomer_age(),
+						m.at_newcomer_age_help(),
+						1,
+						365
+					)}
 				</div>
 				{@render toggleField('pinnedFirst', m.at_pinned_first(), m.at_pinned_first_help())}
 			</div>
@@ -810,6 +1364,14 @@
 
 		<div class="flex flex-col gap-2 sm:flex-row">
 			<button
+				type="button"
+				onclick={() => loadSettings(data.defaults, m.at_defaults_loaded())}
+				class="flex items-center justify-center gap-2 rounded-2xl border-2 border-edge bg-surface px-4 py-3 text-xs font-black text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-well"
+			>
+				<RotateCcw class="h-4 w-4" />
+				{m.at_reset_defaults()}
+			</button>
+			<button
 				type="submit"
 				formaction="?/preview"
 				class="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-edge bg-surface py-3 text-xs font-black text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-well"
@@ -831,6 +1393,54 @@
 		</div>
 	</form>
 
+	<!-- Saving the sliders as a preset. Its own form, fed from the settings
+	     form's current values, so saving a preset never saves the settings. -->
+	<form
+		method="POST"
+		action="?/savePreset"
+		use:presetSuper.enhance
+		class="bento-card bento-card-static grid gap-3 md:grid-cols-[1fr_2fr_auto] md:items-end"
+	>
+		{#each TRENDING_SIGNALS as key (key)}
+			<input type="hidden" name={WEIGHT_COLUMN[key]} value={$form[WEIGHT_COLUMN[key]] ?? 0} />
+		{/each}
+		<InputComp
+			form={presetForm}
+			errors={presetErrors}
+			name="name"
+			label={m.at_preset_name()}
+			placeholder={m.at_preset_name_placeholder()}
+			max={80}
+		/>
+		<InputComp
+			form={presetForm}
+			errors={presetErrors}
+			name="description"
+			label={m.at_preset_description()}
+			placeholder={m.at_preset_description_placeholder()}
+			max={200}
+		/>
+		<button
+			type="submit"
+			class="mb-2 flex items-center justify-center gap-2 rounded-2xl border-2 border-edge bg-inverse px-4 py-2.5 text-xs font-black text-inverse-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-inverse-hover"
+		>
+			<Save class="h-4 w-4" />
+			{m.at_preset_save()}
+		</button>
+	</form>
+
+	{#each data.presets as preset (preset.id)}
+		<form
+			id="delete-preset-{preset.id}"
+			method="POST"
+			action="?/deletePreset"
+			use:enhance={handle(m.at_preset_deleted())}
+			hidden
+		>
+			<input type="hidden" name="id" value={preset.id} />
+		</form>
+	{/each}
+
 	<!-- ================= PREVIEW ================= -->
 	{#if preview}
 		<div class="bento-card bento-card-static space-y-4">
@@ -847,6 +1457,13 @@
 						total: preview.stats.creators
 					})}
 				</span>
+				{#if preview.stats.newcomersReserved}
+					<span
+						class="rounded-md border-2 border-brand-edge bg-brand-soft px-2 py-1 text-brand-soft-fg"
+					>
+						{m.at_preview_reserved({ count: preview.stats.newcomersReserved })}
+					</span>
+				{/if}
 				{#each Object.entries(preview.stats.exclusions) as [reason, count] (reason)}
 					<span class="rounded-md border border-edge-mid bg-panel px-2 py-1 text-ink-soft">
 						{reasonLabel(reason)}: {count}
@@ -894,6 +1511,104 @@
 				</div>
 			</div>
 
+			<!-- Why is this creator here, or not? Answered from the same dry run. -->
+			<div class="space-y-3 rounded-2xl border-2 border-edge bg-panel p-3">
+				<h3 class="flex items-center gap-2 text-xs font-black text-ink">
+					<Search class="h-3.5 w-3.5 text-brand-fg" />
+					{m.at_explain_title()}
+				</h3>
+				<InputComp
+					name="explainCreator"
+					type="combo"
+					label={m.at_explain_pick()}
+					items={explainItems}
+					bind:value={explainId}
+				/>
+
+				{#if explained}
+					<div class="space-y-3 rounded-xl border-2 border-edge-soft bg-surface p-3">
+						<div class="flex flex-wrap items-center justify-between gap-2">
+							<span class="text-sm font-black text-ink">{explained.fullName}</span>
+							<span
+								class="rounded-md border-2 px-2 py-0.5 text-[10px] font-black tracking-wider uppercase {explained.status ===
+								'board'
+									? 'border-brand-edge bg-brand-soft text-brand-soft-fg'
+									: explained.status === 'bench'
+										? 'border-warn-edge bg-warn-soft text-warn-fg'
+										: 'border-danger-edge bg-danger-soft text-danger-fg'}"
+							>
+								{explained.status === 'board'
+									? m.at_explain_on_board({ rank: explained.rank ?? 0 })
+									: explained.status === 'bench'
+										? m.at_explain_benched()
+										: m.at_explain_excluded()}
+							</span>
+						</div>
+
+						<p class="text-[11px] font-medium text-ink-soft">
+							{#if explained.status === 'excluded'}
+								{m.at_explain_excluded_because({ reason: reasonLabel(explained.reason ?? '') })}
+							{:else if explained.status === 'bench'}
+								{m.at_explain_benched_because({ reason: reasonLabel(explained.reason ?? '') })}
+								{#if explained.reason === 'slots' && preview.cutoffScore !== null}
+									{m.at_explain_gap({
+										gap: Math.max(0, preview.cutoffScore - explained.score).toFixed(1)
+									})}
+								{/if}
+							{:else if explained.reserved}
+								{m.at_explain_reserved()}
+							{:else}
+								{m.at_explain_earned({ score: explained.score.toFixed(1) })}
+							{/if}
+							{#if explained.previousRank !== null}
+								{m.at_explain_live_rank({ rank: explained.previousRank })}
+							{/if}
+						</p>
+
+						<div class="grid grid-cols-2 gap-2 text-[10px] font-bold text-ink-soft sm:grid-cols-4">
+							<span>{m.at_explain_followers({ followers: compact(explained.followers) })}</span>
+							<span>{m.at_explain_tier({ tier: tierLabel(explained.tier) })}</span>
+							<span>{m.at_explain_engagement({ rate: explained.engagement.toFixed(1) })}</span>
+							<span>
+								{m.at_explain_confirmed({ percent: Math.round(explained.confirmedShare * 100) })}
+							</span>
+							<span>{m.at_explain_channels({ count: explained.channelCount })}</span>
+							<span>{m.at_explain_age({ days: Math.round(explained.ageDays) })}</span>
+							{#if explained.multiplier !== 1}
+								<span class="text-warn-fg">×{explained.multiplier}</span>
+							{/if}
+							{#if explained.bonus}
+								<span class="text-info-fg">{m.at_bonus_chip({ points: explained.bonus })}</span>
+							{/if}
+						</div>
+
+						{#if explained.components.length}
+							<div class="space-y-1">
+								{#each explained.components as component (component.key)}
+									<div class="flex items-center gap-2">
+										<span class="w-32 shrink-0 text-[10px] font-black text-ink-soft">
+											{signalLabel(component.key)}
+										</span>
+										<span class="h-2 flex-1 overflow-hidden rounded-full bg-well">
+											<span
+												class="block h-full rounded-full bg-brand"
+												style="width: {Math.round(component.normalized * 100)}%"
+											></span>
+										</span>
+										<span class="w-28 shrink-0 text-right text-[10px] font-medium text-ink-dim">
+											{m.at_component_detail({
+												raw: rawValue(Number(component.raw)),
+												points: component.contribution.toFixed(1)
+											})}
+										</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
 			<div class="space-y-2">
 				{#each preview.rows as row (row.creatorId)}
 					<div
@@ -911,12 +1626,25 @@
 								<span class="w-8 text-sm font-black text-ink">
 									{row.rank ? `#${row.rank}` : '—'}
 								</span>
+								{@render moved(movement(row.rank, row.previousRank))}
 								<span>
-									<span class="block text-xs font-black text-ink">{row.fullName}</span>
+									<span class="block text-xs font-black text-ink">
+										{row.fullName}
+										{#if row.reserved}
+											<span
+												class="ml-1 rounded-md border border-brand-edge bg-brand-soft px-1 text-[9px] font-black text-brand-soft-fg"
+											>
+												{m.at_reserved_badge()}
+											</span>
+										{/if}
+									</span>
 									<span class="block text-[10px] font-medium text-ink-dim">
 										{[row.city, row.countryName].filter(Boolean).join(', ')} · {compact(
 											row.followers
-										)} · {sourceLabel(row.source)}
+										)} · {tierLabel(row.tier)} · {sourceLabel(row.source)}
+										{#if row.benchReason}
+											· {reasonLabel(row.benchReason)}
+										{/if}
 									</span>
 								</span>
 							</span>
@@ -924,6 +1652,9 @@
 								<span class="block text-sm font-black text-ink">{row.score.toFixed(1)}</span>
 								{#if row.multiplier !== 1}
 									<span class="text-[10px] font-black text-warn-fg">×{row.multiplier}</span>
+								{/if}
+								{#if row.bonus}
+									<span class="text-[10px] font-black text-info-fg">+{row.bonus}</span>
 								{/if}
 							</span>
 						</button>
@@ -943,7 +1674,7 @@
 										</span>
 										<span class="w-28 shrink-0 text-right text-[10px] font-medium text-ink-dim">
 											{m.at_component_detail({
-												raw: Number(component.raw).toFixed(1),
+												raw: rawValue(Number(component.raw)),
 												points: component.contribution.toFixed(1)
 											})}
 										</span>
@@ -961,7 +1692,7 @@
 	{/if}
 
 	<!-- ================= OVERRIDES ================= -->
-	<div class="bento-card bento-card-static space-y-4">
+	<div id="overrides" class="bento-card bento-card-static scroll-mt-20 space-y-4">
 		<h2 class={sectionTitle}>
 			<Pin class="h-4 w-4 text-brand-fg" />
 			{m.at_overrides_title()}
@@ -972,7 +1703,7 @@
 			method="POST"
 			action="?/addOverride"
 			use:overrideSuper.enhance
-			class="grid gap-3 rounded-2xl border-2 border-edge bg-panel p-3 md:grid-cols-6"
+			class="grid gap-3 rounded-2xl border-2 border-edge bg-panel p-3 md:grid-cols-7"
 		>
 			<div class="md:col-span-2">
 				<InputComp
@@ -1026,13 +1757,22 @@
 			<InputComp
 				form={overrideForm}
 				errors={overrideErrors}
+				name="startsAt"
+				type="date"
+				label={m.at_override_starts()}
+				futureDays
+			/>
+
+			<InputComp
+				form={overrideForm}
+				errors={overrideErrors}
 				name="expiresAt"
 				type="date"
 				label={m.at_override_expires()}
 				futureDays
 			/>
 
-			<div class="md:col-span-5">
+			<div class="md:col-span-6">
 				<InputComp
 					form={overrideForm}
 					errors={overrideErrors}
@@ -1059,6 +1799,7 @@
 			<div class="space-y-2">
 				{#each data.overrides as override (override.id)}
 					{@const expired = override.expiresAt && new Date(override.expiresAt) < new Date()}
+					{@const scheduled = override.startsAt && new Date(override.startsAt) > new Date()}
 					<div
 						class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-edge bg-surface p-3 {expired
 							? 'opacity-50'
@@ -1095,6 +1836,14 @@
 								</span>
 								<span class="block text-[10px] font-medium text-ink-dim">
 									{override.note ?? ''}
+									{#if scheduled}
+										<span
+											class="inline-flex items-center gap-1 rounded-md border border-info-edge bg-info-soft px-1 font-black text-info-fg"
+										>
+											<CalendarClock class="h-3 w-3" />
+											{m.at_override_from({ date: day(override.startsAt) })}
+										</span>
+									{/if}
 									{#if override.expiresAt}
 										· {expired
 											? m.at_override_expired()
@@ -1163,7 +1912,7 @@
 	{/if}
 
 	<!-- ================= HISTORY ================= -->
-	<div class="bento-card bento-card-static space-y-3">
+	<div id="history" class="bento-card bento-card-static scroll-mt-20 space-y-3">
 		<h2 class={sectionTitle}>
 			<History class="h-4 w-4 text-brand-fg" />
 			{m.at_runs_title()}
@@ -1172,7 +1921,7 @@
 		{#if !data.runs.length}
 			<p class="py-4 text-center text-xs font-medium text-ink-dim">{m.at_runs_empty()}</p>
 		{:else}
-			<div class="overflow-x-auto">
+			<div class="overflow-x-auto [contain:inline-size]">
 				<table class="w-full min-w-[640px] text-left">
 					<thead>
 						<tr
@@ -1184,6 +1933,7 @@
 							<th class="pb-2">{m.at_run_entries()}</th>
 							<th class="pb-2">{m.at_run_changed()}</th>
 							<th class="pb-2">{m.at_run_by()}</th>
+							<th class="pb-2"><span class="sr-only">{m.at_run_load()}</span></th>
 						</tr>
 					</thead>
 					<tbody>
@@ -1201,6 +1951,24 @@
 								<td class="py-2">{run.entryCount} / {run.candidateCount}</td>
 								<td class="py-2">{run.changedCount}</td>
 								<td class="py-2 text-[10px] text-ink-dim">{run.actorLabel ?? '—'}</td>
+								<td class="py-2 text-right">
+									{#if run.configSnapshot}
+										<!-- Loads into the form above, nothing more: an old board's
+										     settings are worth previewing before they are worth saving. -->
+										<button
+											type="button"
+											onclick={() =>
+												loadSettings(
+													run.configSnapshot as Record<string, unknown>,
+													m.at_run_loaded({ when: stamp(run.createdAt) })
+												)}
+											class="inline-flex items-center gap-1 rounded-lg border-2 border-edge bg-surface px-2 py-1 text-[10px] font-black text-ink hover:bg-brand-soft"
+										>
+											<Upload class="h-3 w-3" />
+											{m.at_run_load()}
+										</button>
+									{/if}
+								</td>
 							</tr>
 						{/each}
 					</tbody>

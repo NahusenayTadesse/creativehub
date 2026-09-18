@@ -1,6 +1,6 @@
 import * as m from '$lib/paraglide/messages';
 import { contentCrud } from '$lib/server/crud';
-import { requireRole } from '$lib/server/guards';
+import { adminOnlyDelete, referenceDataGuard } from '$lib/server/guards';
 import * as t from '$lib/server/db/schema';
 import { creatorAdd, creatorEdit } from '$lib/schemas';
 import { getReferenceData } from '$lib/server/queries';
@@ -21,7 +21,10 @@ const crud = contentCrud({
 	fileFields: ['avatar', 'cover'],
 	excludeDeleted: true,
 	/* Actions run before any `load`, so the admin layout guard cannot cover them. */
-	guard: (event) => requireRole(event, 'admin')
+	guard: referenceDataGuard,
+	/* Entering a profile is the encoder's job; removing one, with the bookings,
+	   reviews and campaign history hanging off it, stays the operator's. */
+	canDelete: adminOnlyDelete
 });
 
 export const load = async (event: RequestEvent) => {

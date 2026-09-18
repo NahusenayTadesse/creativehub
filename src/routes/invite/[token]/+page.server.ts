@@ -19,7 +19,6 @@ import {
 	releaseInvite,
 	staffRoleLabel
 } from '$lib/server/invites';
-import type { StaffRole } from '$lib/roles';
 
 /**
  * The far end of a staff invitation.
@@ -81,11 +80,7 @@ export const actions: Actions = {
 				body: {
 					name: form.data.name,
 					email: invite.email,
-					password: form.data.password,
-					/* The role is the invitation's, never the form's: this page is
-					   the one place an admin account can come into existence, and
-					   what it creates was decided by an operator. */
-					role: invite.role as StaffRole
+					password: form.data.password
 				},
 				headers: event.request.headers
 			});
@@ -111,15 +106,25 @@ export const actions: Actions = {
 		}
 
 		/*
-		 * Confirmed, because opening the link proved it.
+		 * Confirmed, because opening the link proved it — and stamped with the
+		 * role the invitation carried.
 		 *
 		 * The token went to this address and nowhere else, and it is what got
 		 * them here. That is the same evidence the confirmation mail collects,
 		 * which is why the confirmation mail was skipped — and it matters beyond
 		 * the nag: linking a Google identity to this account later depends on the
 		 * address having been proven (see the note in auth.ts).
+		 *
+		 * The role is the invitation's, never the form's: this page is the one
+		 * place an admin account can come into existence, and what it creates was
+		 * decided by an operator. It is written here rather than posted with the
+		 * sign-up because `role` is not a field any request may set — see the
+		 * note on `additionalFields` in auth.ts, and routes/register.
 		 */
-		await db.update(t.user).set({ emailVerified: true }).where(eq(t.user.id, userId));
+		await db
+			.update(t.user)
+			.set({ emailVerified: true, role: invite.role })
+			.where(eq(t.user.id, userId));
 		await attachInviteUser(invite.id, userId);
 
 		await recordAudit({
