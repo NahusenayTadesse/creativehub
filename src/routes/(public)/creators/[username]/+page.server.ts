@@ -7,7 +7,7 @@ import type { PageServerLoad, Actions } from './$types';
 import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { notify } from '$lib/server/notify';
-import { getCreatorByUsername, getSettings } from '$lib/server/queries';
+import { getCreatorByUsername, getSettings, listProfilePosts } from '$lib/server/queries';
 import { getOrganizationFor, recordAudit } from '$lib/server/guards';
 import { bookingCreate } from '$lib/schemas';
 import { bookingReference, splitFee } from '$lib/domain/booking';
@@ -23,10 +23,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		error(404, m.srv_creator_not_published());
 	}
 
-	const organization = locals.user ? await getOrganizationFor(locals.user.id) : undefined;
+	const [organization, articles] = await Promise.all([
+		locals.user ? getOrganizationFor(locals.user.id) : Promise.resolve(undefined),
+		/* What they have written for the blog. Live posts only — the same
+		   definition the blog index uses, so a profile is another way into the
+		   same articles rather than a second idea of what "published" means. */
+		listProfilePosts({ creatorId: creator.id })
+	]);
 
 	return {
 		creator: publicView(creator),
+		articles,
 		canBook: Boolean(organization),
 		organizationName: organization?.name ?? null,
 		bookingForm: await superValidate(zod4(bookingCreate))

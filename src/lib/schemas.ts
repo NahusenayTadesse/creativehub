@@ -879,7 +879,8 @@ export const landingSchema = z.object({
 	showCampaigns: shown,
 	showBrands: shown,
 	showCompensation: shown,
-	showHowItWorks: shown
+	showHowItWorks: shown,
+	showBlog: shown
 });
 
 /* ------------------------------------------------------------------ *
@@ -1171,6 +1172,51 @@ function htmlHasText(html: string | undefined): boolean {
 
 /** Creating a post is one field: everything else is edited on its own page. */
 export const blogPostCreate = z.object({ title: name(250) });
+
+/**
+ * The same article, as its author is allowed to describe it.
+ *
+ * Deliberately a shorter list than the operator's, and shorter by subtraction
+ * rather than by the template happening not to draw the rest. Everything left
+ * out is a decision about the *section* rather than about the piece: which
+ * article leads the index, what order the rest sit in, the publication date,
+ * whether search engines may have it, and the byline — a creator's article is
+ * signed by the creator, and a field for it is a field for signing somebody
+ * else's name.
+ *
+ * `status` is absent for the reason the whole feature exists. An author moves a
+ * post between states through `submit` and `withdraw`, which say what they do;
+ * a `status` field on the save form would be a way to post `published`.
+ */
+export const blogAuthorPostSchema = z.object({
+	id: refId,
+	title: name(250),
+	excerpt: z.string().trim().max(500).optional().default(''),
+	body: z.string().max(MAX_BODY_CHARS).optional().default(''),
+
+	featuredImage: uploadOrUrl,
+	featuredImageAlt: z.string().trim().max(250).optional().default(''),
+
+	/** 0 is "no section", which is what an empty select posts. */
+	categoryId: z.coerce.number().int().min(0).default(0),
+	tags: lines,
+
+	metaDescription: z.string().trim().max(320).optional().default('')
+});
+
+/**
+ * An operator's answer to a submission.
+ *
+ * `note` is required on a rejection and optional on an approval, which the
+ * route enforces rather than the schema — the message has to name the field the
+ * author is looking at, and a refinement here would fail the whole form for a
+ * reason the queue's dialog could not attach to anything.
+ */
+export const blogReviewDecision = z.object({
+	...idSchema.shape,
+	decision: z.enum(['approve', 'reject']),
+	note: z.string().trim().max(500).optional().default('')
+});
 
 /* No `postId`: the gallery's CRUD is scoped to the post whose page it is on,
    and the column is stamped from the route rather than taken from the form. */

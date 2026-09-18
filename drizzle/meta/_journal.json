@@ -169,6 +169,13 @@
       "when": 1789646180166,
       "tag": "0023_platform_email_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1789760951827,
+      "tag": "0024_blog_authorship",
+      "breakpoints": true
     }
   ]
 }

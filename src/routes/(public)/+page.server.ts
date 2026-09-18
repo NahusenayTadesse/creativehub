@@ -7,6 +7,7 @@ import {
 	listGallerySlides,
 	listLandingBrands,
 	listOpenBriefs,
+	listLatestPosts,
 	listPartners
 } from '$lib/server/queries';
 import { maybeAutoRefresh } from '$lib/server/trending-service';
@@ -30,20 +31,22 @@ export const load: PageServerLoad = async ({ parent }) => {
 			.map((section) => section.key)
 	);
 
-	const [featured, trending, lanes, stats, gallery, briefs, brands, partners] = await Promise.all([
-		listFeaturedCreators(),
-		listTrendingCreators(),
-		/* The same board, cut by category, market and channel. Empty until a run
-		   has published lanes, which is what keeps the strip a single row on a
-		   fresh install rather than a row of chips with nothing behind them. */
-		shown.has('trending') ? listTrendingLanes() : [],
-		getPlatformStats(),
-		shown.has('gallery') ? listGallerySlides() : [],
-		shown.has('campaigns') ? listOpenBriefs() : [],
-		shown.has('brands') ? listLandingBrands() : [],
-		/* The hero is always shown, so its partner strip is always read. */
-		listPartners()
-	]);
+	const [featured, trending, lanes, stats, gallery, briefs, brands, posts, partners] =
+		await Promise.all([
+			listFeaturedCreators(),
+			listTrendingCreators(),
+			/* The same board, cut by category, market and channel. Empty until a run
+			   has published lanes, which is what keeps the strip a single row on a
+			   fresh install rather than a row of chips with nothing behind them. */
+			shown.has('trending') ? listTrendingLanes() : [],
+			getPlatformStats(),
+			shown.has('gallery') ? listGallerySlides() : [],
+			shown.has('campaigns') ? listOpenBriefs() : [],
+			shown.has('brands') ? listLandingBrands() : [],
+			shown.has('blog') ? listLatestPosts() : [],
+			/* The hero is always shown, so its partner strip is always read. */
+			listPartners()
+		]);
 
-	return { featured, trending, lanes, stats, gallery, briefs, brands, partners };
+	return { featured, trending, lanes, stats, gallery, briefs, brands, posts, partners };
 };

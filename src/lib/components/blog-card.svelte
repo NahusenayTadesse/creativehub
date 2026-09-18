@@ -3,6 +3,7 @@
 	import * as m from '$lib/paraglide/messages';
 	import AppImage from '$lib/components/app-image.svelte';
 	import { accentTile, formatPostDate } from '$lib/blog';
+	import { authorProfile } from '$lib/domain/blog-post';
 	import { Clock } from '@lucide/svelte';
 
 	/**
@@ -25,11 +26,21 @@
 		categoryAccent: string | null;
 		authorName: string | null;
 		authorImage?: string | null;
+		/* Which profile the piece is filed under, if any. An operator's own
+		   article has none and the byline is plain text. */
+		creatorId?: number | null;
+		creatorUsername?: string | null;
+		organizationId?: number | null;
+		organizationSlug?: string | null;
 	};
 
 	let { post, size = 'normal' }: { post: Post; size?: 'normal' | 'lead' } = $props();
 
 	const lead = $derived(size === 'lead');
+
+	/* A creator's or a brand's piece is signed with a link to their page; the
+	   platform's own articles are signed with the site's name and go nowhere. */
+	const profile = $derived(authorProfile(post));
 </script>
 
 <article
@@ -103,9 +114,18 @@
 					decoding="async"
 				/>
 			{/if}
-			<span class="truncate text-[11px] font-bold text-ink-soft">
-				{post.authorName || m.brand_name()}
-			</span>
+			{#if profile}
+				<a
+					href={resolve(profile.href)}
+					class="truncate text-[11px] font-bold text-ink-soft hover:text-brand-fg hover:underline"
+				>
+					{post.authorName}
+				</a>
+			{:else}
+				<span class="truncate text-[11px] font-bold text-ink-soft">
+					{post.authorName || m.brand_name()}
+				</span>
+			{/if}
 			{#if post.publishedAt}
 				<span class="ms-auto shrink-0 text-[11px] font-bold text-ink-dim">
 					<time datetime={new Date(post.publishedAt).toISOString()}>

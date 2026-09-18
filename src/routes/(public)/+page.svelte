@@ -23,7 +23,9 @@
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import type { CarouselAPI } from '$lib/components/ui/carousel/context.js';
+	import { CarouselPager } from '$lib/carousel-pager.svelte.js';
 	import GalleryCarousel from '$lib/components/gallery-carousel.svelte';
+	import BlogSlider from '$lib/components/blog-slider.svelte';
 	import LandingHero from '$lib/components/landing-hero.svelte';
 	import DynamicIcon from '$lib/components/dynamic-icon.svelte';
 	import { TIER_FLOORS, type FollowerTier, type TrendingLaneKind } from '$lib/domain/trending';
@@ -145,44 +147,13 @@
 
 	/* ---------------- The carousel's own controls ----------------
 	   Arrows turn a page, not a card, so the dots count pages a reader can
-	   actually land on. The count changes with the viewport — four cards a page
-	   on a wide screen, one on a phone — which is why `reInit` re-reads it. */
+	   actually land on. The glue that mirrors Embla's methods into state is
+	   shared with the blog strip further down the page — see
+	   `$lib/carousel-pager.svelte.ts`. */
 
 	let carousel = $state<CarouselAPI>();
-	let pageIndex = $state(0);
-	let pageCount = $state(0);
-	let canPrev = $state(false);
-	let canNext = $state(false);
-
-	$effect(() => {
-		const api = carousel;
-		if (!api) return;
-		const sync = () => {
-			pageIndex = api.selectedScrollSnap();
-			pageCount = api.scrollSnapList().length;
-			canPrev = api.canScrollPrev();
-			canNext = api.canScrollNext();
-		};
-		sync();
-		api.on('select', sync).on('reInit', sync);
-		return () => {
-			api.off('select', sync).off('reInit', sync);
-		};
-	});
-
-	/* Arrow keys page the strip whenever focus is inside it — on a card, a chip
-	   or a control — so a keyboard reader is not sent hunting for the buttons. */
-	const pageWithKeys = (event: KeyboardEvent) => {
-		const target = event.target as HTMLElement | null;
-		if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
-		if (event.key === 'ArrowLeft' && canPrev) {
-			event.preventDefault();
-			carousel?.scrollPrev();
-		} else if (event.key === 'ArrowRight' && canNext) {
-			event.preventDefault();
-			carousel?.scrollNext();
-		}
-	};
+	const pager = new CarouselPager();
+	$effect(() => pager.watch(carousel));
 
 	const arrowButton =
 		'place-items-center rounded-full border-2 border-edge bg-surface text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:bg-brand-soft hover:shadow-[4px_4px_0px_0px_rgb(var(--bento-shadow))] focus-visible:ring-2 focus-visible:ring-brand-strong focus-visible:outline-none active:shadow-[1px_1px_0px_0px_rgb(var(--bento-shadow))]';
@@ -279,6 +250,8 @@
 			{@render compensationSection()}
 		{:else if section.key === 'howItWorks'}
 			{@render howItWorksSection()}
+		{:else if section.key === 'blog'}
+			{@render blogSection()}
 		{/if}
 	{/each}
 </div>
@@ -304,7 +277,7 @@
 				<Carousel.Root
 					opts={{ align: 'start', containScroll: 'trimSnaps', slidesToScroll: 'auto' }}
 					setApi={(api) => (carousel = api)}
-					onkeydown={pageWithKeys}
+					onkeydown={pager.onkeydown}
 					aria-label={strip.kind
 						? m.home_trending_in({ lane: strip.label })
 						: m.home_trending_title()}
@@ -337,12 +310,12 @@
 									<ArrowRight class="h-3.5 w-3.5" />
 								</a>
 
-								{#if pageCount > 1}
+								{#if pager.count > 1}
 									<span
 										class="rounded-full border-2 border-edge bg-surface px-2.5 py-1 text-[11px] font-black text-ink tabular-nums shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 										aria-live="polite"
 									>
-										{m.home_trending_page({ current: pageIndex + 1, total: pageCount })}
+										{m.home_trending_page({ current: pager.index + 1, total: pager.count })}
 									</span>
 								{/if}
 							</div>
@@ -364,8 +337,7 @@
 										type="button"
 										onclick={() => {
 											selectedStrip = one.key;
-											/* The strip is rebuilt for the new lane, so it starts on page one. */
-											pageIndex = 0;
+											/* The strip is rebuilt for the new lane. */
 										}}
 										aria-pressed={one.key === strip.key}
 										class="flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold whitespace-nowrap transition-colors {one.key ===
@@ -404,12 +376,12 @@
 							<!-- A fade on whichever edge has more behind it, so the peeking card
 							     reads as cut off by the strip rather than by the page. -->
 							<div
-								class="pointer-events-none absolute inset-y-0 end-0 w-10 bg-gradient-to-l from-background to-transparent transition-opacity duration-300 sm:w-16 {canNext
+								class="pointer-events-none absolute inset-y-0 end-0 w-10 bg-gradient-to-l from-background to-transparent transition-opacity duration-300 sm:w-16 {pager.canNext
 									? 'opacity-100'
 									: 'opacity-0'}"
 							></div>
 							<div
-								class="pointer-events-none absolute inset-y-0 start-0 w-10 bg-gradient-to-r from-background to-transparent transition-opacity duration-300 sm:w-16 {canPrev
+								class="pointer-events-none absolute inset-y-0 start-0 w-10 bg-gradient-to-r from-background to-transparent transition-opacity duration-300 sm:w-16 {pager.canPrev
 									? 'opacity-100'
 									: 'opacity-0'}"
 							></div>
@@ -420,9 +392,9 @@
 							<button
 								type="button"
 								aria-label={m.tbl_previous()}
-								onclick={() => carousel?.scrollPrev()}
-								tabindex={canPrev ? 0 : -1}
-								class="{arrowButton} absolute -start-3 top-1/2 z-10 hidden size-12 -translate-y-1/2 sm:grid lg:-start-5 {canPrev
+								onclick={() => pager.prev()}
+								tabindex={pager.canPrev ? 0 : -1}
+								class="{arrowButton} absolute -start-3 top-1/2 z-10 hidden size-12 -translate-y-1/2 sm:grid lg:-start-5 {pager.canPrev
 									? 'opacity-100'
 									: 'pointer-events-none opacity-0'}"
 							>
@@ -431,9 +403,9 @@
 							<button
 								type="button"
 								aria-label={m.tbl_next()}
-								onclick={() => carousel?.scrollNext()}
-								tabindex={canNext ? 0 : -1}
-								class="{arrowButton} absolute -end-3 top-1/2 z-10 hidden size-12 -translate-y-1/2 sm:grid lg:-end-5 {canNext
+								onclick={() => pager.next()}
+								tabindex={pager.canNext ? 0 : -1}
+								class="{arrowButton} absolute -end-3 top-1/2 z-10 hidden size-12 -translate-y-1/2 sm:grid lg:-end-5 {pager.canNext
 									? 'opacity-100'
 									: 'pointer-events-none opacity-0'}"
 							>
@@ -443,27 +415,27 @@
 
 						<!-- Where you are, and a way to get anywhere else. On a phone the
 						     arrows live here, beside the dots, clear of the cards. -->
-						{#if pageCount > 1}
+						{#if pager.count > 1}
 							<div class="flex items-center justify-center gap-3">
 								<button
 									type="button"
 									aria-label={m.tbl_previous()}
-									onclick={() => carousel?.scrollPrev()}
-									disabled={!canPrev}
+									onclick={() => pager.prev()}
+									disabled={!pager.canPrev}
 									class="{arrowButton} grid size-10 disabled:pointer-events-none disabled:opacity-40 disabled:shadow-none sm:hidden"
 								>
 									<ChevronLeft class="h-5 w-5" strokeWidth={3} />
 								</button>
 
 								<div class="flex flex-wrap items-center justify-center gap-2">
-									{#each { length: pageCount }, index (index)}
+									{#each { length: pager.count }, index (index)}
 										<button
 											type="button"
 											aria-label={m.home_trending_go_to({ index: index + 1 })}
-											aria-current={index === pageIndex}
-											onclick={() => carousel?.scrollTo(index)}
+											aria-current={index === pager.index}
+											onclick={() => pager.go(index)}
 											class="h-3 rounded-full border-2 border-edge transition-all {index ===
-											pageIndex
+											pager.index
 												? 'w-8 bg-brand-strong'
 												: 'w-3 bg-ink-dim hover:bg-brand-strong'}"
 										></button>
@@ -473,8 +445,8 @@
 								<button
 									type="button"
 									aria-label={m.tbl_next()}
-									onclick={() => carousel?.scrollNext()}
-									disabled={!canNext}
+									onclick={() => pager.next()}
+									disabled={!pager.canNext}
 									class="{arrowButton} grid size-10 disabled:pointer-events-none disabled:opacity-40 disabled:shadow-none sm:hidden"
 								>
 									<ChevronRight class="h-5 w-5" strokeWidth={3} />
@@ -896,4 +868,13 @@
 			</div>
 		</div>
 	</section>
+{/snippet}
+
+{#snippet blogSection()}
+	<!-- ================= BLOG ================= -->
+	<!-- Nothing written yet is nothing to show. An empty strip on the homepage
+	     advertises that the section is unused, which is worse than its absence. -->
+	{#if data.posts.length}
+		<BlogSlider posts={data.posts} />
+	{/if}
 {/snippet}

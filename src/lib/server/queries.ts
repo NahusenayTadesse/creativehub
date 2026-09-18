@@ -27,6 +27,7 @@ import * as t from '$lib/server/db/schema';
 import { user } from '$lib/server/db/auth.schema';
 import { liveSocialFilter, ratingReviewFilter } from '$lib/server/db/rollups';
 import { defineQuery, escapeLike, type PageResult, type RowOf } from '$lib/server/query';
+import { PARAM } from '$lib/query';
 import { handleFromEmail, looksLikeSamePerson } from '$lib/domain/claim';
 import { laneKey, positionScore, tierLabel, type TrendingLaneKind } from '$lib/domain/trending';
 import {
@@ -767,6 +768,8 @@ const campaignColumns = {
 	countryFlag: t.countries.flag,
 	organizationId: t.campaigns.organizationId,
 	organizationName: t.organizations.name,
+	/* The brand's own page, which a brief's header links its name to. */
+	organizationSlug: t.organizations.slug,
 	organizationLogo: t.organizations.logo,
 	orgType: t.organizations.orgType
 };
@@ -1007,6 +1010,74 @@ export async function listLandingBrands(limit = 4) {
 }
 
 export type LandingBrand = Awaited<ReturnType<typeof listLandingBrands>>[number];
+
+/**
+ * One brand's public page, by its slug.
+ *
+ * The projection is the page, and nothing besides — the same rule the creator
+ * profile follows. An organisation row carries its owner's account id, its
+ * monthly spend ceiling and the operator ids on every audit column, none of
+ * which is anybody's business for reading about a brand.
+ *
+ * `live()` rather than a soft-delete test alone: an organisation an operator
+ * has switched off has no public page, and 404 is the only honest answer for a
+ * URL there is nothing behind.
+ */
+export async function getBrandBySlug(slug: string) {
+	const rows = await db
+		.select({
+			id: t.organizations.id,
+			name: t.organizations.name,
+			slug: t.organizations.slug,
+			orgType: t.organizations.orgType,
+			logo: t.organizations.logo,
+			website: t.organizations.website,
+			bio: t.organizations.bio,
+			city: t.organizations.city,
+			verificationLevel: t.organizations.verificationLevel,
+			updatedAt: t.organizations.updatedAt,
+			countryName: t.countries.name,
+			countryFlag: t.countries.flag
+		})
+		.from(t.organizations)
+		.leftJoin(t.countries, eq(t.countries.id, t.organizations.countryId))
+		.where(and(live(t.organizations), eq(t.organizations.slug, slug)))
+		.limit(1);
+
+	return rows.at(0) ?? null;
+}
+
+export type Brand = NonNullable<Awaited<ReturnType<typeof getBrandBySlug>>>;
+
+/** The briefs a brand currently has out, for its own page. */
+export async function listBrandBriefs(organizationId: number, limit = 6) {
+	return (
+		db
+			.select({
+				id: t.campaigns.id,
+				slug: t.campaigns.slug,
+				title: t.campaigns.title,
+				description: t.campaigns.description,
+				deadline: t.campaigns.deadline,
+				compensationType: t.campaigns.compensationType,
+				budgetMin: t.campaigns.budgetMin,
+				budgetMax: t.campaigns.budgetMax,
+				currencyCode: t.campaigns.currencyCode,
+				categoryName: t.categories.name
+			})
+			.from(t.campaigns)
+			.leftJoin(t.categories, eq(t.categories.id, t.campaigns.categoryId))
+			.where(and(eq(t.campaigns.organizationId, organizationId), ...openBriefConditions()))
+			/* Dated briefs lead, soonest first — the same order the homepage strip
+		   uses, and for the same reason: the ones closing are the ones to act on. */
+			.orderBy(
+				sql`${t.campaigns.deadline} is null`,
+				asc(t.campaigns.deadline),
+				desc(t.campaigns.id)
+			)
+			.limit(limit)
+	);
+}
 
 /* ------------------------------------------------------------------ *
  * Bookings
@@ -2067,6 +2138,9 @@ const blogPostColumns = {
 	tags: t.blogPosts.tags,
 	status: t.blogPosts.status,
 	publishedAt: t.blogPosts.publishedAt,
+	/* When the author last handed it over, which the approval queue orders and
+	   dates by — `updatedAt` moves every time anybody touches the row. */
+	submittedAt: t.blogPosts.submittedAt,
 	isFeatured: t.blogPosts.isFeatured,
 	sortOrder: t.blogPosts.sortOrder,
 	noIndex: t.blogPosts.noIndex,
@@ -2076,25 +2150,49 @@ const blogPostColumns = {
 	categoryName: t.blogCategories.name,
 	categorySlug: t.blogCategories.slug,
 	categoryAccent: t.blogCategories.accent,
+
+	/* Which profile the piece is published under, and where that profile is.
+	   The ids are selected because the templates branch on them — see
+	   `authorProfile` in `$lib/domain/blog-post` — and both are the id of a
+	   page anybody can already open, unlike the account id below. */
+	creatorId: t.blogPosts.creatorId,
+	creatorUsername: t.creators.username,
+	organizationId: t.blogPosts.organizationId,
+	organizationSlug: t.organizations.slug,
+
 	/* The author's *account id* is deliberately not selected. Nothing renders
 	   it, and an article page is public — a byline does not require publishing
 	   the identifier of the account that wrote it. The join below still uses
 	   the column; it simply does not travel to the browser.
 
-	   The stored byline wins; the account's name is what an older post that
-	   never set one falls back to. Neither is required, so a post can be
-	   published before anyone has decided whose name goes on it. */
-	authorName: sql<string | null>`coalesce(${t.blogPosts.authorName}, ${user.name})`,
-	authorImage: user.image
+	   The stored byline wins; then the profile the piece is filed under, which
+	   is what a creator's or a brand's article is signed with; then the
+	   account's name, for an older operator post that never set one. None is
+	   required, so a post can be published before anyone has decided whose name
+	   goes on it. */
+	authorName: sql<string | null>`coalesce(
+		${t.blogPosts.authorName},
+		${t.creators.fullName},
+		${t.organizations.name},
+		${user.name}
+	)`,
+	authorImage: sql<string | null>`coalesce(
+		${t.creators.avatar},
+		${t.organizations.logo},
+		${user.image}
+	)`
 };
 
-/* Both sides are optional: a post need not sit in a section, and its author
-   may be an account that has since been removed. An inner join on either would
-   silently drop the post from every listing it belongs in. */
+/* Every side is optional: a post need not sit in a section, need not be filed
+   under a profile, and its author may be an account that has since been
+   removed. An inner join on any of them would silently drop the post from
+   every listing it belongs in. */
 const blogJoins = (qb: any) =>
 	qb
 		.leftJoin(t.blogCategories, eq(t.blogCategories.id, t.blogPosts.categoryId))
-		.leftJoin(user, eq(user.id, t.blogPosts.authorId));
+		.leftJoin(user, eq(user.id, t.blogPosts.authorId))
+		.leftJoin(t.creators, eq(t.creators.id, t.blogPosts.creatorId))
+		.leftJoin(t.organizations, eq(t.organizations.id, t.blogPosts.organizationId));
 
 /**
  * Posts carrying a given tag.
@@ -2132,7 +2230,9 @@ export const blogPostsQuery = defineQuery({
 			direction: 'asc'
 		},
 		title: { column: t.blogPosts.title, direction: 'asc' },
-		updated: { column: t.blogPosts.updatedAt, direction: 'desc' }
+		updated: { column: t.blogPosts.updatedAt, direction: 'desc' },
+		/* The approval queue's order: whoever has been waiting longest. */
+		waiting: { column: t.blogPosts.submittedAt, direction: 'asc' }
 	},
 	defaultSort: 'newest',
 	tiebreaker: t.blogPosts.id
@@ -2173,6 +2273,90 @@ export const blogStatusFacet = (url: URL) =>
 	blogPostsQuery.facet(url, 'status', { where: [isNull(t.blogPosts.deletedAt)] });
 
 /**
+ * One author's own posts, drafts included.
+ *
+ * `scope` is built from the session by `$lib/server/blog-authorship`, never
+ * from the URL: everything else on this query is attacker-controlled, and the
+ * one condition that decides whose drafts these are must not be.
+ */
+export const listAuthoredPosts = (url: URL, scope: SQL, options: { perPage?: number } = {}) =>
+	blogPostsQuery.run(url, {
+		where: [isNull(t.blogPosts.deletedAt), scope],
+		perPage: options.perPage
+	});
+
+/** The same counts, for the tabs above an author's list. */
+export const authoredStatusFacet = (url: URL, scope: SQL) =>
+	blogPostsQuery.facet(url, 'status', { where: [isNull(t.blogPosts.deletedAt), scope] });
+
+/**
+ * The approval queue: pieces a creator or a brand has finished with.
+ *
+ * `pending` is a state only an author's submit can reach, so the status
+ * condition is enough on its own — there is no operator draft to filter out of
+ * it. It is still paired with the authorship test, because a post an operator
+ * moved to `pending` by hand in their own editor is editorial work in progress
+ * rather than somebody waiting on an answer, and mixing the two would have the
+ * queue counter nagging about a post only the operator can act on anyway.
+ */
+const pendingReview = (): SQL[] => [
+	isNull(t.blogPosts.deletedAt),
+	eq(t.blogPosts.status, 'pending'),
+	sql`(${t.blogPosts.creatorId} is not null or ${t.blogPosts.organizationId} is not null)`
+];
+
+/**
+ * One page of the approval queue, longest wait first.
+ *
+ * The default is applied by writing it into a copy of the URL rather than by
+ * a second query definition: `waiting` is in the shared sort vocabulary, so an
+ * operator who asks for another order still gets it, and what changes here is
+ * only what happens when nobody asked. The alternative default — newest first,
+ * which every other listing uses — is the one that leaves a submission at the
+ * bottom of a growing queue for good.
+ */
+export function listPostsAwaitingReview(url: URL, options: { perPage?: number } = {}) {
+	const ordered = new URL(url);
+	if (!ordered.searchParams.get(PARAM.sort)) {
+		ordered.searchParams.set(PARAM.sort, 'waiting');
+	}
+	return blogPostsQuery.run(ordered, { where: pendingReview(), perPage: options.perPage });
+}
+
+/** The number beside "Approvals" in the operator's sidebar. */
+export const countPostsAwaitingReview = async () => {
+	const rows = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(t.blogPosts)
+		.where(and(...pendingReview()));
+	return Number(rows[0]?.count ?? 0);
+};
+
+/**
+ * The articles listed on a creator's or a brand's public profile.
+ *
+ * Live only, and by the same definition the blog index uses — a profile is
+ * another way into the same articles, not a second place where "published"
+ * means something slightly different.
+ */
+export async function listProfilePosts(
+	profile: { creatorId: number } | { organizationId: number },
+	limit = 6
+): Promise<BlogCard[]> {
+	const owned =
+		'creatorId' in profile
+			? eq(t.blogPosts.creatorId, profile.creatorId)
+			: eq(t.blogPosts.organizationId, profile.organizationId);
+
+	const rows = await blogJoins(db.select(blogPostColumns).from(t.blogPosts).$dynamic())
+		.where(and(...publishedPosts(), owned))
+		.orderBy(desc(t.blogPosts.publishedAt), desc(t.blogPosts.id))
+		.limit(limit);
+
+	return rows as BlogCard[];
+}
+
+/**
  * The lead article on the index.
  *
  * Whichever live post an operator flagged, most recent first. It is fetched
@@ -2185,6 +2369,25 @@ export async function getFeaturedPost(): Promise<BlogCard | null> {
 		perPage: 1
 	});
 	return (page.rows[0] as BlogCard) ?? null;
+}
+
+/**
+ * The strip on the homepage: the lead article, then the newest.
+ *
+ * Ordered the way the blog index reads top to bottom, so the two agree about
+ * what is most worth reading — a homepage that leads on a different article
+ * from the section it links to is two editorial opinions.
+ *
+ * A plain list rather than `blogPostsQuery.run`: the homepage has no query
+ * string of its own to honour, and paging machinery on a row of four cards is
+ * a page number nobody can reach.
+ */
+export async function listLatestPosts(limit = 8): Promise<BlogCard[]> {
+	const rows = await blogJoins(db.select(blogPostColumns).from(t.blogPosts).$dynamic())
+		.where(and(...publishedPosts()))
+		.orderBy(desc(t.blogPosts.isFeatured), desc(t.blogPosts.publishedAt), desc(t.blogPosts.id))
+		.limit(limit);
+	return rows as BlogCard[];
 }
 
 /**

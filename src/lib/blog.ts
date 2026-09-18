@@ -21,10 +21,11 @@ import * as m from '$lib/paraglide/messages';
 export const BLOG_ACCENTS = ['mint', 'yellow', 'peach', 'indigo'] as const;
 
 /**
- * `draft` is invisible to readers, `published` is live, and `archived` keeps a
- * post reachable by its URL while dropping it from the index and the feed.
+ * `draft` is invisible to readers, `pending` is a creator's or a brand's piece
+ * waiting on an operator, `published` is live, and `archived` keeps a post
+ * reachable by its URL while dropping it from the index and the feed.
  */
-export const BLOG_STATUSES = ['draft', 'published', 'archived'] as const;
+export const BLOG_STATUSES = ['draft', 'pending', 'published', 'archived'] as const;
 
 /** The tile class each section accent paints with. */
 const ACCENT_TILES: Record<string, string> = {
@@ -69,14 +70,18 @@ export const statusLabel = (status: string): string =>
 		? m.bp_status_published()
 		: status === 'archived'
 			? m.bp_status_archived()
-			: m.bp_status_draft();
+			: status === 'pending'
+				? m.bp_status_pending()
+				: m.bp_status_draft();
 
 export const statusClass = (status: string): string =>
 	status === 'published'
 		? 'border-brand-edge bg-brand-soft text-brand-soft-fg'
 		: status === 'archived'
 			? 'border-edge-mid bg-well text-ink-soft'
-			: 'border-edge-mid bg-tile-yellow text-ink';
+			: status === 'pending'
+				? 'border-info-edge bg-info-soft text-info-fg'
+				: 'border-edge-mid bg-tile-yellow text-ink';
 
 /**
  * Whether a post dated in the future is waiting rather than live.

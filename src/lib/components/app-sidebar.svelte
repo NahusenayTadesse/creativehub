@@ -23,6 +23,7 @@
 		GalleryHorizontal,
 		LayoutTemplate,
 		Newspaper,
+		FileCheck,
 		UserRoundCog,
 		ScrollText,
 		UserRoundCheck,
@@ -113,6 +114,10 @@
 						{ title: m.sb_packages(), url: resolve('/dashboard/packages'), icon: Package },
 						{ title: m.sb_channels(), url: resolve('/dashboard/channels'), icon: Radio },
 						{ title: m.sb_portfolio(), url: resolve('/dashboard/portfolio'), icon: Image },
+						/* Writing sits under the profile rather than in a section of its
+						   own: what a creator publishes here is listed on the page brands
+						   are already reading. */
+						{ title: m.sb_my_blogs(), url: resolve('/dashboard/blog'), icon: Newspaper },
 						{
 							title: m.sb_verification(),
 							url: resolve('/dashboard/verification'),
@@ -200,6 +205,7 @@
 							url: resolve('/dashboard/organization'),
 							icon: Building2
 						},
+						{ title: m.sb_my_blogs(), url: resolve('/dashboard/blog'), icon: Newspaper },
 						{
 							title: m.sb_verification(),
 							url: resolve('/dashboard/verification'),
@@ -267,6 +273,12 @@
 				section: m.sb_blog(),
 				items: [
 					{ title: m.sb_blog_posts(), url: resolve('/dashboard/admin/blog'), icon: Newspaper },
+					{
+						title: m.sb_blog_approvals(),
+						url: resolve('/dashboard/admin/blog/approvals'),
+						icon: FileCheck,
+						counter: counts.blogApprovals
+					},
 					{
 						title: m.sb_blog_categories(),
 						url: resolve('/dashboard/admin/blog/categories'),

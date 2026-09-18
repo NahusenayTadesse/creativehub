@@ -31,6 +31,7 @@
 	import PageMeta from '$lib/components/page-meta.svelte';
 	import { page } from '$app/state';
 	import { assetUrl } from '$lib/assets';
+	import { formatPostDate } from '$lib/blog';
 
 	let { data } = $props();
 
@@ -680,6 +681,69 @@
 									</div>
 								</div>
 							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			<!--
+				What they have written for the blog.
+
+				Between the work and the reviews on purpose: a brand reading down this
+				page has just seen what the creator makes, and an article is the
+				nearest thing to hearing them talk about it — which is worth more at
+				this point than after the ratings have already made the decision.
+			-->
+			{#if data.articles.length}
+				<div class="space-y-4">
+					<div class="flex items-center justify-between">
+						<h2 class="text-base font-black tracking-wider text-ink uppercase">
+							{m.profile_articles()}
+						</h2>
+						<a
+							href={resolve('/blog')}
+							class="text-[11px] font-bold text-ink-soft hover:text-brand-fg hover:underline"
+						>
+							{m.profile_all_articles()}
+						</a>
+					</div>
+
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+						{#each data.articles as article (article.id)}
+							<a
+								href={resolve(`/blog/${article.slug}`)}
+								class="group flex gap-3 overflow-hidden rounded-2xl border border-edge-soft bg-surface p-3 shadow-2xs transition-colors hover:border-edge-mid"
+							>
+								<div class="h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-well">
+									<AppImage
+										src={article.featuredImage}
+										alt={article.featuredImageAlt ?? article.title}
+										kind="cover"
+										seed={article.slug}
+										loading="lazy"
+										decoding="async"
+										class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+									/>
+								</div>
+								<div class="min-w-0 flex-1">
+									<h3
+										class="line-clamp-2 text-xs font-extrabold text-ink group-hover:text-brand-fg"
+									>
+										{article.title}
+									</h3>
+									{#if article.excerpt}
+										<p class="mt-1 line-clamp-2 text-[11px] font-medium text-ink-soft">
+											{article.excerpt}
+										</p>
+									{/if}
+									<p class="mt-1.5 text-[10px] font-bold text-ink-faint">
+										{formatPostDate(article.publishedAt)}
+										{#if article.readingMinutes}
+											· {m.bp_read_minutes({ minutes: article.readingMinutes })}
+										{/if}
+									</p>
+								</div>
+							</a>
 						{/each}
 					</div>
 				</div>

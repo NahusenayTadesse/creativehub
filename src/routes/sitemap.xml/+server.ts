@@ -7,9 +7,10 @@ import type { RequestHandler } from './$types';
  * The public surface, for crawlers.
  *
  * Only what is genuinely public and genuinely indexable: published creator
- * profiles and published briefs. The dashboard, the sign-in pages and the file
- * routes are deliberately absent — a sitemap is a claim that these URLs are
- * worth fetching, not a directory of everything that responds.
+ * profiles, published brand pages, published briefs and live articles. The
+ * dashboard, the sign-in pages and the file routes are deliberately absent — a
+ * sitemap is a claim that these URLs are worth fetching, not a directory of
+ * everything that responds.
  *
  * Capped, because a sitemap has a 50,000-URL limit and a marketplace does not.
  * Past that the answer is an index of several sitemaps, which is worth writing
@@ -33,7 +34,7 @@ const escape = (value: string) =>
 type Entry = { path: string; lastmod?: string | null; changefreq: string; priority: string };
 
 export const GET: RequestHandler = async ({ url, setHeaders }) => {
-	const [creators, campaigns, posts] = await Promise.all([
+	const [creators, brands, campaigns, posts] = await Promise.all([
 		db
 			.select({ username: t.creators.username, updatedAt: t.creators.updatedAt })
 			.from(t.creators)
@@ -45,6 +46,16 @@ export const GET: RequestHandler = async ({ url, setHeaders }) => {
 				)
 			)
 			.orderBy(desc(t.creators.updatedAt))
+			.limit(MAX_URLS),
+		/* The same test `getBrandBySlug` applies — organisations have no
+		   `isPublished` of their own, so `isActive` is the whole of it. A brand an
+		   operator has switched off has no page, and listing one would send a
+		   crawler to a 404. */
+		db
+			.select({ slug: t.organizations.slug, updatedAt: t.organizations.updatedAt })
+			.from(t.organizations)
+			.where(and(isNull(t.organizations.deletedAt), eq(t.organizations.isActive, true)))
+			.orderBy(desc(t.organizations.updatedAt))
 			.limit(MAX_URLS),
 		db
 			.select({ slug: t.campaigns.slug, updatedAt: t.campaigns.updatedAt })
@@ -81,6 +92,12 @@ export const GET: RequestHandler = async ({ url, setHeaders }) => {
 			lastmod: day(creator.updatedAt),
 			changefreq: 'weekly',
 			priority: '0.7'
+		})),
+		...brands.map((brand) => ({
+			path: `/brands/${brand.slug}`,
+			lastmod: day(brand.updatedAt),
+			changefreq: 'weekly',
+			priority: '0.6'
 		})),
 		...campaigns.map((campaign) => ({
 			path: `/campaigns/${campaign.slug}`,

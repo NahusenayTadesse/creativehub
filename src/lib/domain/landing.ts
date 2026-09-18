@@ -14,7 +14,11 @@ export const LANDING_SECTIONS = [
 	'campaigns',
 	'brands',
 	'compensation',
-	'howItWorks'
+	'howItWorks',
+	/* Added after the first installs saved a layout. `landingLayout` appends any
+	   section a stored list never mentioned, and it appends in this order — so
+	   last here is last on an existing site too, and the two agree. */
+	'blog'
 ] as const;
 
 export type LandingSectionKey = (typeof LANDING_SECTIONS)[number];
@@ -28,7 +32,8 @@ export const SECTION_VISIBILITY_FIELD = {
 	campaigns: 'showCampaigns',
 	brands: 'showBrands',
 	compensation: 'showCompensation',
-	howItWorks: 'showHowItWorks'
+	howItWorks: 'showHowItWorks',
+	blog: 'showBlog'
 } as const satisfies Record<LandingSectionKey, string>;
 
 const isSectionKey = (value: unknown): value is LandingSectionKey =>
@@ -104,5 +109,6 @@ export const landingSectionMeta = () =>
 		campaigns: { label: m.lp_section_campaigns(), help: m.lp_section_campaigns_help() },
 		brands: { label: m.lp_section_brands(), help: m.lp_section_brands_help() },
 		compensation: { label: m.lp_section_compensation(), help: m.lp_section_compensation_help() },
-		howItWorks: { label: m.lp_section_how_it_works(), help: m.lp_section_how_it_works_help() }
+		howItWorks: { label: m.lp_section_how_it_works(), help: m.lp_section_how_it_works_help() },
+		blog: { label: m.lp_section_blog(), help: m.lp_section_blog_help() }
 	}) satisfies Record<LandingSectionKey, { label: string; help: string }>;

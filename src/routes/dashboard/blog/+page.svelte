@@ -16,9 +16,8 @@
 		statusClass,
 		statusLabel
 	} from '$lib/blog';
-	import { isAuthoredExternally } from '$lib/domain/blog-post';
 	import { withParams } from '$lib/query';
-	import { Clock, ExternalLink, ImageOff, Inbox, SearchX, SquarePen, Tags } from '@lucide/svelte';
+	import { Clock, ExternalLink, ImageOff, Inbox, SearchX, SquarePen } from '@lucide/svelte';
 
 	let { data } = $props();
 
@@ -32,18 +31,11 @@
 	const total = $derived(Object.values(data.statusCounts).reduce((sum, n) => sum + n, 0));
 </script>
 
-<svelte:head><title>{m.bp_meta_title()}</title></svelte:head>
+<svelte:head><title>{m.ba_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
-	<PageHeader eyebrow={m.sb_blog()} title={m.bp_title()} description={m.bp_description()}>
+	<PageHeader eyebrow={m.sb_blog()} title={m.ba_title()} description={m.ba_description()}>
 		{#snippet actions()}
-			<a
-				href={resolve('/dashboard/admin/blog/categories')}
-				class="inline-flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-3 py-2 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:bg-panel"
-			>
-				<Tags class="h-3.5 w-3.5" />
-				{m.bc_title()}
-			</a>
 			<a
 				href={resolve('/blog')}
 				class="inline-flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-3 py-2 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:bg-panel"
@@ -68,8 +60,13 @@
 		{/snippet}
 	</PageHeader>
 
-	<!-- State tabs. Each is a link that rewrites the URL, and the counts come
-	     from the same query the rows do. -->
+	<!-- How the section works, said once and up front. Nobody reads this twice,
+	     and everybody reads it before their first submission. -->
+	<div class="bento-card-mint space-y-1 text-xs font-medium text-ink">
+		<p class="text-[11px] font-black tracking-wider uppercase">{m.ba_how_it_works()}</p>
+		<p>{m.ba_how_it_works_body({ byline: data.author.byline })}</p>
+	</div>
+
 	<div class="flex flex-wrap items-center gap-2">
 		<a
 			href={statusLink('all')}
@@ -114,8 +111,8 @@
 				</p>
 			{:else}
 				<Inbox class="mx-auto h-10 w-10 text-ink-faint" />
-				<h3 class="text-base font-black text-ink">{m.bp_empty()}</h3>
-				<p class="mx-auto max-w-sm text-xs font-medium text-ink-soft">{m.bp_empty_hint()}</p>
+				<h3 class="text-base font-black text-ink">{m.ba_empty()}</h3>
+				<p class="mx-auto max-w-sm text-xs font-medium text-ink-soft">{m.ba_empty_hint()}</p>
 			{/if}
 		</div>
 	{:else}
@@ -170,30 +167,8 @@
 									{post.categoryName}
 								</span>
 							{/if}
-							{#if post.isFeatured}
-								<span
-									class="rounded-md border border-edge bg-tile-yellow px-2 py-0.5 text-[10px] font-black text-ink"
-								>
-									{m.bp_featured()}
-								</span>
-							{/if}
-							<!-- Somebody else's piece. Worth saying in the operator's own
-							     listing: editing one is editing another person's writing,
-							     and publishing one is a decision rather than a save. -->
-							{#if isAuthoredExternally(post)}
-								<span
-									class="rounded-md border border-info-edge bg-info-soft px-2 py-0.5 text-[10px] font-black text-info-fg"
-								>
-									{post.organizationId ? m.bq_from_brand() : m.bq_from_creator()}
-								</span>
-							{/if}
 						</div>
 
-						<!-- `line-clamp-1` rather than `truncate`: both show one line, but
-						     `truncate` sets `white-space: nowrap`, which makes the title's
-						     min-content width the whole title — and the dashboard's `main`
-						     grows to fit its content rather than clipping it, so one long
-						     headline put a horizontal scrollbar under the entire page. -->
 						<h3 class="line-clamp-1 text-sm font-black text-ink">{post.title}</h3>
 
 						{#if post.excerpt}
@@ -201,9 +176,10 @@
 						{/if}
 
 						<p class="text-[11px] font-bold text-ink-dim">
-							{post.authorName || m.bp_no_author()}
 							{#if post.publishedAt}
-								· {formatPostDate(post.publishedAt)}
+								{formatPostDate(post.publishedAt)}
+							{:else}
+								{formatPostDate(post.createdAt)}
 							{/if}
 							{#if post.readingMinutes}
 								· {m.bp_read_minutes({ minutes: post.readingMinutes })}
@@ -222,7 +198,7 @@
 							</a>
 						{/if}
 						<a
-							href={resolve(`/dashboard/admin/blog/${post.id}`)}
+							href={resolve(`/dashboard/blog/${post.id}`)}
 							class="inline-flex items-center gap-1.5 rounded-lg border-2 border-edge bg-inverse px-3 py-2 text-xs font-black text-inverse-ink transition-colors hover:bg-inverse-hover"
 						>
 							<SquarePen class="h-3.5 w-3.5" />

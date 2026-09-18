@@ -127,7 +127,14 @@
 				/>
 				<div>
 					<div class="flex items-center gap-2">
-						<h2 class="text-sm font-black text-ink">{campaign.organizationName}</h2>
+						<!-- The brand has a page of its own: who they are, what else they
+						     are hiring for, and what they have written. -->
+						<a
+							href={resolve(`/brands/${campaign.organizationSlug}`)}
+							class="text-sm font-black text-ink hover:text-brand-fg hover:underline"
+						>
+							{campaign.organizationName}
+						</a>
 						<span
 							class="rounded-full border border-edge bg-well px-2 py-0.5 text-[9px] font-black tracking-wider text-ink uppercase"
 						>

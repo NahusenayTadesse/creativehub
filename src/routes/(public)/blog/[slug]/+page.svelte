@@ -7,6 +7,7 @@
 	import PostGallery from '$lib/components/post-gallery.svelte';
 	import PageMeta from '$lib/components/page-meta.svelte';
 	import { accentTile, formatPostDate } from '$lib/blog';
+	import { authorProfile } from '$lib/domain/blog-post';
 	import { assetUrl } from '$lib/assets';
 	import { withParams, type ParamValue } from '$lib/query';
 	import { ArrowLeft, Clock, Eye, Tag } from '@lucide/svelte';
@@ -16,6 +17,10 @@
 	const post = $derived(data.post);
 
 	const canonical = $derived(new URL(`/blog/${post.slug}`, page.url.origin).href);
+
+	/* Whose page the byline goes to, if anybody's. Null for the platform's own
+	   articles, which is what an operator writes. */
+	const profile = $derived(authorProfile(post));
 
 	/* A link back to the index with one filter set. Built through `withParams`
 	   like every other list link in the app, rather than by concatenating a
@@ -52,7 +57,17 @@
 		...(socialImage ? { image: [socialImage] } : {}),
 		...(published ? { datePublished: published } : {}),
 		...(modified ? { dateModified: modified } : {}),
-		...(post.authorName ? { author: { '@type': 'Person', name: post.authorName } } : {}),
+		...(post.authorName
+			? {
+					/* A brand writes as an organisation, a creator as a person. Saying
+					   `Person` for both would describe a company as a human being. */
+					author: {
+						'@type': profile?.kind === 'organization' ? 'Organization' : 'Person',
+						name: post.authorName,
+						...(profile ? { url: new URL(profile.href, page.url.origin).href } : {})
+					}
+				}
+			: {}),
 		mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
 		...(post.categoryName ? { articleSection: post.categoryName } : {}),
 		...(post.tags?.length ? { keywords: post.tags.join(', ') } : {})
@@ -133,7 +148,21 @@
 					/>
 				{/if}
 				<div class="min-w-0">
-					<p class="truncate text-xs font-black text-ink">{post.authorName || m.brand_name()}</p>
+					<!-- A creator's or a brand's byline is a way to the rest of what
+					     they do; the platform's own is not a link to anywhere. -->
+					{#if profile}
+						<a
+							href={resolve(profile.href)}
+							class="truncate text-xs font-black text-ink hover:text-brand-fg hover:underline"
+						>
+							{post.authorName}
+						</a>
+						<p class="text-[10px] font-bold tracking-wider text-ink-faint uppercase">
+							{profile.kind === 'organization' ? m.blog_by_brand() : m.blog_by_creator()}
+						</p>
+					{:else}
+						<p class="truncate text-xs font-black text-ink">{post.authorName || m.brand_name()}</p>
+					{/if}
 					{#if post.publishedAt}
 						<p class="text-[11px] font-bold text-ink-dim">
 							<time datetime={published}>{formatPostDate(post.publishedAt)}</time>

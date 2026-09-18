@@ -1955,7 +1955,10 @@ export const trendingLaneEntries = mysqlTable(
 /* ================================================================== *
  * 9. BLOG
  *
- * Editorial pages, written by an operator and read by anyone. Three tables:
+ * Editorial pages, read by anyone and written by three kinds of author: an
+ * operator, a creator writing under their own profile, and a brand writing
+ * under its organisation. The last two publish nothing on their own — a piece
+ * they finish enters `pending` and an operator decides. Three tables:
  *
  *   blog_categories   the sections a post can sit in — a reference table
  *   blog_posts        the article itself, body included
@@ -1994,8 +1997,15 @@ export const blogCategories = mysqlTable(
  * `draft` is invisible to everyone but an operator, `published` is live, and
  * `archived` keeps a post reachable by its URL while dropping it from the
  * index and the feed — an article that is out of date but still linked to.
+ *
+ * `pending` is the one a creator or a brand puts a piece into when they are
+ * finished with it: written, not ours yet. It reads exactly like a draft to
+ * every public query — the only condition any of them apply is
+ * `status = 'published'` — so a post waiting on a decision cannot leak by
+ * somebody forgetting a clause. What it adds is a state an operator can queue
+ * on, which `draft` cannot be: a draft is an author still typing.
  */
-export const blogPostStatusEnum = ['draft', 'published', 'archived'] as const;
+export const blogPostStatusEnum = ['draft', 'pending', 'published', 'archived'] as const;
 
 export const blogPosts = mysqlTable(
 	'blog_posts',
@@ -2054,12 +2064,52 @@ export const blogPosts = mysqlTable(
 		 */
 		authorName: varchar('author_name', { length: 180 }),
 
+		/**
+		 * Which profile the piece belongs to, when it belongs to one.
+		 *
+		 * `authorId` is the account that typed it; these two are the page it is
+		 * published *under*. They are not the same question and cannot be derived
+		 * from one another — a creator's account may later be deleted, a brand's
+		 * article is written by whichever member happened to be signed in, and a
+		 * piece written by an operator belongs to no profile at all and leaves
+		 * both null.
+		 *
+		 * They are also what the profile listings select on, which is why they
+		 * are columns rather than a lookup through `authorId`: "this creator's
+		 * articles" must not change meaning when a brand hands the account that
+		 * wrote them to somebody else.
+		 *
+		 * At most one is ever set. Nothing in the database enforces that — MySQL
+		 * has no partial check worth the name here — so the writes go through
+		 * `$lib/server/blog-authorship`, which is the only thing that sets them.
+		 */
+		creatorId: int('creator_id').references(() => creators.id, { onDelete: 'set null' }),
+		organizationId: int('organization_id').references(() => organizations.id, {
+			onDelete: 'set null'
+		}),
+
+		/** When the author last handed it over. Null on anything never submitted. */
+		submittedAt: timestamp('submitted_at', { fsp: 3 }),
+		reviewedAt: timestamp('reviewed_at', { fsp: 3 }),
+		reviewedBy: userRef('reviewed_by').references(() => user.id, { onDelete: 'set null' }),
+		/**
+		 * Why it was sent back, shown to the author on their own editor.
+		 *
+		 * Kept after an approval too, rather than cleared: a piece that was
+		 * turned down once and fixed is the case where the note is worth
+		 * reading, and the audit log records which decision it belonged to.
+		 */
+		reviewNote: varchar('review_note', { length: 500 }),
+
 		...audit()
 	},
 	(t) => [
 		uniqueIndex('blog_posts_slug_idx').on(t.slug),
 		index('blog_posts_status_idx').on(t.status, t.publishedAt),
-		index('blog_posts_category_idx').on(t.categoryId)
+		index('blog_posts_category_idx').on(t.categoryId),
+		/* The two profile listings, and the author's own dashboard. */
+		index('blog_posts_creator_idx').on(t.creatorId, t.status, t.publishedAt),
+		index('blog_posts_organization_idx').on(t.organizationId, t.status, t.publishedAt)
 	]
 );
 
@@ -2296,6 +2346,11 @@ export const blogPostsRelations = relations(blogPosts, ({ one, many }) => ({
 		references: [blogCategories.id]
 	}),
 	author: one(user, { fields: [blogPosts.authorId], references: [user.id] }),
+	creator: one(creators, { fields: [blogPosts.creatorId], references: [creators.id] }),
+	organization: one(organizations, {
+		fields: [blogPosts.organizationId],
+		references: [organizations.id]
+	}),
 	images: many(blogPostImages)
 }));
 
