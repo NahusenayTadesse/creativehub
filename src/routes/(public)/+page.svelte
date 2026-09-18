@@ -20,6 +20,7 @@
 		ChevronRight
 	} from '@lucide/svelte';
 	import CreatorCard from '$lib/components/creator-card.svelte';
+	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import type { CarouselAPI } from '$lib/components/ui/carousel/context.js';
 	import GalleryCarousel from '$lib/components/gallery-carousel.svelte';
@@ -33,6 +34,23 @@
 	import { resolveLogos } from '$lib/brand';
 
 	let { data } = $props();
+
+	/**
+	 * Whole days from today to `deadline`, both read in UTC.
+	 *
+	 * The server and the reader's browser are rarely in the same zone, and a
+	 * countdown taken from local midnight on one and UTC midnight on the other
+	 * renders two different numbers — which hydration then reports as a mismatch.
+	 * Reading both ends in UTC is what keeps the two renders identical.
+	 */
+	function daysUntil(deadline: string | null): number | null {
+		if (!deadline) return null;
+		const end = Date.parse(`${deadline}T00:00:00Z`);
+		if (Number.isNaN(end)) return null;
+		const now = new Date();
+		const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+		return Math.round((end - today) / 86_400_000);
+	}
 
 	/* ---------------- What a search engine and a link preview see ---------------- */
 
@@ -253,6 +271,10 @@
 			{@render trendingSection()}
 		{:else if section.key === 'categories'}
 			{@render categoriesSection()}
+		{:else if section.key === 'campaigns'}
+			{@render campaignsSection()}
+		{:else if section.key === 'brands'}
+			{@render brandsSection()}
 		{:else if section.key === 'compensation'}
 			{@render compensationSection()}
 		{:else if section.key === 'howItWorks'}
@@ -346,18 +368,14 @@
 											pageIndex = 0;
 										}}
 										aria-pressed={one.key === strip.key}
-										class="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-edge px-3 py-1.5 text-[11px] font-black whitespace-nowrap shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors {one.key ===
+										class="flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold whitespace-nowrap transition-colors {one.key ===
 										strip.key
-											? 'bg-inverse text-inverse-ink'
-											: 'bg-surface text-ink hover:bg-well'}"
+											? 'border-brand bg-brand text-brand-ink'
+											: 'border-edge-soft bg-surface text-ink-soft hover:bg-panel'}"
 									>
 										<Icon class="h-3.5 w-3.5" />
 										<span>{one.label}</span>
-										<span
-											class="rounded-full px-1.5 {one.key === strip.key
-												? 'text-inverse-ink-dim'
-												: 'text-ink-dim'}"
-										>
+										<span class={one.key === strip.key ? 'text-brand-ink/70' : 'text-ink-faint'}>
 											{one.creators.length}
 										</span>
 									</button>
@@ -527,6 +545,214 @@
 			{/each}
 		</div>
 	</section>
+{/snippet}
+
+{#snippet campaignsSection()}
+	<!-- ================= LIVE BRIEFS ================= -->
+	{#if data.briefs.length}
+		<section class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+			<div class="flex flex-wrap items-end justify-between gap-4">
+				<div class="space-y-2">
+					<span class="text-xs font-black tracking-widest text-brand-fg uppercase">
+						{m.home_bf_eyebrow()}
+					</span>
+					<h2 class="text-xl font-black text-ink sm:text-3xl">{m.home_bf_title()}</h2>
+					<p class="max-w-2xl text-xs font-medium text-ink-soft">{m.home_bf_body()}</p>
+				</div>
+				<a
+					href={resolve('/campaigns')}
+					class="inline-flex items-center gap-1 text-sm font-black text-brand-fg hover:underline"
+				>
+					{m.campaign_all_campaigns()}
+					<ArrowRight class="h-4 w-4" />
+				</a>
+			</div>
+
+			<div class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+				{#each data.briefs as brief (brief.id)}
+					{@const days = daysUntil(brief.deadline)}
+					<article
+						class="flex flex-col rounded-[22px] border border-edge-soft bg-surface p-6 shadow-[0_20px_44px_-34px_rgb(var(--bento-shadow)_/_0.55)]"
+					>
+						<div class="flex items-center justify-between gap-2">
+							<span
+								class="truncate rounded-xl bg-inverse px-3 py-2 text-xs font-black text-inverse-ink"
+								title={brief.organizationName}
+							>
+								{brief.organizationName}
+							</span>
+							<span
+								class="flex shrink-0 items-center gap-1.5 text-[11px] font-black tracking-wide text-brand-fg uppercase"
+							>
+								<span class="h-1.5 w-1.5 rounded-full bg-brand"></span>
+								{#if days === null}
+									{m.home_bf_rolling()}
+								{:else if days <= 0}
+									{m.home_bf_last_day()}
+								{:else}
+									{m.home_bf_days_left({ days })}
+								{/if}
+							</span>
+						</div>
+
+						<h3 class="mt-5 text-lg font-black tracking-tight text-ink">
+							<a href={resolve(`/campaigns/${brief.slug}`)} class="hover:text-brand-fg">
+								{brief.title}
+							</a>
+						</h3>
+						{#if brief.description}
+							<p class="mt-3 line-clamp-2 text-xs leading-relaxed font-medium text-ink-soft">
+								{brief.description}
+							</p>
+						{/if}
+
+						{#if brief.deliverables.length}
+							<div class="mt-4 border-t border-edge-soft pt-4">
+								<p class="text-[10px] font-black tracking-widest text-ink-dim uppercase">
+									{m.deliverables()}
+								</p>
+								<!-- Three, because a brief with nine would push the figures below
+								     the fold of the card and the cards out of step with each other. -->
+								{#each brief.deliverables.slice(0, 3) as item (item)}
+									<p class="mt-2 truncate text-xs font-semibold text-ink" title={item}>
+										· {item}
+									</p>
+								{/each}
+							</div>
+						{/if}
+
+						<div
+							class="mt-auto grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-edge-soft pt-0"
+						>
+							<div class="bg-panel px-4 py-3">
+								{#if brief.compensationType === 'paid' && brief.budgetMax > 0}
+									<p class="text-base font-black tracking-tight text-ink">
+										{brief.budgetMax.toLocaleString()}
+										<span class="text-[11px] font-bold text-ink-dim">{brief.currencyCode}</span>
+									</p>
+								{:else}
+									<CompensationBadge type={brief.compensationType} />
+								{/if}
+								<p class="mt-2 text-[10px] font-black tracking-widest text-ink-dim uppercase">
+									{m.home_bf_pays()}
+								</p>
+							</div>
+							<div class="bg-panel px-4 py-3">
+								<p class="text-base font-black tracking-tight text-ink">
+									{brief.applicationsCount}
+								</p>
+								<p class="mt-2 text-[10px] font-black tracking-widest text-ink-dim uppercase">
+									{m.home_bf_applicants()}
+								</p>
+							</div>
+						</div>
+
+						<a
+							href={resolve(`/campaigns/${brief.slug}`)}
+							class="mt-4 rounded-xl bg-brand px-3 py-3 text-center text-xs font-black text-brand-ink transition-colors hover:bg-brand-strong"
+						>
+							{m.campaign_card_view_brief()}
+						</a>
+					</article>
+				{/each}
+			</div>
+		</section>
+	{/if}
+{/snippet}
+
+{#snippet brandsSection()}
+	<!-- ================= BRAND DIRECTORY ================= -->
+	{#if data.brands.length}
+		<section class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+			<div class="flex flex-wrap items-end justify-between gap-4">
+				<div class="space-y-2">
+					<span class="text-xs font-black tracking-widest text-inverse-brand uppercase">
+						{m.home_bd_eyebrow()}
+					</span>
+					<h2 class="text-xl font-black text-ink sm:text-3xl">{m.home_bd_title()}</h2>
+					<p class="max-w-2xl text-xs font-medium text-ink-soft">{m.home_bd_body()}</p>
+				</div>
+				<a
+					href={resolve('/campaigns')}
+					class="inline-flex items-center gap-1 text-sm font-black text-brand-fg hover:underline"
+				>
+					{m.home_bd_browse()}
+					<ArrowRight class="h-4 w-4" />
+				</a>
+			</div>
+
+			<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+				{#each data.brands as brand (brand.id)}
+					<!-- There is no brand directory to link to, so the card goes where the
+					     brand's own work is: the campaign list, searched for its name. -->
+					<a
+						href={resolve(`/campaigns?q=${encodeURIComponent(brand.name)}`)}
+						class="group flex flex-col rounded-[22px] border border-edge-soft bg-surface p-5 shadow-[0_20px_44px_-34px_rgb(var(--bento-shadow)_/_0.55)] transition-all duration-200 hover:-translate-y-0.5"
+					>
+						<div class="flex items-start justify-between gap-2">
+							<AppImage
+								src={brand.logo}
+								alt=""
+								kind="logo"
+								seed={brand.slug}
+								label={brand.name}
+								loading="lazy"
+								decoding="async"
+								class="h-12 w-12 rounded-2xl object-cover"
+							/>
+							{#if brand.openBriefs > 0}
+								<span
+									class="rounded-full bg-brand-soft px-2.5 py-1 text-[10px] font-black tracking-wide text-brand-soft-fg uppercase"
+								>
+									{m.home_bd_hiring()}
+								</span>
+							{:else}
+								<span
+									class="rounded-full bg-well px-2.5 py-1 text-[10px] font-black tracking-wide text-ink-dim uppercase"
+								>
+									{m.campaign_open()}
+								</span>
+							{/if}
+						</div>
+
+						<p
+							class="mt-4 truncate text-base font-black tracking-tight text-ink group-hover:text-brand-fg"
+							title={brand.name}
+						>
+							{brand.name}
+						</p>
+						<p class="mt-1.5 truncate text-[11px] font-semibold text-ink-dim capitalize">
+							{brand.orgType?.replace('_', ' ')}
+							{#if brand.city || brand.countryName}
+								· {brand.city ?? brand.countryName}
+							{/if}
+						</p>
+
+						<div class="mt-4 flex justify-between border-t border-edge-soft pt-4">
+							<div>
+								<p class="text-lg font-black tracking-tight text-ink">{brand.openBriefs}</p>
+								<p class="mt-1.5 text-[10px] font-black tracking-widest text-ink-dim uppercase">
+									{m.home_bd_open_briefs()}
+								</p>
+							</div>
+							<div class="text-right">
+								<p class="text-lg font-black tracking-tight text-ink">{brand.creatorsHired}</p>
+								<p class="mt-1.5 text-[10px] font-black tracking-widest text-ink-dim uppercase">
+									{m.home_bd_creators_hired()}
+								</p>
+							</div>
+						</div>
+
+						{#if brand.wants.length}
+							<p class="mt-4 line-clamp-2 text-[11px] font-medium text-ink-soft">
+								{m.home_bd_looking_for({ list: brand.wants.slice(0, 3).join(', ') })}
+							</p>
+						{/if}
+					</a>
+				{/each}
+			</div>
+		</section>
+	{/if}
 {/snippet}
 
 {#snippet compensationSection()}

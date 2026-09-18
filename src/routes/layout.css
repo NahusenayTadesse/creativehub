@@ -73,6 +73,7 @@
 	--slab-ink-dim: #93a5bd;
 	--slab-edge: #172b45;
 	--slab-brand: #2edcae;
+	--slab-brand-to: #4cc9e0; /* the ocean end, for `.text-brand-gradient-slab` */
 
 	/* --- brand ---------------------------------------------------- */
 	--brand: #0172a4; /* a filled control */
@@ -216,6 +217,9 @@
 	--slab-ink-dim: #8497b1;
 	--slab-edge: #182a42;
 	--slab-brand: #2edcae;
+	/* Both slab stops keep their light-theme values: the ground under them does
+	   not change with the theme, so neither should they. */
+	--slab-brand-to: #4cc9e0;
 
 	--brand: #27c3d9;
 	--brand-strong: #5fd3e3;
@@ -322,6 +326,7 @@
 	--color-slab-ink-dim: var(--slab-ink-dim);
 	--color-slab-edge: var(--slab-edge);
 	--color-slab-brand: var(--slab-brand);
+	--color-slab-brand-to: var(--slab-brand-to);
 	--color-brand: var(--brand);
 	--color-brand-strong: var(--brand-strong);
 	--color-brand-ink: var(--brand-ink);
@@ -869,6 +874,22 @@
  */
 .text-brand-gradient {
 	background-image: linear-gradient(90deg, var(--inverse-brand), var(--inverse-brand-to));
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+}
+
+/*
+ * The same sweep, for a headline sitting on a slab.
+ *
+ * `.text-brand-gradient` above is tuned for the *inverse* tile, which goes
+ * light in the dark theme and takes both its stops dark with it. A slab keeps
+ * its ground in both themes, so a headline on one needs stops that stay
+ * bright — otherwise the accent line turns dark-on-dark the moment the reader
+ * switches theme. Both clear 4.5:1 on `--slab` and `--slab-raised`.
+ */
+.text-brand-gradient-slab {
+	background-image: linear-gradient(90deg, var(--slab-brand), var(--slab-brand-to));
 	-webkit-background-clip: text;
 	background-clip: text;
 	color: transparent;

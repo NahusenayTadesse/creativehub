@@ -11,6 +11,8 @@ export const LANDING_SECTIONS = [
 	'gallery',
 	'trending',
 	'categories',
+	'campaigns',
+	'brands',
 	'compensation',
 	'howItWorks'
 ] as const;
@@ -23,6 +25,8 @@ export const SECTION_VISIBILITY_FIELD = {
 	gallery: 'showGallery',
 	trending: 'showTrending',
 	categories: 'showCategories',
+	campaigns: 'showCampaigns',
+	brands: 'showBrands',
 	compensation: 'showCompensation',
 	howItWorks: 'showHowItWorks'
 } as const satisfies Record<LandingSectionKey, string>;
@@ -97,6 +101,8 @@ export const landingSectionMeta = () =>
 		gallery: { label: m.lp_section_gallery(), help: m.lp_section_gallery_help() },
 		trending: { label: m.lp_section_trending(), help: m.lp_section_trending_help() },
 		categories: { label: m.lp_section_categories(), help: m.lp_section_categories_help() },
+		campaigns: { label: m.lp_section_campaigns(), help: m.lp_section_campaigns_help() },
+		brands: { label: m.lp_section_brands(), help: m.lp_section_brands_help() },
 		compensation: { label: m.lp_section_compensation(), help: m.lp_section_compensation_help() },
 		howItWorks: { label: m.lp_section_how_it_works(), help: m.lp_section_how_it_works_help() }
 	}) satisfies Record<LandingSectionKey, { label: string; help: string }>;

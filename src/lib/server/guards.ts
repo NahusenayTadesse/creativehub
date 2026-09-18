@@ -46,10 +46,12 @@ export const isAdmin = (user?: { role?: string | null } | null) => user?.role ==
 /**
  * The admin pages a data encoder may open.
  *
- * An encoder keeps the reference tables — the countries, regions, categories,
- * platforms, languages and home-page slides every other page reads from — and
- * has no business anywhere else under /dashboard/admin: the audit log, the
- * payouts, the disputes and the users listing are all operator work.
+ * An encoder does the entering: the reference tables — the countries, regions,
+ * categories, platforms, languages and home-page slides every other page reads
+ * from — and the two listings the catalogue is actually made of, the creator
+ * profiles and the brands. It has no business anywhere else under
+ * /dashboard/admin: the audit log, the payouts, the disputes and the users
+ * listing are all operator work.
  *
  * It is an allowlist rather than a list of refusals so that a page added
  * tomorrow is operator-only until somebody says otherwise, which is the way
@@ -61,11 +63,16 @@ const ENCODER_PAGES = [
 	'/dashboard/admin/categories',
 	'/dashboard/admin/platforms',
 	'/dashboard/admin/languages',
-	'/dashboard/admin/gallery'
+	'/dashboard/admin/gallery',
+	'/dashboard/admin/creators',
+	'/dashboard/admin/organizations'
 ] as const;
 
-/** Where an encoder lands, and what the sidebar's first entry points at. */
-export const ENCODER_HOME = ENCODER_PAGES[0];
+/**
+ * Where an encoder lands, and what the sidebar's first entry points at — the
+ * creator listing, because entering profiles is the job the account exists for.
+ */
+export const ENCODER_HOME = '/dashboard/admin/creators' satisfies (typeof ENCODER_PAGES)[number];
 
 const isEncoderPage = (pathname: string) =>
 	ENCODER_PAGES.some((page) => pathname === page || pathname.startsWith(`${page}/`));
@@ -86,13 +93,19 @@ export function requireAdminArea(event: RequestEvent) {
 	error(403, m.srv_no_permission());
 }
 
-/** Who may write to a reference table: an operator, or an encoder. */
+/**
+ * Who may write to a table an encoder keeps: an operator, or an encoder.
+ *
+ * The same pair guards the reference tables and the creator and brand listings,
+ * because they are one job — somebody is hired to enter this data — and two
+ * predicates for one job drift apart the first time the role changes.
+ */
 export const referenceDataGuard = (event: RequestEvent) => requireRole(event, 'admin', 'encoder');
 
 /**
  * Who may remove a row from one. An encoder corrects the data and adds to it;
- * taking a country or a platform out from under every row that points at it is
- * the operator's call.
+ * taking a country, a platform or a whole creator profile out from under every
+ * row that points at it is the operator's call.
  */
 export const adminOnlyDelete = (event: RequestEvent) => isAdmin(event.locals.user);
 

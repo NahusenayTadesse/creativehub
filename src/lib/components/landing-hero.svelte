@@ -15,8 +15,13 @@
 	/**
 	 * The top of the homepage.
 	 *
-	 * Left, the pitch on the inverse tile: headline, search, the two ways in, and
-	 * the platform's live figures. Right, the platform itself — a photograph with
+	 * Left, the pitch on a slab: headline, search, the two ways in, and the
+	 * platform's live figures. A slab rather than the inverse tile because the
+	 * tile is defined to flip with the theme, which turned the first thing on a
+	 * dark page into a near-white block; this half grounds the page, so it keeps
+	 * its navy and its own ink in both themes.
+	 *
+	 * Right, the platform itself — a photograph with
 	 * real creators pinned over it — and, when an operator has added any, the
 	 * partners. Both halves are drawn in the bento vocabulary the rest of the
 	 * site uses: a hard 2px edge and a solid offset shadow, never a blur.
@@ -194,13 +199,13 @@
 			short viewports where it would have bitten.
 		-->
 		<div
-			class="relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-edge bg-inverse p-5 text-inverse-ink shadow-[6px_6px_0px_0px_rgb(var(--bento-shadow))] sm:min-h-[460px] sm:p-10 lg:col-span-7"
+			class="relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-edge bg-slab-raised p-5 text-slab-ink shadow-[6px_6px_0px_0px_rgb(var(--bento-shadow))] sm:min-h-[460px] sm:p-10 lg:col-span-7"
 		>
 			<div class="relative z-10 space-y-5 sm:space-y-6">
 				<div
-					class="inline-flex items-center gap-2 rounded-full border-2 border-edge bg-tile-mint px-4 py-1.5 text-xs font-black tracking-wider text-ink uppercase shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
+					class="inline-flex items-center gap-2 rounded-full border-2 border-edge bg-tile-mint px-4 py-1.5 text-xs font-black tracking-wider text-tile-mint-ink uppercase shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
 				>
-					<ShieldCheck class="h-4 w-4 text-brand-soft-fg" />
+					<ShieldCheck class="h-4 w-4 text-tile-mint-ink" />
 					<span>{m.home_badge_marketplace()}</span>
 				</div>
 
@@ -208,7 +213,7 @@
 					{headline.title}
 					{#if headline.accent}
 						<br />
-						<span class="text-brand-gradient">{headline.accent}</span>
+						<span class="text-brand-gradient-slab">{headline.accent}</span>
 					{/if}
 					{#if headline.end}
 						<br />
@@ -216,7 +221,7 @@
 					{/if}
 				</h1>
 
-				<p class="max-w-xl text-sm leading-relaxed font-medium text-inverse-ink-dim sm:text-base">
+				<p class="max-w-xl text-sm leading-relaxed font-medium text-slab-ink-dim sm:text-base">
 					{subtitle}
 				</p>
 
@@ -261,7 +266,7 @@
 					</a>
 					<a
 						href={resolve('/register')}
-						class="flex items-center justify-center gap-2 rounded-xl border-2 border-edge bg-tile-yellow px-5 py-3 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] sm:py-2.5"
+						class="flex items-center justify-center gap-2 rounded-xl border-2 border-edge bg-slab-brand px-5 py-3 text-xs font-black text-slab shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] sm:py-2.5"
 					>
 						<span>{m.home_cta_create_account()}</span>
 					</a>
@@ -270,25 +275,25 @@
 
 			<!-- Live figures, read from the database rather than written into the page -->
 			<div
-				class="relative z-10 mt-6 grid grid-cols-3 gap-2 border-t-2 border-edge pt-5 text-xs sm:gap-4 sm:pt-6"
+				class="relative z-10 mt-6 grid grid-cols-3 gap-2 border-t-2 border-slab-edge pt-5 text-xs sm:gap-4 sm:pt-6"
 			>
 				<div>
-					<div class="text-xl font-black text-inverse-ink sm:text-2xl">{stats.creators}</div>
-					<div class="text-[10px] font-bold tracking-wider text-inverse-ink-dim uppercase">
+					<div class="text-xl font-black text-slab-ink sm:text-2xl">{stats.creators}</div>
+					<div class="text-[10px] font-bold tracking-wider text-slab-ink-dim uppercase">
 						{m.home_stat_published_creators()}
 					</div>
 				</div>
 				<div>
-					<div class="text-xl font-black text-inverse-brand sm:text-2xl">
+					<div class="text-xl font-black text-slab-brand sm:text-2xl">
 						{formatReach(stats.totalReach)}
 					</div>
-					<div class="text-[10px] font-bold tracking-wider text-inverse-ink-dim uppercase">
+					<div class="text-[10px] font-bold tracking-wider text-slab-ink-dim uppercase">
 						{m.home_stat_combined_reach()}
 					</div>
 				</div>
 				<div>
-					<div class="text-xl font-black text-inverse-ink sm:text-2xl">{stats.campaigns}</div>
-					<div class="text-[10px] font-bold tracking-wider text-inverse-ink-dim uppercase">
+					<div class="text-xl font-black text-slab-ink sm:text-2xl">{stats.campaigns}</div>
+					<div class="text-[10px] font-bold tracking-wider text-slab-ink-dim uppercase">
 						{m.home_stat_live_campaigns()}
 					</div>
 				</div>

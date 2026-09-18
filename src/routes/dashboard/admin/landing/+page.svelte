@@ -128,17 +128,19 @@
 				placeholder={m.hero_subtitle()}
 			/>
 
-			<!-- The headline as a visitor will read it. -->
+			<!-- The headline as a visitor will read it — on the same slab and with the
+			     same accent the hero itself uses, so the preview cannot quietly drift
+			     into showing colours the page never renders. -->
 			<div
-				class="relative overflow-hidden rounded-2xl border-2 border-edge bg-inverse p-4 shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))]"
+				class="relative overflow-hidden rounded-2xl border-2 border-edge bg-slab-raised p-4 shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))]"
 			>
-				<p class="relative text-[10px] font-black tracking-widest text-ink-dim uppercase">
+				<p class="relative text-[10px] font-black tracking-widest text-slab-ink-dim uppercase">
 					{m.lp_preview()}
 				</p>
-				<p class="relative mt-1 text-lg leading-tight font-black text-inverse-ink">
+				<p class="relative mt-1 text-lg leading-tight font-black text-slab-ink">
 					{headline.title}
 					{#if headline.accent}
-						<span class="text-brand-gradient">
+						<span class="text-brand-gradient-slab">
 							{headline.accent}
 						</span>
 					{/if}

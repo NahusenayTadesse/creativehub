@@ -145,13 +145,29 @@
 			}
 		];
 
+		/* The two listings the catalogue is made of, shared for the same reason as
+		   the reference tables above: an encoder enters them, an operator also
+		   works them, and one list keeps the two sidebars saying the same thing. */
+		const catalogue = [
+			{ title: m.sb_creators(), url: resolve('/dashboard/admin/creators'), icon: Users },
+			{
+				title: m.sb_organisations(),
+				url: resolve('/dashboard/admin/organizations'),
+				icon: Building2
+			}
+		];
+
 		/*
-		 * The data encoder keeps the reference tables and sees nothing else. There
-		 * is no overview entry because /dashboard has nothing to show an account
-		 * with neither a profile nor an organisation — it sends them here instead.
+		 * The data encoder enters the catalogue and keeps the reference tables it
+		 * draws on, and sees nothing else. There is no overview entry because
+		 * /dashboard has nothing to show an account with neither a profile nor an
+		 * organisation — it sends them here instead.
 		 */
 		if (role === 'encoder') {
-			return withAccount([{ section: m.sb_reference_data(), items: referenceData }]);
+			return withAccount([
+				{ section: m.sb_marketplace(), items: catalogue },
+				{ section: m.sb_reference_data(), items: referenceData }
+			]);
 		}
 
 		if (role === 'business') {
@@ -241,13 +257,9 @@
 			{
 				section: m.sb_marketplace(),
 				items: [
-					{ title: m.sb_creators(), url: resolve('/dashboard/admin/creators'), icon: Users },
+					catalogue[0],
 					{ title: m.sb_trending(), url: resolve('/dashboard/admin/trending'), icon: Flame },
-					{
-						title: m.sb_organisations(),
-						url: resolve('/dashboard/admin/organizations'),
-						icon: Building2
-					},
+					catalogue[1],
 					{ title: m.sb_users_roles(), url: resolve('/dashboard/admin/users'), icon: UserRoundCog }
 				]
 			},

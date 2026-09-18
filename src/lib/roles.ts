@@ -7,9 +7,10 @@
  * users listing's filter and the sidebar all need the same set of names, and a
  * server-only module cannot give it to the two of them that run in the browser.
  *
- * `encoder` is a data-entry account: it reaches the reference tables under
- * /dashboard/admin and nothing else. What it may open is `ENCODER_PAGES` in
- * $lib/server/guards, which is the allowlist the admin layout enforces.
+ * `encoder` is a data-entry account: it reaches the creator and brand listings
+ * under /dashboard/admin, the reference tables they draw on, and nothing else.
+ * What it may open is `ENCODER_PAGES` in $lib/server/guards, which is the
+ * allowlist the admin layout enforces.
  */
 export const ROLES = ['creator', 'business', 'encoder', 'admin'] as const;
 export type Role = (typeof ROLES)[number];

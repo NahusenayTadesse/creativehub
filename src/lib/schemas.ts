@@ -876,6 +876,8 @@ export const landingSchema = z.object({
 	showGallery: shown,
 	showTrending: shown,
 	showCategories: shown,
+	showCampaigns: shown,
+	showBrands: shown,
 	showCompensation: shown,
 	showHowItWorks: shown
 });

@@ -9,6 +9,7 @@ describe('landingLayout', () => {
 	});
 
 	it('keeps the stored order and visibility', () => {
+		const stored = ['categories', 'gallery', 'trending', 'howItWorks', 'compensation'];
 		const layout = landingLayout([
 			{ key: 'categories', visible: true },
 			{ key: 'gallery', visible: false },
@@ -16,13 +17,10 @@ describe('landingLayout', () => {
 			{ key: 'howItWorks', visible: true },
 			{ key: 'compensation', visible: false }
 		]);
-		expect(keys(layout)).toEqual([
-			'categories',
-			'gallery',
-			'trending',
-			'howItWorks',
-			'compensation'
-		]);
+		/* Only the stored ones are asserted here, in the order they were saved.
+		   Anything shipped since follows them, which is the next test's subject —
+		   spelling the whole list out again would fail on every section added. */
+		expect(keys(layout).slice(0, stored.length)).toEqual(stored);
 		expect(layout.filter((section) => !section.visible).map((s) => s.key)).toEqual([
 			'gallery',
 			'compensation'
@@ -39,10 +37,7 @@ describe('landingLayout', () => {
 		const layout = landingLayout([{ key: 'trending', visible: false }]);
 		expect(keys(layout)).toEqual([
 			'trending',
-			'gallery',
-			'categories',
-			'compensation',
-			'howItWorks'
+			...LANDING_SECTIONS.filter((key) => key !== 'trending')
 		]);
 		expect(layout.slice(1).every((section) => section.visible)).toBe(true);
 	});
