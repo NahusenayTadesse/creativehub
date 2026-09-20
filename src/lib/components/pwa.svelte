@@ -1,20 +1,24 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { dev } from '$app/environment';
-	import { toast } from 'svelte-sonner';
 	import { Download, X } from '@lucide/svelte';
 	import * as m from '$lib/paraglide/messages';
 
 	/**
-	 * Registers the service worker and handles the two moments it creates.
+	 * Registers the service worker, and offers to install the app.
 	 *
-	 * Renders nothing until one of them happens, and nothing at all on the
+	 * Renders nothing until the browser offers, and nothing at all on the
 	 * server. Mounted once, in the root layout.
 	 *
-	 * **A new version is waiting.** The worker deliberately does not take over
-	 * mid-session — see the note in `src/service-worker.ts` — so somebody has to
-	 * say when. That is a toast with a button rather than a silent reload: a
-	 * reload nobody asked for loses whatever is half-typed in a form.
+	 * **There is deliberately no "a new version is ready" prompt.** There was
+	 * one, and it was wrong twice over. The worker now takes over the moment it
+	 * installs — safe because it serves no versioned asset from cache, see
+	 * `src/service-worker.ts` — so there is no waiting worker to announce. And
+	 * the prompt it replaced announced the *same build* on every load, because a
+	 * duplicate worker parked itself in `waiting` and its Reload button could
+	 * never clear it: the button posted `skip-waiting` and reloaded in the same
+	 * breath, so the page died before the worker could act on the message, and
+	 * the next load found the same waiting worker and said the same thing again.
 	 *
 	 * **The browser is willing to install.** Chromium fires
 	 * `beforeinstallprompt`, which can be held and fired later from a button of
@@ -68,52 +72,17 @@
 		window.addEventListener('beforeinstallprompt', onPrompt);
 
 		/*
-		 * Whether this page was already under a worker when it loaded, read once
-		 * and before registering.
-		 *
-		 * This is what tells an update from a first install, and reading it later
-		 * is a race that resolves the wrong way: the worker calls `clients.claim()`
-		 * on activation, so on a first visit a controller appears while the
-		 * `installed` handler is still queued, and the handler then sees one and
-		 * announces a new version to somebody who has only just arrived. Measured
-		 * on a cold profile — the toast fired on the very first page load.
-		 */
-		const wasControlled = Boolean(navigator.serviceWorker?.controller);
-
-		/*
 		 * Not registered in dev: the worker would serve the previous build's
 		 * hashed assets to a page Vite has just rebuilt, which looks like a broken
 		 * app and is really a stale cache.
+		 *
+		 * Nothing is done with the registration. It installs, claims the page and
+		 * replaces itself on the next deploy without anybody being told.
 		 */
 		if (!dev && 'serviceWorker' in navigator) {
-			navigator.serviceWorker.register('/service-worker.js', { type: 'module' }).then(
-				(registration) => {
-					const offerReload = (worker: ServiceWorker | null) => {
-						if (!worker) return;
-						worker.addEventListener('statechange', () => {
-							/* `installed` on a page that was already controlled is an update;
-							   a first install has nothing to replace and nothing to say. */
-							if (worker.state !== 'installed' || !wasControlled) return;
-							toast.info(m.pwa_update_title(), {
-								duration: Infinity,
-								action: {
-									label: m.pwa_update_action(),
-									onClick: () => {
-										worker.postMessage('skip-waiting');
-										location.reload();
-									}
-								}
-							});
-						});
-					};
-
-					if (registration.waiting && wasControlled) offerReload(registration.waiting);
-					registration.addEventListener('updatefound', () => offerReload(registration.installing));
-				},
-				() => {
-					/* An unsupported browser, or a refused registration. The site works. */
-				}
-			);
+			navigator.serviceWorker.register('/service-worker.js', { type: 'module' }).catch(() => {
+				/* An unsupported browser, or a refused registration. The site works. */
+			});
 		}
 
 		return () => window.removeEventListener('beforeinstallprompt', onPrompt);

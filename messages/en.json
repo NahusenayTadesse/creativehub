@@ -2077,8 +2077,6 @@
 	"pwa_offline_body": "This page needs a connection. It will load as soon as you are back online — anything you have already opened stays available.",
 	"pwa_offline_retry": "Try again",
 	"pwa_offline_title": "You are offline",
-	"pwa_update_action": "Reload",
-	"pwa_update_title": "A new version is ready.",
 	"quick_done": "Done",
 	"quick_engage": "Engage",
 	"quick_full_profile": "Full profile & packages",

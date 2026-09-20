@@ -41,12 +41,24 @@
  * ## Updating
  *
  * `version` changes on every build, so each deploy opens a new cache, fills it,
- * and deletes every older one on activation. `skipWaiting` is deliberately not
- * called on install: a worker that takes over mid-session would start serving
- * the new build's assets to a page rendered by the old one, which is how a
- * half-updated app throws chunk-loading errors. It takes over on the next full
- * load instead — or immediately, if the page asks, which is what the update
- * prompt in `pwa.svelte.ts` does.
+ * and deletes every older one on activation. A new worker then takes over at
+ * once — `skipWaiting` on install, `clients.claim` on activate — and nobody is
+ * asked about it.
+ *
+ * It was the other way round while this precached the build. Handing a page
+ * rendered by one build a worker serving another build's assets is how a
+ * half-updated app throws chunk-loading errors, so the new worker waited and a
+ * toast offered a reload. Cutting the precache to the four shell files removed
+ * that hazard entirely: this worker no longer serves a single versioned asset
+ * from cache — build output goes straight to the network — so which worker is
+ * in charge cannot affect a page that is already open.
+ *
+ * Waiting had a cost, and it was not hypothetical. Measured on production: a
+ * second worker installed a second after the first claimed the page, reached
+ * `installed`, and stayed there because the page it would replace was still
+ * open — one cache and one script URL between the two, so the same build twice.
+ * Every load after the first then announced a "new version" that was nothing of
+ * the sort, and the reload button could not clear it.
  */
 import { version } from '$service-worker';
 
@@ -80,6 +92,11 @@ worker.addEventListener('install', (event) => {
 					}
 				})
 			);
+
+			/* Take over now rather than queue behind the open page — safe for the
+			   reason in the note above, and what stops a duplicate worker parking
+			   itself in `waiting` forever. */
+			await worker.skipWaiting();
 		})()
 	);
 });
@@ -93,11 +110,6 @@ worker.addEventListener('activate', (event) => {
 			await worker.clients.claim();
 		})()
 	);
-});
-
-/** The page asking to stop waiting — see the update prompt. */
-worker.addEventListener('message', (event) => {
-	if (event.data === 'skip-waiting') worker.skipWaiting();
 });
 
 /**
