@@ -55,25 +55,6 @@ const handleSecurityHeaders: Handle = async ({ event, resolve }) => {
 	/* Nothing in this app asks for any of these. */
 	response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
-	/*
-	 * The service worker must be re-checked on every load.
-	 *
-	 * It shipped with the four-hour `max-age` this app gives static files, and
-	 * Cloudflare sits in front and honours it: measured on production,
-	 * `cf-cache-status: HIT` with `age: 557` handed browsers the *previous*
-	 * deploy's worker, so a fix to the worker took four hours to reach anybody
-	 * and a fresh visitor installed the old one.
-	 *
-	 * A worker is not a static asset. Its whole job is to decide what the app
-	 * does next, its filename never changes, and a browser asks for it again on
-	 * every navigation precisely so it can be replaced. `no-cache` means "ask
-	 * first" rather than "do not store", so a 304 still costs nothing when it
-	 * has not changed.
-	 */
-	if (event.url.pathname === '/service-worker.js') {
-		response.headers.set('Cache-Control', 'no-cache, must-revalidate');
-	}
-
 	return response;
 };
 
