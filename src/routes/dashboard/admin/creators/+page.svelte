@@ -32,8 +32,13 @@
 		{
 			name: 'primaryPlatformId',
 			label: m.pf_primary_platform(),
-			type: 'select',
-			items: data.reference.platforms.map((p) => ({ value: p.id, name: p.name }))
+			type: 'boxSelect',
+			items: data.reference.platforms.map((p) => ({
+				value: p.id,
+				name: p.name,
+				glyph: p.name,
+				color: p.color
+			}))
 		},
 		{ name: 'totalReach', label: m.pf_total_reach(), type: 'number' },
 		{ name: 'startingPrice', label: m.pf_starting_price(), type: 'number' },

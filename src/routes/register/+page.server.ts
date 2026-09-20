@@ -65,10 +65,34 @@ export const actions: Actions = {
 			await db.update(t.user).set({ role: form.data.role }).where(eq(t.user.id, user.id));
 		} catch (err) {
 			if (err instanceof APIError) {
-				const text =
-					err.body?.code === 'USER_ALREADY_EXISTS'
-						? m.srv_email_in_use()
-						: (err.body?.message ?? m.srv_account_create_failed());
+				/*
+				 * An address that is already registered is the one failure with a
+				 * way forward, so it is tagged rather than just worded: the page
+				 * answers it with the two doors out — sign in, or sign in and
+				 * claim the profile that was imported before the creator arrived
+				 * — instead of a toast that tells them to work it out themselves.
+				 *
+				 * Nothing is disclosed by saying so. /register already refuses a
+				 * taken address, and this only changes what the refusal offers.
+				 *
+				 * Both codes are named because better-auth uses two: sign-up
+				 * raises USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL, while the admin
+				 * plugin's own create-user route raises the bare
+				 * USER_ALREADY_EXISTS. Matching only the short one — as this did
+				 * — let better-auth's untranslated English fall through to the
+				 * reader, which is how an Amharic sign-up came back in English.
+				 */
+				if (
+					err.body?.code === 'USER_ALREADY_EXISTS' ||
+					err.body?.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL'
+				) {
+					return message(
+						form,
+						{ type: 'error', code: 'email_in_use', text: m.srv_email_in_use() },
+						{ status: 400 }
+					);
+				}
+				const text = err.body?.message ?? m.srv_account_create_failed();
 				return message(form, { type: 'error', text }, { status: 400 });
 			}
 			console.error('Sign-up failed:', err);

@@ -4,6 +4,7 @@
 	import { toast } from 'svelte-sonner';
 	import CrudSection from '$lib/components/crud-section.svelte';
 	import StatSourceNote from '$lib/components/stat-source-note.svelte';
+	import OwnershipPanel from '$lib/components/ownership-panel.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import InputComp from '$lib/formComponents/InputComp.svelte';
@@ -15,8 +16,14 @@
 		CircleHelp,
 		ExternalLink,
 		Clock,
-		ChartNoAxesColumnIncreasing
+		ChartNoAxesColumnIncreasing,
+		Link2,
+		Link2Off,
+		Plug
 	} from '@lucide/svelte';
+	import { enhance as plainEnhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { page } from '$app/state';
 	import { formatReach } from '$lib/domain/money';
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
@@ -80,6 +87,74 @@
 	/** The newest proof sent for a channel, if any — the only one its row describes. */
 	const proofOf = (accountId: number) => data.latestProof[accountId];
 
+	/* ---------------------------------------------------------------- *
+	 * Connecting a channel to TikTok
+	 * ---------------------------------------------------------------- */
+
+	/** This channel's TikTok grant, if the creator has given one. */
+	const connectionOf = (accountId: number) => data.connected[accountId];
+
+	/**
+	 * A grant that has stopped working.
+	 *
+	 * `lastSyncDetail` is whatever the last refresh got back. Only the endings
+	 * the creator can do something about are called out — a token that cannot be
+	 * renewed, a scope that was never granted, the account being swapped — and
+	 * everything else is left silent, because a transient 5xx overnight is not
+	 * something to greet somebody with.
+	 */
+	const DEAD_GRANT = [
+		'invalid_grant',
+		'refresh_expired',
+		'no_refresh_token',
+		'account_changed',
+		'scope_not_granted',
+		'access_token_invalid',
+		'scope_not_authorized',
+		'unauthorised'
+	];
+	const needsReconnect = (accountId: number) => {
+		const detail = connectionOf(accountId)?.lastSyncDetail;
+		return detail ? DEAD_GRANT.includes(detail) : false;
+	};
+
+	const isTikTok = (platformId: number) =>
+		platformName(platformId).trim().toLowerCase() === 'tiktok';
+
+	/*
+	 * The round trip through TikTok ends on this page with `?connected=`, which
+	 * is the only way the callback can say anything: it is a redirect, so it has
+	 * no form and no message store to put a sentence in. Read once per
+	 * navigation, like the OAuth notices on the login page, or every reactive
+	 * update would re-toast it.
+	 */
+	const CONNECT_OUTCOMES: Record<string, { ok: boolean; text: () => string }> = {
+		ok: { ok: true, text: m.tt_ok },
+		declined: { ok: false, text: m.tt_declined },
+		expired: { ok: false, text: m.tt_expired },
+		mismatch: { ok: false, text: m.tt_mismatch },
+		unconfigured: { ok: false, text: m.tt_unconfigured },
+		no_channel: { ok: false, text: m.tt_no_channel },
+		exchange_failed: { ok: false, text: m.tt_exchange_failed },
+		profile_failed: { ok: false, text: m.tt_profile_failed },
+		no_stats_scope: { ok: false, text: m.tt_no_stats_scope },
+		handle_mismatch: { ok: false, text: m.tt_handle_mismatch }
+	};
+
+	$effect(() => {
+		const outcome = CONNECT_OUTCOMES[page.url.searchParams.get('connected') ?? ''];
+		if (!outcome) return;
+		untrack(() => (outcome.ok ? toast.success(outcome.text()) : toast.error(outcome.text())));
+	});
+
+	const disconnected: SubmitFunction =
+		() =>
+		async ({ result, update }) => {
+			if (result.type === 'failure') toast.error(result.data?.message ?? m.common_refused());
+			else if (result.type === 'success') toast.success(m.tt_disconnected());
+			await update();
+		};
+
 	const formatDate = (value: string | Date) =>
 		new Date(value).toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
 			day: 'numeric',
@@ -91,9 +166,14 @@
 		{
 			name: 'platformId',
 			label: m.pk_platform(),
-			type: 'select',
+			type: 'boxSelect',
 			required: true,
-			items: data.platforms.map((p) => ({ value: p.id, name: p.name }))
+			items: data.platforms.map((p) => ({
+				value: p.id,
+				name: p.name,
+				glyph: p.name,
+				color: p.color
+			}))
 		},
 		{
 			name: 'handle',
@@ -113,12 +193,6 @@
 			placeholder: '6.8'
 		},
 		{ name: 'profileUrl', label: m.ch_channel_url(), placeholder: 'https://…' },
-		{
-			name: 'isVerified',
-			label: m.ch_ownership_confirmed(),
-			type: 'checkboxSingle',
-			placeholder: m.ch_ownership_note()
-		},
 		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
 		{
 			name: 'isActive',
@@ -242,6 +316,25 @@
 				engagementRate={account.engagementRate}
 			/>
 
+			{#if !connectionOf(account.id)}
+				<!--
+					Proving the handle is theirs, by writing a code we gave them into
+					the bio. Hidden once TikTok has been connected: that grant proves
+					the same thing more strongly and already refreshes the figures, so
+					offering both would be asking twice for one answer.
+				-->
+				<OwnershipPanel
+					account={{
+						id: account.id,
+						platform: platformName(account.platformId),
+						followers: account.followers,
+						ownershipStatus: account.ownershipStatus,
+						ownershipCode: account.ownershipCode,
+						ownershipVerifiedAt: account.ownershipVerifiedAt
+					}}
+				/>
+			{/if}
+
 			{#if proofOf(account.id)?.status === 'pending'}
 				<p
 					class="inline-flex items-center gap-1 rounded-md border border-warn-edge bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn-fg"
@@ -264,6 +357,79 @@
 					<ChartNoAxesColumnIncreasing class="h-3.5 w-3.5" />
 					{m.ch_proof_button()}
 				</button>
+			{/if}
+
+			{#if data.tiktokEnabled && isTikTok(account.platformId)}
+				{@const connection = connectionOf(account.id)}
+				<!--
+					The one platform on this site whose real numbers the creator can
+					switch on themselves. TikTok tells an anonymous server nothing
+					about how big an account is; it tells the account's owner
+					everything, so the owner grants us the read once and the hourly
+					refresh takes it from there.
+				-->
+				<div class="space-y-2 rounded-xl border-2 border-edge-soft bg-panel p-3">
+					{#if connection}
+						<div class="flex flex-wrap items-center justify-between gap-2">
+							<span
+								class="inline-flex items-center gap-1.5 text-[11px] font-black text-brand-soft-fg"
+							>
+								<Link2 class="h-3.5 w-3.5" />
+								<!-- The @ travels in the value, not the message: paraglide's
+								     generated JSDoc reads a literal `@{` as a tag and will not
+								     compile. -->
+								{connection.username
+									? m.tt_connected_as({ username: `@${connection.username}` })
+									: m.tt_connected()}
+							</span>
+
+							<form method="POST" action="?/disconnect" use:plainEnhance={disconnected}>
+								<input type="hidden" name="socialAccountId" value={account.id} />
+								<button
+									type="submit"
+									class="inline-flex items-center gap-1 rounded-lg border-2 border-edge bg-surface px-2.5 py-1 text-[11px] font-black text-danger-fg hover:bg-danger-soft"
+								>
+									<Link2Off class="h-3.5 w-3.5" />
+									{m.tt_disconnect()}
+								</button>
+							</form>
+						</div>
+
+						{#if needsReconnect(account.id)}
+							<p
+								class="flex items-start gap-1.5 rounded-lg border border-warn-edge bg-warn-soft p-2 text-[11px] font-bold text-warn-fg"
+							>
+								<CircleAlert class="mt-px h-3.5 w-3.5 shrink-0" />
+								{m.tt_needs_reconnect()}
+							</p>
+							<form method="POST" action={resolve('/dashboard/channels/connect/tiktok')}>
+								<input type="hidden" name="socialAccountId" value={account.id} />
+								<button
+									type="submit"
+									class="inline-flex items-center gap-1 rounded-lg border-2 border-edge bg-brand px-2.5 py-1 text-[11px] font-black text-brand-ink hover:bg-brand-strong"
+								>
+									<Plug class="h-3.5 w-3.5" />
+									{m.tt_reconnect()}
+								</button>
+							</form>
+						{/if}
+					{:else}
+						<p class="text-[11px] font-medium text-ink-soft">{m.tt_connect_hint()}</p>
+						<!-- A form post, not a link: the origin check that adapter-node
+						     applies to posts is what keeps another site from starting
+						     an authorisation the creator never asked for. -->
+						<form method="POST" action={resolve('/dashboard/channels/connect/tiktok')}>
+							<input type="hidden" name="socialAccountId" value={account.id} />
+							<button
+								type="submit"
+								class="inline-flex items-center gap-1 rounded-lg border-2 border-edge bg-brand px-2.5 py-1 text-[11px] font-black text-brand-ink hover:bg-brand-strong"
+							>
+								<Plug class="h-3.5 w-3.5" />
+								{m.tt_connect()}
+							</button>
+						</form>
+					{/if}
+				</div>
 			{/if}
 
 			{#if account.profileUrl}

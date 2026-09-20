@@ -10,14 +10,27 @@
 	 * platform's colour instead of a wrong or missing picture.
 	 *
 	 * TikTok and X are black marks, and a black mark on a dark card is no mark
-	 * at all, so those two draw in the current ink colour rather than their own.
+	 * at all, so those two draw in an ink colour rather than their own — which
+	 * one is `monoClass`, because the caller is the only one that knows what it
+	 * has put behind them. It is a prop rather than something passed in `class`
+	 * for a reason: both would be colour utilities of the same specificity, and
+	 * which of the two won would be decided by their order in the generated
+	 * stylesheet rather than by the caller. It happened to come out right; that
+	 * is not the same as being right.
 	 */
 	let {
 		name,
 		/** Used for the fallback badge. `platforms.color`, when the caller has it. */
 		color = '',
+		/** The ink a monochrome mark draws in — override it on a dark background. */
+		monoClass = 'text-ink',
 		class: className = 'size-5'
-	}: { name: string | null | undefined; color?: string; class?: string } = $props();
+	}: {
+		name: string | null | undefined;
+		color?: string;
+		monoClass?: string;
+		class?: string;
+	} = $props();
 
 	const ICONS = {
 		instagram: siInstagram,
@@ -37,7 +50,7 @@
 	<svg
 		role="img"
 		viewBox="0 0 24 24"
-		class="shrink-0 {className} {monochrome ? 'fill-current text-ink' : ''}"
+		class="shrink-0 {className} {monochrome ? `fill-current ${monoClass}` : ''}"
 		style:fill={monochrome ? undefined : `#${icon.hex}`}
 		aria-label={icon.title}
 	>

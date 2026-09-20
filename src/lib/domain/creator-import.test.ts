@@ -177,9 +177,12 @@ describe('mapCreatorRow', () => {
 		expect(source.pricingStatus).toBe('Request quote / not publicly verified');
 	});
 
-	it('imports unverified, unclaimed and unpublished', () => {
-		const { creator } = mapCreatorRow(row(), 3);
-		expect(creator.verificationLevel).toBe('unverified');
+	it('imports verified by the operator entering it, but unclaimed and unpublished', () => {
+		const { creator, socials } = mapCreatorRow(row(), 3);
+		/* Entering supply is the confirmation — but it releases nothing: an
+		   operator still chooses what the directory shows. */
+		expect(creator.verificationLevel).toBe('social_verified');
+		expect(socials.every((social) => social.isVerified)).toBe(true);
 		expect(creator.isPublished).toBe(false);
 		expect(creator.isClaimed).toBe(false);
 		expect(creator.isFeatured).toBe(false);

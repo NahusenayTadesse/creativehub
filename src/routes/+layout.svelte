@@ -4,7 +4,6 @@
 	import { BRAND_VERSION } from '$lib/brand';
 	import { locales, localizeHref } from '$lib/paraglide/runtime';
 	import './layout.css';
-	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from 'svelte-sonner';
 
 	let { children } = $props();
@@ -42,16 +41,25 @@
 </svelte:head>
 
 <!--
-	The theme follows the operating system unless the reader has said otherwise,
-	and mode-watcher stamps the choice on <html> from an inline script that runs
-	before first paint — so a dark-mode reader never sees a white flash.
+	The site is light, for everybody, whatever their operating system says.
 
-	That script is inline by necessity: it has to run before the browser paints,
-	and a nonce cannot be handed to a component. Its hash is pinned in
-	`kit.csp` in vite.config.ts, so changing the props here changes the script
-	and invalidates that hash. e2e/csp.e2e.ts fails loudly if the two drift.
+	`<ModeWatcher />` used to sit here and stamp `.dark` on <html> before first
+	paint. It is removed rather than configured to prefer light, because its
+	props cannot force anything: `defaultMode` only supplies a starting value,
+	and the mode it derives comes from `userPrefersMode` — the reader's own
+	`mode-watcher-mode` in localStorage. Every reader who had already chosen dark
+	would have stayed dark, which is the one case this change is about.
+
+	With nothing stamping the class, `.dark` in layout.css and every `dark:`
+	utility are inert, and `color-scheme: light` on `:root` keeps the browser's
+	own furniture — scrollbars, date pickers, form controls — from going dark
+	underneath a light page.
+
+	To put the choice back: restore this component and the four places that
+	rendered `ThemeToggle` / `ThemeChoice` (site-nav, the dashboard layout and
+	the settings page); both components are still here, untouched. The inline
+	script it injects needs its hash back in `kit.csp` in vite.config.ts.
 -->
-<ModeWatcher />
 <Toaster
 	position="bottom-right"
 	toastOptions={{

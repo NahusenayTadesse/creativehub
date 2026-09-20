@@ -11,10 +11,14 @@
  * |          | `videos` — an API key, 3 quota units each  | the latest uploads             |
  * | Telegram | Bot API `getChatMemberCount` — a bot token | members of a public channel    |
  *
- * Instagram and TikTok are not here because neither will: Instagram's Business
- * Discovery needs a verified Meta business app, and TikTok's stats come only
- * from an account that has signed in to ours. Their figures are confirmed by an
- * operator from a screenshot instead — see `stat_proofs`.
+ * Instagram is not here because it will not: Business Discovery needs a
+ * verified Meta business app. Its figures are confirmed by an operator from a
+ * screenshot instead — see `stat_proofs`.
+ *
+ * TikTok is not here either, but for a different reason: its stats do come
+ * from an account that has signed in to ours, which is exactly what
+ * `tiktok.ts` arranges. It is absent from this file only because it needs a
+ * stored grant, and nothing here touches the database.
  *
  * Nothing here touches the database or the environment. Keys arrive as
  * arguments and `fetch` can be replaced, so the parsing below is tested without
@@ -45,10 +49,17 @@ export type StatsResult =
 /** Long enough for a slow morning, short enough that a run of hundreds finishes. */
 const TIMEOUT_MS = 10_000;
 
-/** The platforms this module can ask, by `platforms.name`, matched loosely. */
-export function statsPlatform(platform: string): 'youtube' | 'telegram' | null {
+/**
+ * The platforms the refresh can ask about, by `platforms.name`, matched loosely.
+ *
+ * TikTok is in the list although this module has no function for it: it is
+ * asked through the creator's own grant, which lives in `tiktok.ts` because it
+ * needs the database. What the name means here is "the hourly sweep knows how
+ * to get a number for this", which is now true of all three.
+ */
+export function statsPlatform(platform: string): 'youtube' | 'telegram' | 'tiktok' | null {
 	const name = platform.trim().toLowerCase();
-	return name === 'youtube' || name === 'telegram' ? name : null;
+	return name === 'youtube' || name === 'telegram' || name === 'tiktok' ? name : null;
 }
 
 /*

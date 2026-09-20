@@ -15,8 +15,6 @@
 	} from '@lucide/svelte';
 	import { setLocale, getLocale } from '$lib/paraglide/runtime';
 	import * as m from '$lib/paraglide/messages';
-	import ThemeToggle from './theme-toggle.svelte';
-	import ThemeChoice from './theme-choice.svelte';
 	import SiteLogo from './site-logo.svelte';
 	import type { Logos } from '$lib/brand';
 
@@ -132,8 +130,6 @@
 					<Globe class="h-3.5 w-3.5 text-ink-dim" />
 					<span>{locale === 'en' ? '🇬🇧 EN' : '🇪🇹 አማርኛ'}</span>
 				</button>
-
-				<ThemeToggle />
 
 				{#if user}
 					<span
@@ -337,13 +333,6 @@
 					</span>
 					<span>{locale === 'en' ? '🇬🇧 EN' : '🇪🇹 አማርኛ'}</span>
 				</button>
-
-				<div class="space-y-2">
-					<span class="block text-[10px] font-black tracking-widest text-ink-dim uppercase">
-						{m.theme_appearance()}
-					</span>
-					<ThemeChoice />
-				</div>
 			</div>
 		</div>
 	{/if}

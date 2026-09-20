@@ -627,7 +627,7 @@ platform        the platform's API returned it
 The channels page and the public profile print that under every channel. Only
 `proof` and `platform` read as confirmed.
 
-**Platforms that will say.** Only two answer for a channel nobody signed in to,
+**Platforms that will say.** Two answer for a channel nobody signed in to,
 through a documented API with a free key:
 
 | Platform | Needs                | Gives                                                                                                                                                |
@@ -635,12 +635,33 @@ through a documented API with a free key:
 | YouTube  | `YOUTUBE_API_KEY`    | Subscribers (rounded by YouTube to 3 significant figures) and engagement per view over the last 10 uploads. 3 quota units a channel of 10,000 a day. |
 | Telegram | `TELEGRAM_BOT_TOKEN` | Members of a public channel or group. No engagement.                                                                                                 |
 
-Without a key the platform is skipped. Instagram and TikTok will not give a
-follower count to an anonymous server at all — see `social-check.ts` — so for
-those the creator sends proof: a screenshot and the numbers on it, from the
-channels page. It lands in `/dashboard/admin/figure-proofs`, and approving it is
-the only thing that writes the figures. Screenshots are private uploads, served
-to the creator and operators only.
+Without a key the platform is skipped.
+
+**The platform that will say, but only to its owner.** TikTok gives an anonymous
+server nothing — the profile page serves a WAF challenge to a real handle and a
+fabricated one alike — but it will answer for an account whose owner has signed
+in and granted `user.info.stats`. So the creator connects the channel once, from
+the channels page, and from then on it is refreshed hourly like the other two.
+
+| Platform | Needs                                                                  | Gives                                                                      |
+| -------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| TikTok   | `TIKTOK_CLIENT_ID`, `TIKTOK_SECRET_KEY`, and the creator's own consent | Followers, and engagement as average likes per video against the audience. |
+
+The grant lives in `platform_connections`, one row per channel, and is checked
+against the handle already on the row before anything is written — connecting a
+different TikTok account to a channel is refused rather than silently believed.
+Signing in to the account is also the strongest ownership evidence the site
+collects, so a connected channel is marked confirmed. Disconnecting stops the
+refresh and leaves the last figures where they are. See `tiktok-oauth.ts` for
+the handshake and `tiktok.ts` for the stored side.
+
+**Instagram** will not give a follower count to an anonymous server either, and
+its Business Discovery needs a verified Meta business app — so for Instagram the
+creator sends proof: a screenshot and the numbers on it, from the channels page.
+It lands in `/dashboard/admin/figure-proofs`, and approving it is the only thing
+that writes the figures. Screenshots are private uploads, served to the creator
+and operators only. The same route remains open to TikTok creators who would
+rather not connect.
 
 **What runs, and when.** There is no job runner, so `stats-scheduler.ts` runs
 inside the app, started from `init` in `hooks.server.ts`: two minutes after

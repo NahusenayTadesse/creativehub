@@ -7,10 +7,22 @@ export const selectItem = `hover:bg-well hover:shadow-md hover:scale-101 duratio
 
 export const dropdownClass = `flex capitalize flex-row gap-2 ${selectItem}`;
 
-/** Option shape used by the select and combobox inputs. */
+/** Option shape used by the select, combobox and box-select inputs. */
 export type Item = {
 	value: string | number;
 	name: string;
+	/**
+	 * A platform whose logo stands for this option — `platforms.name`, as
+	 * `$lib/components/platform-glyph.svelte` spells it.
+	 *
+	 * Only the box select draws it; the plain select and the combobox ignore it,
+	 * so one list of items can feed all three. Absent on the options that stand
+	 * for no platform in particular, such as a filter's "All platforms", which
+	 * is why it is a separate field rather than being read off `name`.
+	 */
+	glyph?: string;
+	/** `platforms.color`, for the fallback badge when there is no logo. */
+	color?: string;
 };
 
 export function isMobile() {

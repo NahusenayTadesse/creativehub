@@ -7,7 +7,6 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
-	import ThemeChoice from '$lib/components/theme-choice.svelte';
 	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
@@ -18,7 +17,6 @@
 		Laptop,
 		LogOut,
 		Mail,
-		Palette,
 		TriangleAlert,
 		UserRound
 	} from '@lucide/svelte';
@@ -343,22 +341,6 @@
 				</div>
 			</form>
 		{/if}
-	</div>
-
-	<!-- ---------- appearance ---------- -->
-	<div class="bento-card bento-card-static space-y-4">
-		<div class="flex items-center gap-2">
-			<Palette class="h-4 w-4 text-brand-fg" />
-			<h2 class="text-sm font-black text-ink">{m.theme_appearance()}</h2>
-		</div>
-		<p class="text-[11px] font-medium text-ink-dim">{m.theme_appearance_note()}</p>
-
-		<!--
-			This one saves nothing to the server. The choice lives in the browser,
-			which is what makes it apply before the first paint on the next visit —
-			a round trip would mean a flash of the wrong theme on every page.
-		-->
-		<ThemeChoice />
 	</div>
 
 	<!-- ---------- notifications ---------- -->

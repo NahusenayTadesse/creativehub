@@ -3,7 +3,6 @@
 	import * as m from '$lib/paraglide/messages';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
-	import ThemeToggle from '$lib/components/theme-toggle.svelte';
 	import NotificationBell from '$lib/components/notification-bell.svelte';
 	import { LogOut, ExternalLink } from '@lucide/svelte';
 	import { page } from '$app/state';
@@ -61,7 +60,6 @@
 						{m.dash_public_site()}
 					</a>
 					<NotificationBell unread={data.unreadNotifications} items={data.recentNotifications} />
-					<ThemeToggle />
 					<form method="POST" action="/logout">
 						<button
 							type="submit"

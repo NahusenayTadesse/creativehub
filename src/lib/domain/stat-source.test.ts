@@ -8,8 +8,8 @@ describe('stat sources', () => {
 		expect([...STAT_SOURCES]).toEqual([...statSourceEnum]);
 	});
 
-	it('call only a platform figure or an approved proof confirmed', () => {
-		expect(STAT_SOURCES.filter(isConfirmedSource)).toEqual(['proof', 'platform']);
+	it('call confirmed only a figure the creator did not put there alone', () => {
+		expect(STAT_SOURCES.filter(isConfirmedSource)).toEqual(['proof', 'bio_code', 'platform']);
 		expect(isConfirmedSource(null)).toBe(false);
 		expect(isConfirmedSource('anything else')).toBe(false);
 	});

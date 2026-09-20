@@ -162,6 +162,17 @@
 			}
 		];
 
+		/* Confirming that a handle belongs to the creator claiming it. In the
+		   shared list because an encoder works it too — and it is the gate a new
+		   sign-up waits behind, so it should not be buried where only an operator
+		   would find it. */
+		const channelOwnership = {
+			title: m.sb_channel_ownership(),
+			url: resolve('/dashboard/admin/channel-ownership'),
+			icon: ShieldCheck,
+			counter: counts.channelOwnership
+		};
+
 		/*
 		 * The data encoder enters the catalogue and keeps the reference tables it
 		 * draws on, and sees nothing else. There is no overview entry because
@@ -170,7 +181,7 @@
 		 */
 		if (role === 'encoder') {
 			return withAccount([
-				{ section: m.sb_marketplace(), items: catalogue },
+				{ section: m.sb_marketplace(), items: [...catalogue, channelOwnership] },
 				{ section: m.sb_reference_data(), items: referenceData }
 			]);
 		}
@@ -246,6 +257,7 @@
 						icon: ChartNoAxesColumnIncreasing,
 						counter: counts.statProofs
 					},
+					channelOwnership,
 					{
 						title: m.sb_all_bookings(),
 						url: resolve('/dashboard/bookings'),

@@ -65,7 +65,10 @@ const ENCODER_PAGES = [
 	'/dashboard/admin/languages',
 	'/dashboard/admin/gallery',
 	'/dashboard/admin/creators',
-	'/dashboard/admin/organizations'
+	'/dashboard/admin/organizations',
+	/* Confirming that a handle belongs to the creator claiming it. The same job
+	   as entering the profile, and the gate a new sign-up waits behind. */
+	'/dashboard/admin/channel-ownership'
 ] as const;
 
 /**

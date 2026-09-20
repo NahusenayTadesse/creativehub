@@ -37,6 +37,19 @@
 	const platformId = $derived(listState.values.platform ?? 'all');
 	const verification = $derived(listState.values.verification ?? 'all');
 	const availableOnly = $derived(listState.values.availability === 'available');
+
+	/*
+	 * Whether the directory is showing profiles nobody has stood behind.
+	 *
+	 * Read off the URL rather than `listState.values`, because this is not a
+	 * filter over a column — it widens the set the server is willing to list at
+	 * all. Choosing "Unverified" in the level select means the same thing, so
+	 * the box shows ticked for that too; otherwise the reader would be looking
+	 * at a ticked-off box and an empty page.
+	 */
+	const includeUnverified = $derived(
+		page.url.searchParams.get('unverified') === '1' || verification === 'unverified'
+	);
 	const maxPrice = $derived(Number(listState.values.maxPrice ?? MAX_PRICE));
 	const sortBy = $derived(listState.sort);
 
@@ -131,9 +144,16 @@
 		{ value: 'all', name: m.discover_all_regions() },
 		...visibleRegions.map((r) => ({ value: String(r.id), name: r.name }))
 	]);
+	/* The logos ride along on the platform rows; "All platforms" stands for no
+	   platform in particular and so carries none. */
 	const platformFilterItems = $derived([
 		{ value: 'all', name: m.discover_all_platforms() },
-		...data.reference.platforms.map((p) => ({ value: String(p.id), name: p.name }))
+		...data.reference.platforms.map((p) => ({
+			value: String(p.id),
+			name: p.name,
+			glyph: p.name,
+			color: p.color
+		}))
 	]);
 	const verificationFilterItems = $derived(
 		Object.entries(verificationLabels).map(([value, name]) => ({ value, name }))
@@ -156,9 +176,10 @@
 	 */
 	let filtersOpen = $state(false);
 
-	/** How many filters are narrowing the list, for the button's badge. */
+	/** How many controls are off their default, for the button's badge. */
 	const activeFilterCount = $derived(
-		selectedCountryIds.length +
+		(includeUnverified ? 1 : 0) +
+			selectedCountryIds.length +
 			(categorySlug !== 'all' ? 1 : 0) +
 			(regionId !== 'all' ? 1 : 0) +
 			(platformId !== 'all' ? 1 : 0) +
@@ -194,7 +215,7 @@
 	<InputComp
 		name="platform"
 		id="{scope}-platform"
-		type="select"
+		type="boxSelect"
 		label={m.discover_primary_platform()}
 		items={platformFilterItems}
 		value={platformId}
@@ -236,6 +257,32 @@
 			value={availableOnly}
 			onChange={(next) => go({ availability: next ? 'available' : null })}
 		/>
+	</div>
+
+	<!--
+		The directory lists creators somebody has stood behind. This is how a
+		reader asks to see the rest — profiles whose channels nobody has confirmed
+		yet — rather than being quietly shown them.
+	-->
+	<div class="border-t-2 border-edge pt-3">
+		<InputComp
+			name="unverified"
+			id="{scope}-unverified"
+			type="checkboxSingle"
+			align="between"
+			label={m.discover_include_unverified()}
+			labelHidden
+			placeholder={m.discover_include_unverified()}
+			value={includeUnverified}
+			onChange={(next) =>
+				go({
+					unverified: next ? '1' : null,
+					/* Unticking has to clear the level select too when it is the
+					   thing asking for them, or the box springs straight back. */
+					...(next || verification !== 'unverified' ? {} : { verification: null })
+				})}
+		/>
+		<p class="mt-1 text-[11px] font-medium text-ink-dim">{m.discover_unverified_hint()}</p>
 	</div>
 {/snippet}
 

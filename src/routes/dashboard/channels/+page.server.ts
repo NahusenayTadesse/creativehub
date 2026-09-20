@@ -1,15 +1,24 @@
 import * as m from '$lib/paraglide/messages';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
-import type { RequestEvent } from '@sveltejs/kit';
+import { fail, type RequestEvent } from '@sveltejs/kit';
 import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { contentCrud, CrudRefusal, uploadErrorText } from '$lib/server/crud';
 import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
-import { socialAdd, socialEdit, statProofSubmit } from '$lib/schemas';
+import {
+	ownershipManualCount,
+	ownershipRequest,
+	socialAdd,
+	socialEdit,
+	statProofSubmit
+} from '$lib/schemas';
 import { recordAudit, requireCreator } from '$lib/server/guards';
+import { disconnect, tiktokCredentials } from '$lib/server/tiktok';
 import { refreshCreatorReach } from '$lib/server/score-service';
+import { recalcCreatorVerification } from '$lib/server/db/creator-verification';
 import { verifySubmittedLink } from '$lib/server/social-verify';
+import { issueCode, saveManualCount, verifyOwnership } from '$lib/server/ownership';
 import { saveUploadedFile } from '$lib/server/upload';
 import { profileUrlFor } from '$lib/domain/social-link';
 
@@ -88,6 +97,17 @@ async function sourcesFor(
 	const engagementChanged = !current || Math.abs(current.engagementRate - engagementRate) > 1e-9;
 
 	return {
+		/*
+		 * Ownership is never something this form states.
+		 *
+		 * A new channel starts unconfirmed, whatever was posted — the checkbox
+		 * that used to say otherwise is gone, and pinning it here is what stops a
+		 * hand-written POST putting it back. An edit leaves the column alone
+		 * entirely: correcting a follower count must not throw away an operator's
+		 * decision or a bio-code proof, and omitting the key is how `contentCrud`
+		 * is told not to write it.
+		 */
+		...(action === 'add' ? { isVerified: false } : {}),
 		...(followersChanged
 			? { followersSource: 'self_reported' as const, followersUpdatedAt: now }
 			: {}),
@@ -112,7 +132,12 @@ const crudFor = (creatorId: number) =>
 			...(await checkLink(values)),
 			...(await sourcesFor(creatorId, values, action, id))
 		}),
-		afterWrite: () => refreshCreatorReach(creatorId)
+		/* Reach, and then the rung: deleting the last confirmed channel has to take
+		   the creator back out of the directory it let them into. */
+		afterWrite: async () => {
+			await refreshCreatorReach(creatorId);
+			await recalcCreatorVerification(db, creatorId);
+		}
 	});
 
 /** Forms on one page need distinct ids, or superforms cannot tell their messages apart. */
@@ -120,9 +145,24 @@ const PROOF_FORM_ID = 'stat-proof';
 
 export const load = async (event: RequestEvent) => {
 	const { creator } = await requireCreator(event);
-	const [base, platforms, proofs, proofForm] = await Promise.all([
+	const [base, platforms, connections, proofs, proofForm] = await Promise.all([
 		crudFor(creator.id).load(event),
 		db.select().from(t.platforms).orderBy(asc(t.platforms.sortOrder)),
+		/*
+		 * Which channels the creator has connected, and how the last refresh went.
+		 * Deliberately no token columns: this travels to the browser, and the
+		 * page needs to know that a grant exists, not what it is.
+		 */
+		db
+			.select({
+				socialAccountId: t.platformConnections.socialAccountId,
+				username: t.platformConnections.externalUsername,
+				connectedAt: t.platformConnections.connectedAt,
+				lastSyncedAt: t.platformConnections.lastSyncedAt,
+				lastSyncDetail: t.platformConnections.lastSyncDetail
+			})
+			.from(t.platformConnections)
+			.where(eq(t.platformConnections.creatorId, creator.id)),
 		/* Newest first, so the first row seen for a channel is its latest proof. */
 		db
 			.select({
@@ -142,7 +182,19 @@ export const load = async (event: RequestEvent) => {
 	const latestProof: Record<number, (typeof proofs)[number]> = {};
 	for (const proof of proofs) latestProof[proof.socialAccountId] ??= proof;
 
-	return { ...base, platforms, latestProof, proofForm };
+	const connected: Record<number, (typeof connections)[number]> = {};
+	for (const row of connections) connected[row.socialAccountId] = row;
+
+	return {
+		...base,
+		platforms,
+		latestProof,
+		proofForm,
+		connected,
+		/* Without credentials there is nothing to offer, so the button is not
+		   drawn at all rather than drawn and then failing at 503. */
+		tiktokEnabled: tiktokCredentials() !== null
+	};
 };
 
 export const actions = {
@@ -157,6 +209,131 @@ export const actions = {
 	delete: async (event: RequestEvent) => {
 		const { creator } = await requireCreator(event);
 		return crudFor(creator.id).actions.delete(event);
+	},
+
+	/**
+	 * Hands the TikTok grant back.
+	 *
+	 * The figures it last wrote are left where they are, with their `platform`
+	 * source: they were true when TikTok said them, and blanking a creator's
+	 * follower count because they withdrew our read access would punish the
+	 * withdrawal. They stop being refreshed, which is the whole of what
+	 * disconnecting means, and `followers_updated_at` says how long ago that was.
+	 */
+	disconnect: async (event: RequestEvent) => {
+		const { user, creator } = await requireCreator(event);
+		const form = await event.request.formData();
+		const socialAccountId = Number(form.get('socialAccountId'));
+		if (!Number.isInteger(socialAccountId) || socialAccountId <= 0) {
+			return fail(400, { message: m.srv_invalid_request() });
+		}
+
+		/* Scoped to this creator inside the delete, so an id from the form can
+		   only ever reach a row this creator owns. */
+		await disconnect(db, socialAccountId, creator.id);
+
+		await recordAudit({
+			actorId: user.id,
+			actorLabel: creator.fullName,
+			entity: 'social_account',
+			entityId: socialAccountId,
+			action: 'tiktok_disconnected'
+		});
+
+		return { disconnected: true };
+	},
+
+	/**
+	 * Hands the creator the code they are to paste into their bio.
+	 *
+	 * Issued on demand rather than when the channel is created, so a creator who
+	 * never uses this never has a code sitting on their row, and so the code is
+	 * minted at the moment the instructions for it appear on screen.
+	 */
+	ownershipCode: async (event: RequestEvent) => {
+		const { creator } = await requireCreator(event);
+		const form = await event.request.formData();
+		const parsed = ownershipRequest.safeParse({ socialAccountId: form.get('socialAccountId') });
+		if (!parsed.success) return fail(400, { message: m.srv_invalid_request() });
+
+		const issued = await issueCode(db, parsed.data.socialAccountId, creator.id);
+		if (!issued) return fail(404, { message: m.own_no_channel() });
+
+		return { ownership: { kind: 'issued' as const, ...issued } };
+	},
+
+	/**
+	 * Goes and reads the profile.
+	 *
+	 * Every ending is a 200 with a verdict rather than a `fail`, including the
+	 * ones that did not work: none of them is the creator posting something
+	 * invalid, and all of them have a next step the page needs to draw. The one
+	 * exception is a rate limit, which is a refusal and is returned as one.
+	 */
+	ownershipVerify: async (event: RequestEvent) => {
+		const { user, creator } = await requireCreator(event);
+		const form = await event.request.formData();
+		const parsed = ownershipRequest.safeParse({ socialAccountId: form.get('socialAccountId') });
+		if (!parsed.success) return fail(400, { message: m.srv_invalid_request() });
+
+		const outcome = await verifyOwnership(db, parsed.data.socialAccountId, creator.id);
+
+		if (outcome.kind === 'no_channel') return fail(404, { message: m.own_no_channel() });
+		if (outcome.kind === 'rate_limited') {
+			return fail(429, {
+				message: m.own_rate_limited({ minutes: Math.ceil(outcome.retryAfter / 60) })
+			});
+		}
+
+		if (outcome.kind === 'verified') {
+			await recordAudit({
+				actorId: user.id,
+				actorLabel: creator.fullName,
+				entity: 'social_account',
+				entityId: parsed.data.socialAccountId,
+				action: 'ownership_verified',
+				toState: 'verified',
+				reason: `${outcome.platform} @${outcome.handle}${outcome.followers === null ? '' : `, ${outcome.followers} followers`}`
+			});
+		}
+
+		return { ownership: outcome };
+	},
+
+	/**
+	 * The follower count typed in by hand, for a platform that would not answer.
+	 *
+	 * Saved as `self_reported` — see `saveManualCount`. This exists so that
+	 * Instagram refusing our address never becomes a creator who cannot finish
+	 * their profile.
+	 */
+	ownershipManual: async (event: RequestEvent) => {
+		const { user, creator } = await requireCreator(event);
+		const form = await event.request.formData();
+		const parsed = ownershipManualCount.safeParse({
+			socialAccountId: form.get('socialAccountId'),
+			followers: form.get('followers')
+		});
+		if (!parsed.success) return fail(400, { message: m.own_manual_invalid() });
+
+		const saved = await saveManualCount(
+			db,
+			parsed.data.socialAccountId,
+			creator.id,
+			parsed.data.followers
+		);
+		if (!saved) return fail(404, { message: m.own_no_channel() });
+
+		await recordAudit({
+			actorId: user.id,
+			actorLabel: creator.fullName,
+			entity: 'social_account',
+			entityId: parsed.data.socialAccountId,
+			action: 'followers_self_reported',
+			reason: `${parsed.data.followers} followers, entered by hand`
+		});
+
+		return { ownership: { kind: 'manual_saved' as const } };
 	},
 
 	/**

@@ -25,18 +25,9 @@ export default defineConfig({
 				directives: {
 					'default-src': ['self'],
 					/*
-					 * Two hashes, for the two inline scripts this app genuinely needs.
+					 * One hash, for the one inline script this app genuinely needs.
 					 *
-					 * The first is `mode-watcher`'s theme-init script. It runs before
-					 * paint to set the colour scheme, so it has to be inline, and the
-					 * component emits it without a nonce — SvelteKit mints the nonce
-					 * per response and has no way to hand one to a component. Blocked,
-					 * it costs the very thing the script exists for: the theme lands
-					 * after first paint instead of before it. The script embeds
-					 * `ModeWatcher`'s props, so changing `defaultMode` or `track` in the
-					 * root layout changes this hash.
-					 *
-					 * The second is Svelte's event replay hook. Svelte puts
+					 * It is Svelte's event replay hook. Svelte puts
 					 * `onload="this.__e=event"` and `onerror="this.__e=event"` on every
 					 * server-rendered `<img>` — unconditionally, whether or not the
 					 * component declares a handler — so that an event firing before
@@ -46,20 +37,25 @@ export default defineConfig({
 					 * single discovery page, which is also enough console noise to bury
 					 * a real one.
 					 *
+					 * There was a second, for `mode-watcher`'s theme-init script. That
+					 * component is gone — the site is light for everybody now, see the
+					 * note in `+layout.svelte` — so the script it injected no longer
+					 * exists and its hash is removed with it. Restoring the theme
+					 * choice means putting that hash back; `e2e/csp.e2e.ts` is what
+					 * says so out loud.
+					 *
 					 * `unsafe-hashes` is what lets a hash match an event-handler
 					 * attribute rather than a `<script>` block. It is narrower than it
-					 * sounds: it permits exactly these two strings and nothing else,
-					 * and the second of them stores an event object on an element. It
+					 * sounds: it permits exactly this one string and nothing else, and
+					 * what that string does is store an event object on an element. It
 					 * does not admit inline script generally.
 					 *
-					 * `e2e/csp.e2e.ts` fails if either hash drifts, rather than leaving
-					 * it to be noticed in a console months later.
+					 * `e2e/csp.e2e.ts` fails if the hash drifts, rather than leaving it
+					 * to be noticed in a console months later.
 					 */
 					'script-src': [
 						'self',
 						'unsafe-hashes',
-						/* mode-watcher theme init */
-						'sha256-Cr3r+iKjDTUxJaxM3r/Iq0ow6clOB9AqoT6j0wMFMIM=',
 						/* Svelte event replay: this.__e=event */
 						'sha256-7dQwUgLau1NFCCGjfn9FsYptB6ZtWxJin6VohGIu20I='
 					],

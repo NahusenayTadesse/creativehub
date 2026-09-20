@@ -28,8 +28,19 @@ function oauthErrorText(code: string | null) {
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (locals.user) redirect(303, safeNext(url.searchParams.get('next')));
+
+	const form = await superValidate(zod4(loginSchema));
+	/* /register sends the address it refused as already taken, so the person it
+	   turned away does not retype what they just typed. It only ever fills the
+	   field — the password still has to be right — and it is validated rather
+	   than trusted so a junk parameter cannot open the page on an error. */
+	const suggested = url.searchParams.get('email');
+	if (suggested && loginSchema.shape.email.safeParse(suggested).success) {
+		form.data.email = suggested;
+	}
+
 	return {
-		form: await superValidate(zod4(loginSchema)),
+		form,
 		google: googleEnabled,
 		oauthError: oauthErrorText(url.searchParams.get('error'))
 	};

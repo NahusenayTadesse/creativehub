@@ -270,7 +270,14 @@ export const creatorAdd = z.object({
 	totalReach: count,
 	startingPrice: money,
 	currencyCode: currency,
-	verificationLevel: z.enum(VERIFICATION_LEVELS).default('unverified'),
+	/*
+	 * Entering a profile is an operator's or an encoder's own work, and that is
+	 * the confirmation — so a profile added from the admin listing starts
+	 * verified rather than starting hidden from the directory it was entered
+	 * for. Still a select: an operator who is entering a lead they have not
+	 * checked can put it back.
+	 */
+	verificationLevel: z.enum(VERIFICATION_LEVELS).default('social_verified'),
 	availability: z.enum(['available', 'busy', 'away']).default('available'),
 	overseasPercentage: z.coerce.number().int().min(0).max(100).default(0),
 	topCountries: lines,
@@ -320,13 +327,22 @@ export const creatorCreateProfile = z.object({
 	currencyCode: currency
 });
 
+/**
+ * A channel on the creator's own form.
+ *
+ * `isVerified` is deliberately absent. It used to be here, behind a checkbox
+ * reading "An operator has confirmed I own this channel" — a statement about
+ * somebody else that the creator made on their behalf, and the one field on
+ * this form that the public site now prices against. It is set by an operator
+ * on the ownership queue, or earned outright by the bio-code proof, and a
+ * `beforeWrite` pins it so that a hand-written POST cannot put it back.
+ */
 export const socialAdd = z.object({
 	platformId: refId,
 	handle: z.string().trim().min(2).max(160),
 	followers: count,
 	engagementRate: rate,
 	profileUrl: optionalUrl,
-	isVerified: z.coerce.boolean().default(false),
 	isActive: active,
 	sortOrder: sortOrderField
 });
@@ -350,6 +366,51 @@ export const statProofSubmit = z.object({
 		.int()
 		.min(1, { error: () => m.val_greater_than_zero() }),
 	engagementRate: z.coerce.number().min(0).max(100).optional()
+});
+
+/**
+ * A creator asking about, or answering for, the ownership of one channel.
+ *
+ * `socialAccountId` is a claim and not a permission: every action scopes the
+ * lookup to the signed-in creator before it touches the row.
+ */
+export const ownershipRequest = z.object({ socialAccountId: refId });
+
+/**
+ * The follower count typed in by hand, when the platform would not tell us.
+ *
+ * Stored as `self_reported`, which is what it is. Capped at ten billion so a
+ * slipped keyboard cannot put a number on the marketplace that no account on
+ * earth could hold.
+ */
+export const ownershipManualCount = ownershipRequest.extend({
+	followers: z.coerce
+		.number()
+		.int()
+		.min(0)
+		.max(10_000_000_000, { error: () => m.val_followers_too_large() })
+});
+
+/**
+ * An operator's or an encoder's answer about one channel's ownership.
+ *
+ * Deliberately a two-way switch rather than an approve-only action: a
+ * confirmation made in error is exactly the thing that has to be undoable, and
+ * withdrawing one is what takes a creator back out of the directory.
+ */
+export const channelOwnershipDecision = z.object({
+	id: refId,
+	/*
+	 * Read as the two words, not coerced.
+	 *
+	 * `z.coerce.boolean()` is `Boolean(value)`, and the string "false" is a
+	 * non-empty string, so it coerces to `true`. That is harmless for a checkbox,
+	 * which is absent when unticked — and it is why the coercion is used
+	 * everywhere else in this file. Here the decision travels as a literal
+	 * "true" or "false" in a hidden field, so coercing it would make Withdraw
+	 * post a confirmation. It did, until this line said otherwise.
+	 */
+	confirmed: z.enum(['true', 'false']).transform((value) => value === 'true')
 });
 
 /** An operator's answer to one proof. Rejecting needs a note; the action checks it. */
@@ -405,7 +466,14 @@ export const organizationAdd = z.object({
 	bio: optionalText,
 	countryId: optionalRefId,
 	city: z.string().trim().max(120).optional().default(''),
-	verificationLevel: z.enum(VERIFICATION_LEVELS).default('unverified'),
+	/*
+	 * Entering a profile is an operator's or an encoder's own work, and that is
+	 * the confirmation — so a profile added from the admin listing starts
+	 * verified rather than starting hidden from the directory it was entered
+	 * for. Still a select: an operator who is entering a lead they have not
+	 * checked can put it back.
+	 */
+	verificationLevel: z.enum(VERIFICATION_LEVELS).default('social_verified'),
 	monthlyBudgetCap: z.coerce.number().int().min(0).optional(),
 	isActive: active,
 	sortOrder: sortOrderField

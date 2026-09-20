@@ -27,7 +27,12 @@
 		}))
 	);
 	const platformItems = $derived(
-		data.reference.platforms.map((p) => ({ value: p.id, name: p.name }))
+		data.reference.platforms.map((p) => ({
+			value: p.id,
+			name: p.name,
+			glyph: p.name,
+			color: p.color
+		}))
 	);
 	const currencyItems = ['ETB', 'KES', 'NGN', 'ZAR', 'GHS', 'RWF', 'EGP', 'AED', 'GBP', 'USD'].map(
 		(c) => ({ value: c, name: c })
@@ -116,7 +121,7 @@
 				{errors}
 				label={m.pf_primary_platform()}
 				name="primaryPlatformId"
-				type="select"
+				type="boxSelect"
 				items={platformItems}
 				required
 			/>

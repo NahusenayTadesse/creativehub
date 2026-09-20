@@ -46,10 +46,12 @@ test('no page is blocked by its own policy', async ({ page }) => {
 	expect(violations, violations.join('\n')).toEqual([]);
 });
 
-test('the policy still holds in dark mode', async ({ page }) => {
+test('the policy still holds for a reader whose system is dark', async ({ page }) => {
 	/*
-	 * Dark takes a different branch through mode-watcher's inline script — it
-	 * writes a class where light writes none — so the hash has to cover both.
+	 * The site is light whatever the system says, but the media query still
+	 * differs, and a stylesheet or image that only a dark-preferring browser
+	 * asks for would be governed by the same policy. Cheap to keep, and it is
+	 * the case that used to take its own branch.
 	 */
 	const violations = watchForViolations(page);
 	await page.emulateMedia({ colorScheme: 'dark' });
@@ -75,62 +77,67 @@ test('the page hydrates', async ({ page }) => {
 	await expect(field).toHaveAttribute('type', 'text');
 });
 
-test('the theme is applied before paint, not after', async ({ page }) => {
+/*
+ * The site is light for everybody.
+ *
+ * `<ModeWatcher />` is gone, so nothing stamps `.dark` on <html> and nothing
+ * sets an inline `style.colorScheme` — the declaration lives in `:root` in
+ * layout.css instead, which is why these read the *computed* value. The tests
+ * that used to assert a dark reader got dark now assert the opposite, on
+ * purpose: they are the ones that would notice the theme coming back by
+ * accident.
+ */
+const LIGHT_GROUND = 'rgb(242, 245, 249)'; // --ground, #f2f5f9
+
+const themeOf = (page: import('@playwright/test').Page) => ({
+	scheme: () => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme),
+	ground: () => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+});
+
+test('a reader whose system is light gets light', async ({ page }) => {
+	const theme = themeOf(page);
 	await page.emulateMedia({ colorScheme: 'light' });
 	await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-	/*
-	 * mode-watcher's inline script sets this. Asserting on `colorScheme` rather
-	 * than a class because the light theme adds no class — `lightClassNames` is
-	 * empty, so a class assertion would pass just as happily with the script
-	 * blocked, which is the one thing this test exists to catch.
-	 *
-	 * `domcontentloaded` rather than `networkidle`: the point is that this is
-	 * already true before the app's own JavaScript has had a chance to run.
-	 */
-	await expect(page.locator('html')).toHaveJSProperty('style.colorScheme', 'light');
+	expect(await theme.scheme()).toBe('light');
+	expect(await theme.ground()).toBe(LIGHT_GROUND);
 	await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
 });
 
-test('a dark-mode reader gets dark before paint', async ({ page }) => {
+test('a reader whose system is dark gets light too', async ({ page }) => {
+	const theme = themeOf(page);
 	await page.emulateMedia({ colorScheme: 'dark' });
 	await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-	await expect(page.locator('html')).toHaveJSProperty('style.colorScheme', 'dark');
-	await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-});
-
-test('the tokens actually flip the page, not just the class', async ({ page }) => {
 	/*
-	 * A class on <html> proves mode-watcher ran; it does not prove the stylesheet
-	 * responded. This reads the ground colour the body is actually painted in.
+	 * `domcontentloaded`, so this is true before the app's own JavaScript has
+	 * had a chance to run — a light page that only becomes light after hydration
+	 * is a dark flash, which is the thing worth catching.
 	 */
-	const groundOf = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-
-	await page.emulateMedia({ colorScheme: 'light' });
-	await page.goto('/', { waitUntil: 'domcontentloaded' });
-	expect(await groundOf()).toBe('rgb(243, 244, 246)'); // --ground, light
-
-	await page.emulateMedia({ colorScheme: 'dark' });
-	await page.goto('/', { waitUntil: 'domcontentloaded' });
-	expect(await groundOf()).toBe('rgb(11, 17, 32)'); // --ground, dark
-});
-
-test('the toggle overrides the system, and the choice survives a reload', async ({ page }) => {
-	await page.emulateMedia({ colorScheme: 'dark' });
-	await visit(page, '/');
-	await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-
-	/* The nav toggle carries its purpose in its accessible name. */
-	await page.getByRole('button', { name: /light and dark|ብርሃን/i }).click();
+	expect(await theme.scheme()).toBe('light');
+	expect(await theme.ground()).toBe(LIGHT_GROUND);
 	await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+});
 
+test('a reader who once chose dark gets light anyway', async ({ page }) => {
 	/*
-	 * The choice is stored in the browser rather than on the server, which is
-	 * what lets it apply before the first paint on the next visit. If it did not
-	 * survive a reload, the system preference would win straight back.
+	 * The case that props could not have fixed. mode-watcher persisted the
+	 * choice under this key, and `defaultMode` would have lost to it — so a
+	 * reader who picked dark a month ago has this sitting in their browser
+	 * right now. Nothing reads it any more, and this says so.
 	 */
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await page.goto('/', { waitUntil: 'domcontentloaded' });
+	await page.evaluate(() => localStorage.setItem('mode-watcher-mode', 'dark'));
+
 	await page.reload({ waitUntil: 'domcontentloaded' });
+	const theme = themeOf(page);
+	expect(await theme.scheme()).toBe('light');
+	expect(await theme.ground()).toBe(LIGHT_GROUND);
 	await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
-	await expect(page.locator('html')).toHaveJSProperty('style.colorScheme', 'light');
+});
+
+test('there is no theme control left to press', async ({ page }) => {
+	await visit(page, '/');
+	await expect(page.getByRole('button', { name: /light and dark|ብርሃን/i })).toHaveCount(0);
 });

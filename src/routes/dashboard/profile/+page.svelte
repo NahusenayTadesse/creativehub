@@ -46,7 +46,12 @@
 			.map((r) => ({ value: r.id, name: r.name }))
 	);
 	const platformItems = $derived(
-		data.reference.platforms.map((p) => ({ value: p.id, name: p.name }))
+		data.reference.platforms.map((p) => ({
+			value: p.id,
+			name: p.name,
+			glyph: p.name,
+			color: p.color
+		}))
 	);
 	const categoryItems = $derived(
 		data.reference.categories.map((c) => ({ value: c.id, name: c.name }))
@@ -256,15 +261,17 @@
 				<InputComp {form} {errors} label={m.pf_city()} name="city" type="text" />
 			</div>
 
-			<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-				<InputComp
-					{form}
-					{errors}
-					label={m.pf_primary_platform()}
-					name="primaryPlatformId"
-					type="select"
-					items={platformItems}
-				/>
+			<!-- Its own row: seven platform boxes do not fit in a third of one. -->
+			<InputComp
+				{form}
+				{errors}
+				label={m.pf_primary_platform()}
+				name="primaryPlatformId"
+				type="boxSelect"
+				items={platformItems}
+			/>
+
+			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 				<InputComp
 					{form}
 					{errors}

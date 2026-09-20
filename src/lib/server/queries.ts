@@ -351,6 +351,33 @@ export type CreatorCard = Awaited<ReturnType<typeof hydrateCreatorCards>>[number
 const publishedCreators = () => [live(t.creators), eq(t.creators.isPublished, true)];
 
 /**
+ * A creator somebody other than themselves has stood behind.
+ *
+ * `unverified` is the bottom rung of `verification_level`, and since channel
+ * ownership stopped being a checkbox the creator ticked about themselves, it
+ * means what it says: nobody — not an operator, not an encoder, not the
+ * bio-code proof — has confirmed a single one of this creator's channels.
+ *
+ * Discovery hides them unless the reader asks; trending refuses them outright.
+ * See `$lib/server/db/creator-verification.ts` for what moves a creator off
+ * this rung.
+ */
+const verifiedCreators = () => ne(t.creators.verificationLevel, 'unverified');
+
+/**
+ * Did the reader ask to see unverified profiles?
+ *
+ * Two ways in, because there are two controls that mean it and a reader who
+ * used either should not be shown an empty page. `?unverified=1` is the
+ * "include unverified" checkbox. Choosing `unverified` from the verification
+ * level select says it just as plainly, and gating that choice away would leave
+ * a control in the sidebar that can only ever return nothing.
+ */
+export const wantsUnverified = (url: URL): boolean =>
+	url.searchParams.get('unverified') === '1' ||
+	url.searchParams.get('verification') === 'unverified';
+
+/**
  * One page of published creators.
  *
  * `rank` orders by a campaign fit score, which is computed in the domain and
@@ -365,7 +392,11 @@ export function listCreators(
 	} = {}
 ): Promise<PageResult<CreatorCard>> {
 	return creatorsQuery.run(url, {
-		where: [...publishedCreators(), ...(options.where ?? [])],
+		where: [
+			...publishedCreators(),
+			...(wantsUnverified(url) ? [] : [verifiedCreators()]),
+			...(options.where ?? [])
+		],
 		perPage: options.perPage,
 		...(options.rank ? { rank: { by: options.rank } } : {})
 	});
@@ -391,12 +422,26 @@ export async function listClaimedCreatorCards() {
 
 /** How many published creators sit in each market, for the discovery chips. */
 export const creatorFacet = (url: URL, key: string) =>
-	creatorsQuery.facet(url, key, { where: publishedCreators() });
+	creatorsQuery.facet(url, key, {
+		/* The same gate the listing uses, or the country chips would count
+		   creators the page underneath them refuses to show. */
+		where: [...publishedCreators(), ...(wantsUnverified(url) ? [] : [verifiedCreators()])]
+	});
 
-/** The homepage strip. A fixed handful, not a browsable list. */
+/**
+ * The homepage strip. A fixed handful, not a browsable list.
+ *
+ * Gated like the trending board, and for the same reason rather than a
+ * different one: an operator ticking `is_featured` is choosing to put a creator
+ * in front of every visitor to the front page, which is the strongest thing
+ * this site does for anybody. Doing that for a creator whose channels nobody
+ * has confirmed would say more, more loudly, than the trending board the brief
+ * ruled out. The tick is kept either way — confirm the channel and they appear,
+ * with no need to remember to re-feature them.
+ */
 export async function listFeaturedCreators(limit = 6): Promise<CreatorCard[]> {
 	const page = await creatorsQuery.run(unfiltered(), {
-		where: [...publishedCreators(), eq(t.creators.isFeatured, true)],
+		where: [...publishedCreators(), verifiedCreators(), eq(t.creators.isFeatured, true)],
 		perPage: limit
 	});
 	return page.rows;
@@ -447,7 +492,11 @@ export async function listTrendingCreators(limit = 8): Promise<CreatorCard[]> {
 			{ by: (row: any) => -(rankOf.get(row.id) ?? Infinity) };
 
 	const page = await creatorsQuery.run(unfiltered(), {
-		where: [...publishedCreators(), eq(t.creators.isTrending, true)],
+		/* Unverified creators are refused here with no way to ask for them. The
+		   directory is a list somebody went looking through; this is the platform
+		   putting a creator forward, and it may only put forward creators it has
+		   actually stood behind. */
+		where: [...publishedCreators(), verifiedCreators(), eq(t.creators.isTrending, true)],
 		perPage: limit,
 		...(board.length || local ? { rank } : {})
 	});
@@ -466,7 +515,8 @@ async function listMarketTrendingCreators(countryId: number, limit: number) {
 
 	const rankOf = new Map(board.map((entry) => [entry.creatorId, entry.rank]));
 	const page = await creatorsQuery.run(unfiltered(), {
-		where: [...publishedCreators(), inArray(t.creators.id, [...rankOf.keys()])],
+		/* Same refusal as the national board above. */
+		where: [...publishedCreators(), verifiedCreators(), inArray(t.creators.id, [...rankOf.keys()])],
 		perPage: limit,
 		/* Negated because ranking sorts high-to-low and rank 1 comes first. */
 		rank: { by: (row: any) => -(rankOf.get(row.id) ?? Infinity) }
@@ -526,7 +576,13 @@ export async function listTrendingLanes(): Promise<TrendingLane[]> {
 
 	const ids = [...wanted].slice(0, LANE_CARD_LIMIT);
 	const page = await creatorsQuery.run(unfiltered(), {
-		where: [...publishedCreators(), inArray(t.creators.id, ids)],
+		/* The same refusal as the strips above, and the reason the lanes are
+		   filtered afterwards on what actually came back: a board published
+		   before a creator's last confirmed channel was withdrawn still names
+		   them, and the board is not rebuilt for it. Dropping them here is what
+		   keeps a withdrawn confirmation immediate rather than waiting on the
+		   next trending run. */
+		where: [...publishedCreators(), verifiedCreators(), inArray(t.creators.id, ids)],
 		perPage: ids.length
 	});
 	const cardOf = new Map(page.rows.map((row) => [row.id, row]));
@@ -1547,6 +1603,92 @@ export const statProofQuery = defineQuery({
 	defaultSort: 'oldest',
 	tiebreaker: t.statProofs.id
 });
+
+/**
+ * The queue at /dashboard/admin/channel-ownership: channels nobody has
+ * confirmed belong to the creator claiming them.
+ *
+ * This exists because the confirmation stopped being something the creator
+ * could tick for themselves. Somebody now has to look at each channel and say
+ * whether the handle really is that creator's — and since a creator with no
+ * confirmed channel is hidden from the directory and refused by trending, this
+ * queue is the thing standing between a new sign-up and being findable. It is
+ * worked from the front, oldest first.
+ *
+ * An encoder reaches it as well as an operator: it is the same job as entering
+ * the profiles in the first place.
+ */
+export const channelOwnershipQuery = defineQuery({
+	table: t.socialAccounts,
+	columns: {
+		id: t.socialAccounts.id,
+		handle: t.socialAccounts.handle,
+		profileUrl: t.socialAccounts.profileUrl,
+		followers: t.socialAccounts.followers,
+		followersSource: t.socialAccounts.followersSource,
+		engagementRate: t.socialAccounts.engagementRate,
+		isVerified: t.socialAccounts.isVerified,
+		/* What the link check and the bio-code proof last concluded. An operator
+		   deciding this by hand deserves whatever the machine already found. */
+		linkStatus: t.socialAccounts.linkStatus,
+		linkCheckedAt: t.socialAccounts.linkCheckedAt,
+		ownershipStatus: t.socialAccounts.ownershipStatus,
+		ownershipDetail: t.socialAccounts.ownershipDetail,
+		ownershipVerifiedAt: t.socialAccounts.ownershipVerifiedAt,
+		createdAt: t.socialAccounts.createdAt,
+		platformId: t.socialAccounts.platformId,
+		platformName: t.platforms.name,
+		creatorId: t.socialAccounts.creatorId,
+		creatorName: t.creators.fullName,
+		creatorUsername: t.creators.username,
+		creatorAvatar: t.creators.avatar,
+		creatorVerificationLevel: t.creators.verificationLevel,
+		/* An unclaimed import has nobody to have made the claim, which changes
+		   what confirming it means. */
+		creatorIsClaimed: t.creators.isClaimed
+	},
+	joins: (qb: any) =>
+		qb
+			.leftJoin(t.platforms, eq(t.platforms.id, t.socialAccounts.platformId))
+			.innerJoin(t.creators, eq(t.creators.id, t.socialAccounts.creatorId)),
+	search: [t.creators.fullName, t.creators.username, t.socialAccounts.handle],
+	filters: {
+		/* `is_verified` is a boolean and the filter vocabulary has no boolean, so
+		   the two states are named instead — which reads better in a URL anyway. */
+		state: {
+			type: 'custom',
+			build: (values) => {
+				if (values[0] === 'confirmed') return eq(t.socialAccounts.isVerified, true);
+				if (values[0] === 'unconfirmed') return eq(t.socialAccounts.isVerified, false);
+				return undefined;
+			}
+		},
+		platform: { type: 'number', column: t.socialAccounts.platformId }
+	},
+	sort: {
+		oldest: { column: t.socialAccounts.createdAt, direction: 'asc' },
+		newest: { column: t.socialAccounts.createdAt, direction: 'desc' },
+		reach: { column: t.socialAccounts.followers, direction: 'desc' }
+	},
+	defaultSort: 'oldest',
+	tiebreaker: t.socialAccounts.id
+});
+
+/** Live channels, whoever owns them — the scope the ownership queue works over. */
+export const ownershipQueueScope = () => [
+	isNull(t.socialAccounts.deletedAt),
+	isNull(t.creators.deletedAt)
+];
+
+/** How many channels are waiting for somebody to confirm them. */
+export const countUnconfirmedChannels = async () => {
+	const rows = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(t.socialAccounts)
+		.innerJoin(t.creators, eq(t.creators.id, t.socialAccounts.creatorId))
+		.where(and(eq(t.socialAccounts.isVerified, false), ...ownershipQueueScope()));
+	return Number(rows[0]?.count ?? 0);
+};
 
 export const countPendingStatProofs = async () => {
 	const rows = await db

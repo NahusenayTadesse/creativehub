@@ -9,6 +9,7 @@
 	import DatePicker2 from './DatePicker2.svelte';
 	import DatePicker from './DatePicker.svelte';
 	import ComboboxComp from './ComboboxComp.svelte';
+	import BoxSelect from './BoxSelect.svelte';
 	import CheckboxComp from './CheckboxComp.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { CircleAlert, Eye, EyeOff } from '@lucide/svelte';
@@ -16,7 +17,7 @@
 	import type { FullAutoFill } from 'svelte/elements';
 
 	/**
-	 * One labelled field, in whichever of the nine shapes it needs to be.
+	 * One labelled field, in whichever of the ten shapes it needs to be.
 	 *
 	 * Every form in the app renders its fields through this, so the label, the
 	 * error list, the spacing and the `name` that the server reads are decided
@@ -96,6 +97,7 @@
 		 * exactly there. Defaults to `name`, which is right everywhere else.
 		 */
 		id?: string;
+		/** `text`, `textarea`, `number`, `select`, `boxSelect`, `file`, `date`, … */
 		type?: string;
 		form?: FormStore;
 		errors?: ErrorStore;
@@ -233,6 +235,23 @@
 		<FileUpload {name} {form} {image} {placeholder} />
 	{:else if type === 'select'}
 		<ComboboxComp {name} id={fieldId} bind:value={asScalar, write} {items} {disabled} {required} />
+	{:else if type === 'boxSelect'}
+		<!--
+			The same choice as `select`, shown rather than hidden.
+
+			For short lists that read better as pictures than as words — platforms,
+			where the logo is the faster label. `items` is the identical shape, so
+			a field moves between the two by changing this one word.
+		-->
+		<BoxSelect
+			{name}
+			id={fieldId}
+			bind:value={asScalar, write}
+			{items}
+			{disabled}
+			{required}
+			{describedBy}
+		/>
 	{:else if type === 'date'}
 		<DatePicker2 bind:data={asText, write} {oldDays} {year} {futureDays} />
 		<input type="hidden" {name} value={asText()} />

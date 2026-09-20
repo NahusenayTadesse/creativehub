@@ -7,6 +7,7 @@ import { countUnreadNotifications, listNotifications } from '$lib/server/inbox';
 import {
 	countPendingClaims,
 	countPendingStatProofs,
+	countUnconfirmedChannels,
 	countPendingVerifications,
 	countPostsAwaitingReview
 } from '$lib/server/queries';
@@ -60,7 +61,11 @@ export const load: LayoutServerLoad = async (event) => {
 		counts.introductions = Number(introductions[0]?.n ?? 0);
 		counts.claims = claims;
 		counts.statProofs = statProofs;
+		counts.channelOwnership = await countUnconfirmedChannels();
 		counts.blogApprovals = blogApprovals;
+	} else if (role === 'encoder') {
+		/* The one queue an encoder works that has a backlog worth showing. */
+		counts.channelOwnership = await countUnconfirmedChannels();
 	} else if (creator) {
 		const [bookings, applications] = await Promise.all([
 			db

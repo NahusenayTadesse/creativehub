@@ -11,8 +11,13 @@
 		{
 			name: 'platformId',
 			label: m.pk_platform(),
-			type: 'select',
-			items: data.platforms.map((p) => ({ value: p.id, name: p.name }))
+			type: 'boxSelect',
+			items: data.platforms.map((p) => ({
+				value: p.id,
+				name: p.name,
+				glyph: p.name,
+				color: p.color
+			}))
 		},
 		{ name: 'description', label: m.pk_what_brand_gets(), type: 'textarea', rows: 3 },
 		{

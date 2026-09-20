@@ -557,7 +557,7 @@ export function mapCreatorRow(row: CsvRow, index: number): ImportedCreator {
 				column.platform === primaryPlatform && (row['Primary Profile URL'] ?? '').trim()
 					? (row['Primary Profile URL'] ?? '').trim()
 					: profileUrlFor(column.platform, handle),
-			isVerified: false,
+			isVerified: true,
 			sortOrder: socials.length
 		});
 	}
@@ -579,7 +579,7 @@ export function mapCreatorRow(row: CsvRow, index: number): ImportedCreator {
 			followers: 0,
 			engagementRate: 0,
 			profileUrl: profileUrlFor(platform, handle),
-			isVerified: false,
+			isVerified: true,
 			sortOrder: socials.length
 		});
 	}
@@ -592,7 +592,7 @@ export function mapCreatorRow(row: CsvRow, index: number): ImportedCreator {
 			followers: parseCount(row['Combined Audience Proxy']),
 			engagementRate,
 			profileUrl: (row['Primary Profile URL'] ?? '').trim() || null,
-			isVerified: false,
+			isVerified: true,
 			sortOrder: 0
 		});
 	}
@@ -643,8 +643,24 @@ export function mapCreatorRow(row: CsvRow, index: number): ImportedCreator {
 			reviewsCount: 0,
 			completedBookings: 0
 		}),
-		/* Scraped, not checked: an operator raises this after verifying. */
-		verificationLevel: 'unverified',
+		/*
+		 * An import is an operator entering supply, and that is the confirmation.
+		 *
+		 * This used to come in `unverified` on the reasoning that a scrape is not
+		 * a check. What changed is the consequence: `unverified` now means hidden
+		 * from the directory and refused by the trending board, so leaving a
+		 * hundred and thirty researched profiles there would file the whole
+		 * import behind a queue somebody has to click through row by row.
+		 *
+		 * Nothing is released by this. Imported supply still arrives
+		 * `isPublished: false` two fields below, so an operator still decides
+		 * what the public sees — they decide it in one place, on the creator
+		 * listing, rather than twice.
+		 *
+		 * The channels above are marked the same way and for the same reason.
+		 * `/dashboard/admin/channel-ownership` is where either can be withdrawn.
+		 */
+		verificationLevel: 'social_verified',
 		availability: 'available',
 		isFeatured: false,
 		isTrending: false,

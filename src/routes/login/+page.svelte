@@ -37,10 +37,19 @@
 		if (text) untrack(() => toast.error(text));
 	});
 
-	/* The Google button posts to this page's action, carrying `?next=` so the
-	   round trip through Google lands where the password form would have. */
+	/*
+	 * Both buttons post to this page's actions carrying `?next=`.
+	 *
+	 * A form action is a whole query string, not an addition to one, so a bare
+	 * `?/login` throws away the `next` the page was opened with and the server
+	 * reads nothing — which is how every "sign in to carry on here" link on the
+	 * site quietly landed on /dashboard instead. Both actions rebuild it.
+	 */
 	const next = $derived(page.url.searchParams.get('next'));
-	const googleAction = $derived(next ? `?/google&next=${encodeURIComponent(next)}` : '?/google');
+	const withNext = (action: string) =>
+		next ? `${action}&next=${encodeURIComponent(next)}` : action;
+	const loginAction = $derived(withNext('?/login'));
+	const googleAction = $derived(withNext('?/google'));
 </script>
 
 <svelte:head><title>{m.login_meta_title()}</title></svelte:head>
@@ -64,7 +73,7 @@
 				</p>
 			</div>
 
-			<form method="POST" action="?/login" use:enhance class="space-y-4">
+			<form method="POST" action={loginAction} use:enhance class="space-y-4">
 				<Errors allErrors={$allErrors} />
 
 				<InputComp

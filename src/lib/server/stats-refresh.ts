@@ -10,6 +10,7 @@ import {
 	type StatsFetch,
 	type StatsResult
 } from './platform-stats';
+import { connectionFor, fetchConnectedTikTokStats, tiktokCredentials } from './tiktok';
 
 /**
  * Brings the channels a platform will describe up to date.
@@ -28,6 +29,15 @@ import {
  * `updated_at` on the channel and the creator is left alone: a follower count
  * moving is not somebody editing the profile. `followers_updated_at` is the
  * column that says when the number changed.
+ *
+ * ## Three platforms, two kinds of credential
+ *
+ * YouTube and Telegram are asked with one key belonging to this app, so every
+ * channel on those platforms is askable the moment the key is set. TikTok is
+ * asked with a token belonging to the creator, granted per channel — so a
+ * TikTok row is only in the queue once its owner has connected it, which is
+ * why the select below joins `platform_connections` rather than filtering on
+ * a key. See `tiktok.ts`.
  */
 
 export type RefreshOptions = {
@@ -71,7 +81,10 @@ export async function refreshPlatformStats(
 
 	const keys = {
 		youtube: options.youtubeKey?.trim() || null,
-		telegram: options.telegramToken?.trim() || null
+		telegram: options.telegramToken?.trim() || null,
+		/* Not a key but the app's own TikTok registration: without it no grant can
+		   be renewed, so connected channels are as unaskable as an unkeyed one. */
+		tiktok: tiktokCredentials()
 	};
 
 	const report: RefreshReport = { asked: 0, updated: 0, failed: 0, stopped: {}, unconfigured: [] };
@@ -81,9 +94,10 @@ export async function refreshPlatformStats(
 	 * them would be worse than wasteful: they are never marked as asked, so they
 	 * sort first every run and fill `limit` before a configured channel is reached.
 	 */
-	const wanted = (
-		options.platform ? [options.platform.trim().toLowerCase()] : ['youtube', 'telegram']
-	).filter((name): name is 'youtube' | 'telegram' => name === 'youtube' || name === 'telegram');
+	const askable = ['youtube', 'telegram', 'tiktok'] as const;
+	const wanted = (options.platform ? [options.platform.trim().toLowerCase()] : [...askable]).filter(
+		(name): name is (typeof askable)[number] => (askable as readonly string[]).includes(name)
+	);
 	report.unconfigured = wanted.filter((kind) => !keys[kind]);
 	const configured = wanted.filter((kind) => keys[kind]);
 	if (!configured.length) return report;
@@ -95,11 +109,15 @@ export async function refreshPlatformStats(
 			handle: t.socialAccounts.handle,
 			followers: t.socialAccounts.followers,
 			platform: t.platforms.name,
-			creator: t.creators.username
+			creator: t.creators.username,
+			/* Null for every platform but TikTok, and for a TikTok channel nobody
+			   has connected — which the filter below excludes from the queue. */
+			connectionId: t.platformConnections.id
 		})
 		.from(t.socialAccounts)
 		.innerJoin(t.platforms, eq(t.platforms.id, t.socialAccounts.platformId))
 		.innerJoin(t.creators, eq(t.creators.id, t.socialAccounts.creatorId))
+		.leftJoin(t.platformConnections, eq(t.platformConnections.socialAccountId, t.socialAccounts.id))
 		.where(
 			and(
 				liveSocialFilter(),
@@ -107,6 +125,12 @@ export async function refreshPlatformStats(
 				/* Lower-cased, the way `statsPlatform` matches, and in SQL rather than
 				   after, so `limit` counts channels that will actually be asked. */
 				inArray(sql`lower(${t.platforms.name})`, configured),
+				/* A TikTok row without a grant is not askable, and selecting it would
+				   fill `limit` with channels this run is going to skip. */
+				or(
+					sql`lower(${t.platforms.name}) <> 'tiktok'`,
+					sql`${t.platformConnections.id} is not null`
+				),
 				or(
 					isNull(t.socialAccounts.statsFetchedAt),
 					lt(t.socialAccounts.statsFetchedAt, staleBefore)
@@ -120,6 +144,26 @@ export async function refreshPlatformStats(
 		)
 		.limit(Math.max(1, options.limit ?? 200));
 
+	/**
+	 * One channel, whichever platform it is on.
+	 *
+	 * TikTok is reached through the creator's stored grant rather than a key, so
+	 * its branch re-reads the connection row: the queue carries only the id,
+	 * because the token columns have no business travelling with a listing.
+	 */
+	async function ask(
+		kind: 'youtube' | 'telegram' | 'tiktok',
+		row: { id: number; connectionId: number | null },
+		handle: string
+	): Promise<StatsResult> {
+		if (kind === 'youtube') return fetchYouTubeStats(handle, keys.youtube!, options.fetchImpl);
+		if (kind === 'telegram') return fetchTelegramStats(handle, keys.telegram!, options.fetchImpl);
+
+		const connection = await connectionFor(db, row.id);
+		if (!connection) return { ok: false, detail: 'not_connected' };
+		return fetchConnectedTikTokStats(db, connection, keys.tiktok!, options.fetchImpl, now);
+	}
+
 	const touched = new Set<number>();
 
 	for (const row of queue) {
@@ -127,10 +171,7 @@ export async function refreshPlatformStats(
 		if (!kind || !keys[kind] || report.stopped[kind]) continue;
 
 		const handle = normaliseHandle(row.handle);
-		const result: StatsResult =
-			kind === 'youtube'
-				? await fetchYouTubeStats(handle, keys.youtube!, options.fetchImpl)
-				: await fetchTelegramStats(handle, keys.telegram!, options.fetchImpl);
+		const result: StatsResult = await ask(kind, row, handle);
 
 		/* A failure that is about us says nothing about this channel. Leave the
 		   row unmarked, so the next run asks again once the key or quota is back. */

@@ -22,8 +22,13 @@
 		{
 			name: 'platformId',
 			label: m.pk_platform(),
-			type: 'select',
-			items: data.platforms.map((p) => ({ value: p.id, name: p.name }))
+			type: 'boxSelect',
+			items: data.platforms.map((p) => ({
+				value: p.id,
+				name: p.name,
+				glyph: p.name,
+				color: p.color
+			}))
 		},
 		{ name: 'views', label: m.po_views(), type: 'number' },
 		{ name: 'likes', label: m.po_likes(), type: 'number' },

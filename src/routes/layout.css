@@ -36,6 +36,15 @@
  * ------------------------------------------------------------------ */
 
 :root {
+	/*
+	 * The site is light for everybody — see the note beside the removed
+	 * `<ModeWatcher />` in +layout.svelte. Declared so the browser's own
+	 * furniture (scrollbars, date pickers, the native bits of form controls)
+	 * stays light under an operating system set to dark; without it the page is
+	 * light and its scrollbar is not.
+	 */
+	color-scheme: light;
+
 	/* --- neutrals ------------------------------------------------- */
 	--ground: #f2f5f9; /* the page behind the cards */
 	--surface: #ffffff; /* the card itself */
@@ -184,6 +193,11 @@
 /*
  * Dark. Only the tokens are redefined — no component below this point knows
  * which theme it is in.
+ *
+ * Inert while the site is light-only: nothing stamps `.dark` on <html> any
+ * more, so neither these tokens nor any `dark:` utility can match. Kept whole
+ * so that restoring the choice is putting `<ModeWatcher />` back, not
+ * rebuilding a palette.
  */
 .dark {
 	--ground: #07111f;

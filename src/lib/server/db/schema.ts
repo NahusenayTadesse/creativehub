@@ -308,7 +308,19 @@ export const linkStatusEnum = ['unchecked', 'found', 'not_found', 'unknown'] as 
 
 /* Where a follower count or an engagement rate came from. Kept in step with
    STAT_SOURCES in $lib/domain/stat-source.ts. */
-export const statSourceEnum = ['self_reported', 'imported', 'proof', 'platform'] as const;
+export const statSourceEnum = [
+	'self_reported',
+	'imported',
+	'proof',
+	'bio_code',
+	'platform'
+] as const;
+
+/* How far a creator has got with proving they own the handle on the row.
+   `none` is a channel nobody has started on, which is not the same as one that
+   tried and could not. Kept in step with OWNERSHIP_STATUSES in
+   $lib/domain/ownership.ts. */
+export const ownershipStatusEnum = ['none', 'pending', 'verified', 'unverified'] as const;
 
 export const socialAccounts = mysqlTable(
 	'social_accounts',
@@ -362,10 +374,111 @@ export const socialAccounts = mysqlTable(
 		 */
 		linkStatus: mysqlEnum('link_status', linkStatusEnum).default('unchecked').notNull(),
 		linkCheckedAt: timestamp('link_checked_at', { fsp: 3 }),
+		/**
+		 * The creator proving the handle is theirs, by writing a code we gave them
+		 * into the one field on the profile only its owner can edit.
+		 *
+		 * This is the evidence behind `isVerified`, which on its own is only a
+		 * claim. `ownershipCode` is what they were asked to paste; it is kept
+		 * after success so a re-check can run without issuing a new one, and so an
+		 * operator looking at a dispute can see what was asked for.
+		 *
+		 * `unverified` is not a failure of the creator's: it is what a channel
+		 * gets when the platform would not answer at all — Instagram and TikTok
+		 * refuse this server outright — and the follower count beside it was typed
+		 * in by hand. See `$lib/server/ownership.ts`.
+		 */
+		ownershipCode: varchar('ownership_code', { length: 16 }),
+		ownershipStatus: mysqlEnum('ownership_status', ownershipStatusEnum).default('none').notNull(),
+		/** The last time Verify was pressed, whatever it concluded. */
+		ownershipCheckedAt: timestamp('ownership_checked_at', { fsp: 3 }),
+		/** Why the last attempt did not succeed — `code_not_found`, `http_401`. */
+		ownershipDetail: varchar('ownership_detail', { length: 80 }),
+		ownershipVerifiedAt: timestamp('ownership_verified_at', { fsp: 3 }),
+		/**
+		 * The handle, copied here only once ownership is proved, and NULL until then.
+		 *
+		 * This column exists for its unique index and nothing else. Two creators
+		 * must not both hold a *verified* claim on one handle, but any number of
+		 * them may have an unproven row naming it — somebody mistyping a famous
+		 * account should not be blocked, only stopped from proving it. MySQL's
+		 * unique indexes ignore NULLs, which is exactly that rule: one verified
+		 * claim per handle, unlimited unverified ones.
+		 */
+		verifiedHandle: varchar('verified_handle', { length: 160 }),
 		...publishable(),
 		...audit()
 	},
-	(t) => [index('social_creator_idx').on(t.creatorId)]
+	(t) => [
+		index('social_creator_idx').on(t.creatorId),
+		uniqueIndex('social_verified_handle_idx').on(t.platformId, t.verifiedHandle)
+	]
+);
+
+/**
+ * A creator's own authorisation to read one channel's figures from the platform.
+ *
+ * The reason this table exists at all: Instagram and TikTok will not tell an
+ * anonymous server how big an account is — see the table at the top of
+ * `$lib/server/social-check.ts`, re-probed and still true. What they will do is
+ * answer for an account whose owner has signed in and granted a scope. So the
+ * creator connects the channel once, and from then on the hourly refresh can
+ * ask about it the same way it asks YouTube and Telegram.
+ *
+ * One row per channel, not per creator: the grant is about a single TikTok
+ * account, and a creator may hold several. `socialAccountId` is unique for that
+ * reason, and the row dies with the channel.
+ *
+ * ## These are credentials
+ *
+ * `accessToken` and `refreshToken` are bearer secrets: anything holding one can
+ * read that creator's TikTok profile until it expires. Nothing outside
+ * `$lib/server/tiktok.ts` selects those two columns, no route ever returns
+ * them, and `disconnect` deletes the row outright rather than soft-deleting it
+ * — a revoked grant should not leave a usable token in the table.
+ */
+export const platformConnections = mysqlTable(
+	'platform_connections',
+	{
+		id: id(),
+		socialAccountId: int('social_account_id')
+			.notNull()
+			.references(() => socialAccounts.id, { onDelete: 'cascade' }),
+		creatorId: int('creator_id')
+			.notNull()
+			.references(() => creators.id, { onDelete: 'cascade' }),
+		/** Which platform's grant this is. Only TikTok is implemented so far. */
+		provider: mysqlEnum('provider', ['tiktok']).notNull(),
+		/**
+		 * Who the platform says this is — TikTok's `open_id`, stable for the life
+		 * of the grant and scoped to our app. Kept so a reconnect can be told
+		 * apart from a different account being connected over the top of one.
+		 */
+		externalId: varchar('external_id', { length: 191 }).notNull(),
+		/** The handle as the platform spells it, which is what the row is checked against. */
+		externalUsername: varchar('external_username', { length: 191 }),
+		accessToken: text('access_token').notNull(),
+		accessTokenExpiresAt: timestamp('access_token_expires_at', { fsp: 3 }).notNull(),
+		/**
+		 * Nullable because a grant can come back without one. TikTok's refresh
+		 * token lasts a year and is replaced on every use; when it finally
+		 * expires the creator has to connect again, which is what
+		 * `lastSyncDetail` says.
+		 */
+		refreshToken: text('refresh_token'),
+		refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { fsp: 3 }),
+		/** What was actually granted — a creator may untick a scope on the consent screen. */
+		scope: varchar('scope', { length: 500 }),
+		connectedAt: timestamp('connected_at', { fsp: 3 }).defaultNow().notNull(),
+		/** When the refresh last used this grant, and a word for what came back. */
+		lastSyncedAt: timestamp('last_synced_at', { fsp: 3 }),
+		lastSyncDetail: varchar('last_sync_detail', { length: 80 }),
+		...audit()
+	},
+	(t) => [
+		uniqueIndex('connection_account_idx').on(t.socialAccountId),
+		index('connection_creator_idx').on(t.creatorId)
+	]
 );
 
 /**

@@ -133,7 +133,16 @@
 	   describing the handle before it. */
 	let checks = $state<Record<string, CheckResult | undefined>>({});
 	let checking = $state<Record<string, boolean>>({});
-	let checkedValue: Record<string, string> = {};
+	/*
+	 * State, not a plain object, and that is the whole reason the verdict is
+	 * visible at all.
+	 *
+	 * `verdictFor` compares this against the field's current value and only
+	 * reads `checks` when the two agree — so until they do, `checks` is not a
+	 * dependency of anything, and a plain assignment here left nothing to tell
+	 * Svelte to look again. The answer arrived, was stored, and was never drawn.
+	 */
+	let checkedValue = $state<Record<string, string>>({});
 
 	async function runCheck(field: CrudField) {
 		if (!field.check || checking[field.name]) return;
@@ -158,6 +167,26 @@
 	/* The verdict is only about the value that was checked. */
 	const verdictFor = (field: CrudField) =>
 		checkedValue[field.name] === String($form[field.name] ?? '') ? checks[field.name] : undefined;
+
+	/**
+	 * The same check, run without being asked.
+	 *
+	 * The button remains, because a check that never reports is worse than one
+	 * nobody pressed — but a creator filling this form in for the first time has
+	 * no reason to know the button matters, and the save refuses a handle the
+	 * platform denies. Finding that out on blur, while the field is still under
+	 * the cursor, is the difference between a correction and a rejection.
+	 *
+	 * On focus leaving the field rather than on each keystroke: one request when
+	 * they move on, not one per letter. A value already checked is not asked
+	 * about again, so tabbing back and forth costs nothing.
+	 */
+	function autoCheck(field: CrudField) {
+		if (!field.check) return;
+		const value = String($form[field.name] ?? '').trim();
+		if (!value || checkedValue[field.name] === value) return;
+		void runCheck(field);
+	}
 </script>
 
 <Dialog.Root bind:open>
@@ -202,7 +231,7 @@
 						<input type="hidden" name="id" value={$form.id} />
 					{/if}
 
-					{#each fields as field (field.name)}
+					{#snippet control(field: CrudField)}
 						<InputComp
 							{form}
 							{errors}
@@ -215,6 +244,19 @@
 							items={field.items ?? []}
 							image={existing[field.name] ?? ''}
 						/>
+					{/snippet}
+
+					{#each fields as field (field.name)}
+						{#if field.check}
+							<!-- `focusout` rather than `blur`, because blur does not bubble and
+							     the input this wraps is InputComp's, not ours. `display:contents`
+							     so the wrapper changes nothing about the layout. -->
+							<div class="contents" onfocusout={() => autoCheck(field)}>
+								{@render control(field)}
+							</div>
+						{:else}
+							{@render control(field)}
+						{/if}
 
 						{#if field.check}
 							{@const verdict = verdictFor(field)}
