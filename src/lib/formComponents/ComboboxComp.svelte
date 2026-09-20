@@ -19,6 +19,7 @@
 	let {
 		items,
 		name,
+		label = undefined,
 		id = undefined,
 		value = $bindable(),
 		required = false,
@@ -32,6 +33,19 @@
 	}: {
 		items: Item[];
 		name: string;
+		/**
+		 * The words already printed above the control, for the placeholder to
+		 * borrow.
+		 *
+		 * Without it the placeholder was built out of `name` — the schema field —
+		 * so a control labelled "Country" said **"Select country Id"**, and every
+		 * other dropdown in the app named its own column in the same way. Worse
+		 * for a reader in Amharic: `form_select_placeholder` is translated, but
+		 * the fragment interpolated into it was an English column name, so a
+		 * translated sentence came back with `country Id` sitting in the middle
+		 * of it. `label` is already a translated string at every call site.
+		 */
+		label?: string;
 		/**
 		 * What a label points at, when it cannot be `name`.
 		 *
@@ -53,7 +67,11 @@
 	let triggerRef = $state<HTMLButtonElement>(null!);
 
 	const showSearch = $derived(searchable ?? items.length > SEARCH_THRESHOLD);
-	const fieldLabel = $derived(name.replace(/([a-z0-9])([A-Z])/g, '$1 $2'));
+	/* The printed label where there is one. The split-on-capitals fallback is
+	   for the handful of call sites that render this control without going
+	   through `InputComp`, and it is still the wrong words — it is only better
+	   than an empty placeholder. */
+	const fieldLabel = $derived(label || name.replace(/([a-z0-9])([A-Z])/g, '$1 $2'));
 
 	/* Compared as strings: a select posts "1" and the form may hold 1. */
 	const selected = $derived(items.find((f: Item) => String(f.value) === String(value)));

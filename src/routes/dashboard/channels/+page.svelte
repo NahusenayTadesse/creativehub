@@ -3,6 +3,7 @@
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
 	import CrudSection from '$lib/components/crud-section.svelte';
+	import OnboardingSteps from '$lib/components/onboarding-steps.svelte';
 	import StatSourceNote from '$lib/components/stat-source-note.svelte';
 	import OwnershipPanel from '$lib/components/ownership-panel.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
@@ -233,6 +234,14 @@
 	nameKey="handle"
 	emptyMessage={m.ch_empty()}
 >
+	<!-- The thread /dashboard/profile/create started. Only while the page is
+	     still unpublished; after that this is settled business. -->
+	{#snippet notice()}
+		{#if data.creator && !data.creator.isPublished}
+			<OnboardingSteps step={2} />
+		{/if}
+	{/snippet}
+
 	{#snippet extraActions()}
 		<span
 			class="rounded-2xl border-2 border-edge bg-tile-yellow px-4 py-2.5 text-xs font-black text-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))]"

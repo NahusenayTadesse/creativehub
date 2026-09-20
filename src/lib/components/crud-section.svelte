@@ -41,7 +41,8 @@
 		extraActions = undefined,
 		editValues = undefined,
 		fileFields = [],
-		canDelete = true
+		canDelete = true,
+		notice = undefined
 	}: {
 		eyebrow: string;
 		title: string;
@@ -76,6 +77,12 @@
 		 * refused. The action checks the same thing again.
 		 */
 		canDelete?: boolean;
+		/**
+		 * Something to say above the list, before the reader reaches the rows —
+		 * where a creator still working through onboarding is told which step
+		 * this page is and where the next one is.
+		 */
+		notice?: Snippet;
 	} = $props();
 
 	const valuesFor = (record: any) => {
@@ -114,6 +121,10 @@
 			/>
 		{/snippet}
 	</PageHeader>
+
+	{#if notice}
+		{@render notice()}
+	{/if}
 
 	{#if list && (list.total > 0 || list.state.search)}
 		<div class="flex flex-wrap items-center justify-between gap-3">

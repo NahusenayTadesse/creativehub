@@ -19,11 +19,25 @@
 		futureDays?: boolean;
 	} = $props();
 
-	const todayDate = $derived(oldDays ? undefined : today(getLocalTimeZone()));
+	/**
+	 * The two ends of the calendar, and each prop allows what it is named after:
+	 * `oldDays` opens the past, `futureDays` opens the future.
+	 *
+	 * `futureDays` used to do the opposite — it set `maxValue` *to* today, so
+	 * passing it capped the calendar at today while `oldDays` was still closing
+	 * off the past, leaving exactly one selectable day. Every date field in the
+	 * app passes it, and every one of them is a date in the future: a booking
+	 * deadline, a counter-offer's deadline, a blog post held back until a given
+	 * day, the start and end of a trending override. So a brand booking a
+	 * creator could only ever propose a deadline of today, whatever the package
+	 * said its turnaround was.
+	 */
+	const minDate = $derived(oldDays ? undefined : today(getLocalTimeZone()));
+	const maxDate = $derived(futureDays ? undefined : today(getLocalTimeZone()));
 
 	/** The bound string as a calendar date, or today when there is nothing yet. */
 	const parse = (value: string) =>
-		parseDate(value || todayDate?.toString() || new Date().toISOString().split('T')[0]);
+		parseDate(value || minDate?.toString() || new Date().toISOString().split('T')[0]);
 
 	let form = $state(untrack(() => parse(data)));
 
@@ -75,8 +89,8 @@
 		<Calendar
 			type="single"
 			captionLayout={year ? 'dropdown-years' : 'label'}
-			minValue={todayDate}
-			maxValue={futureDays ? today(getLocalTimeZone()) : undefined}
+			minValue={minDate}
+			maxValue={maxDate}
 			bind:value={form}
 		/>
 		<!-- {#each [{ label: 'Today', value: 0 }, { label: 'Tomorrow', value: 1 }, { label: 'In 3 days', value: 3 }, { label: 'In a week', value: 7 }, { label: 'In 2 weeks', value: 14 }] as preset (preset.value)}

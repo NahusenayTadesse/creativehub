@@ -33,10 +33,19 @@ async function signIn(page: Page, email: string) {
 	await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
 }
 
-/** The `src` of the first avatar image on the page. */
+/**
+ * The `src` of the first avatar in the listing.
+ *
+ * Scoped to `main` and past the brand marks, because `document.images[0]` is
+ * the wordmark in the header on every dashboard page — so this asserted
+ * against `/brand/wordmark.webp` and could not pass however well the upload
+ * worked.
+ */
 const firstAvatarSrc = (page: Page) =>
 	page.evaluate(() => {
-		const image = document.images[0];
+		const image = [...document.querySelectorAll('main img')].find(
+			(img) => !(img.getAttribute('src') ?? '').startsWith('/brand/')
+		);
 		return image ? image.getAttribute('src') : null;
 	});
 

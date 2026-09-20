@@ -1,4 +1,5 @@
 import * as m from '$lib/paraglide/messages';
+import { PAYMENT_GATEWAY_ENABLED } from '$lib/payment-gateway';
 
 /**
  * The booking lifecycle. Transitions are declared here and enforced on the
@@ -54,6 +55,38 @@ const TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
  */
 export const canTransition = (from: BookingStatus, to: BookingStatus) =>
 	Object.hasOwn(TRANSITIONS, from) && TRANSITIONS[from].includes(to);
+
+/** The little of a booking these two predicates need. */
+type Deal = { status: string; compensationType: string; escrowStatus: string };
+
+/**
+ * Whether money has to arrive before the work may begin.
+ *
+ * Only a paid deal, and only while there is a way to pay it. A barter deal and
+ * an event pass have no deposit by construction, and with the gateway off
+ * neither has a paid one: there is no button that would take it and `settle`
+ * already stopped asking for it, so waiting on one would be waiting forever.
+ */
+export const awaitsDeposit = (booking: Deal) =>
+	PAYMENT_GATEWAY_ENABLED && booking.compensationType === 'paid' && booking.escrowStatus !== 'held';
+
+/**
+ * Whether the creator may pick the deal up and start.
+ *
+ * `booked → in_production` used to be written in exactly two places, both of
+ * them about money: the Chapa callback and the operator's manual deposit. So
+ * every deal that needs no deposit — every barter deal and every event pass,
+ * and with the gateway off every paid deal too — reached `booked` and stopped
+ * there. The creator's submit button is drawn from `in_production`, so the work
+ * could never be handed in, the brand could never approve it, and the booking
+ * could never complete.
+ *
+ * This is the step that was missing: where there is no deposit to wait for, the
+ * creator says when they have started, and the deal moves on the strength of
+ * that rather than on the strength of a payment nobody can make.
+ */
+export const canStartWork = (booking: Deal) =>
+	booking.status === 'booked' && !awaitsDeposit(booking);
 
 /**
  * Where an introduction stands.

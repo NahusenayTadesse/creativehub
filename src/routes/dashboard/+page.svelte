@@ -36,30 +36,41 @@
 	{#if data.view === 'onboarding'}
 		<PageHeader eyebrow={m.ob_eyebrow()} title={m.ob_title()} description={m.ob_description()} />
 
+		<!--
+			One card, not two. Both used to be drawn whoever was looking, so a
+			creator account saw "register an organisation" — a link to a page
+			guarded by `requireRole('business','admin')`, which answered the click
+			with a 403. The account already said which side it is on at sign-up;
+			this only has to finish that sentence.
+		-->
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-			<a href={resolve('/dashboard/profile/create')} class="bento-card space-y-3">
-				<div
-					class="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-edge bg-inverse shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
-				>
-					<UserRoundCog class="h-6 w-6 text-inverse-brand" />
-				</div>
-				<h3 class="text-lg font-black text-ink">{m.ob_creator_title()}</h3>
-				<p class="text-xs font-medium text-ink-soft">
-					{m.ob_creator_body()}
-				</p>
-			</a>
+			{#if data.role !== 'business'}
+				<a href={resolve('/dashboard/profile/create')} class="bento-card space-y-3">
+					<div
+						class="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-edge bg-inverse shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
+					>
+						<UserRoundCog class="h-6 w-6 text-inverse-brand" />
+					</div>
+					<h3 class="text-lg font-black text-ink">{m.ob_creator_title()}</h3>
+					<p class="text-xs font-medium text-ink-soft">
+						{m.ob_creator_body()}
+					</p>
+				</a>
+			{/if}
 
-			<a href={resolve('/dashboard/organization/create')} class="bento-card space-y-3">
-				<div
-					class="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-edge bg-inverse shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
-				>
-					<Building2 class="h-6 w-6 text-info" />
-				</div>
-				<h3 class="text-lg font-black text-ink">{m.ob_org_title()}</h3>
-				<p class="text-xs font-medium text-ink-soft">
-					{m.ob_org_body()}
-				</p>
-			</a>
+			{#if data.role === 'business' || data.role === 'admin'}
+				<a href={resolve('/dashboard/organization/create')} class="bento-card space-y-3">
+					<div
+						class="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-edge bg-inverse shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]"
+					>
+						<Building2 class="h-6 w-6 text-info" />
+					</div>
+					<h3 class="text-lg font-black text-ink">{m.ob_org_title()}</h3>
+					<p class="text-xs font-medium text-ink-soft">
+						{m.ob_org_body()}
+					</p>
+				</a>
+			{/if}
 		</div>
 
 		<!-- ============================= CREATOR ============================= -->

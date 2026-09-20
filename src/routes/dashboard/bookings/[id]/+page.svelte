@@ -23,7 +23,8 @@
 		Gavel,
 		Undo2,
 		XCircle,
-		RefreshCw
+		RefreshCw,
+		Play
 	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
@@ -397,15 +398,24 @@
 		{ key: 'professionalism', label: m.profile_rating_compliance() }
 	] as const);
 
-	/** Plain form posts share one handler so every outcome toasts consistently. */
+	/**
+	 * Plain form posts share one handler so every outcome toasts consistently.
+	 *
+	 * `onSuccess` is for the ones that live inside a dialog. These forms carry no
+	 * superform of their own — the two decisions in the review dialog are a
+	 * hidden field each — so nothing was closing the dialog afterwards, and
+	 * approving a submission left the overlay sitting over a page that had
+	 * already moved to `awaiting_settlement`, with the next action behind it.
+	 */
 	const actionEnhance =
-		(successText: string): SubmitFunction =>
+		(successText: string, onSuccess?: () => void): SubmitFunction =>
 		() => {
 			return async ({ result, update }) => {
 				if (result.type === 'failure') {
 					toast.error(result.data?.message ?? m.bk_action_refused());
 				} else if (result.type === 'success') {
 					toast.success(successText);
+					onSuccess?.();
 				}
 				await update();
 			};
@@ -720,6 +730,27 @@
 					</form>
 				{/if}
 
+				<!-- The step that was missing: a deal with no deposit to wait for used
+				     to reach `booked` and stop, because the only writers of
+				     `in_production` were the Chapa callback and the operator's manual
+				     deposit. The creator says when they have started instead. -->
+				{#if data.canStartWork && isCreator}
+					<form
+						method="POST"
+						action="?/startWork"
+						use:enhance={actionEnhance(m.bk_started_toast())}
+					>
+						<input type="hidden" name="bookingId" value={booking.id} />
+						<button
+							type="submit"
+							class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
+						>
+							<Play class="h-3.5 w-3.5" />
+							{m.bk_start_work()}
+						</button>
+					</form>
+				{/if}
+
 				{#if ['in_production', 'revision'].includes(booking.status) && isCreator}
 					<button
 						type="button"
@@ -804,6 +835,19 @@
 		{#if booking.status === 'completed' && canRaiseDispute && data.disputeWindowClosesAt}
 			<p class="text-[11px] font-medium text-ink-soft">
 				{m.dsp_window_note({ date: formatDate(data.disputeWindowClosesAt) })}
+			</p>
+		{/if}
+
+		<!-- What "Start work" means, and what the other side is waiting on while it
+		     has not been pressed. Without this the brand sees a deal sitting at
+		     `booked` with no explanation of whose move it is. -->
+		{#if data.canStartWork}
+			<p class="text-[11px] font-medium text-ink-soft">
+				{#if isCreator}
+					{m.bk_start_work_hint()}
+				{:else}
+					{m.bk_awaiting_start({ creator: booking.creatorName })}
+				{/if}
 			</p>
 		{/if}
 
@@ -1334,6 +1378,7 @@
 					type="date"
 					label={m.bk_deadline()}
 					futureDays
+					oldDays={false}
 				/>
 				<InputComp
 					form={proposalForm}
@@ -1443,7 +1488,7 @@
 				<form
 					method="POST"
 					action="?/review"
-					use:enhance={actionEnhance(m.bk_submission_approved_toast())}
+					use:enhance={actionEnhance(m.bk_submission_approved_toast(), () => (reviewOpen = false))}
 				>
 					<input type="hidden" name="submissionId" value={openSubmission.id} />
 					<input type="hidden" name="decision" value="approve" />
@@ -1459,7 +1504,10 @@
 					<form
 						method="POST"
 						action="?/review"
-						use:enhance={actionEnhance(m.bk_revision_requested_toast())}
+						use:enhance={actionEnhance(m.bk_revision_requested_toast(), () => {
+							reviewOpen = false;
+							revisionNote = '';
+						})}
 						class="space-y-2"
 					>
 						<input type="hidden" name="submissionId" value={openSubmission.id} />

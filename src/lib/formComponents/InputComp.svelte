@@ -237,7 +237,15 @@
 	{:else if type === 'file'}
 		<FileUpload {name} {form} {image} {placeholder} {capture} />
 	{:else if type === 'select'}
-		<ComboboxComp {name} id={fieldId} bind:value={asScalar, write} {items} {disabled} {required} />
+		<ComboboxComp
+			{name}
+			{label}
+			id={fieldId}
+			bind:value={asScalar, write}
+			{items}
+			{disabled}
+			{required}
+		/>
 	{:else if type === 'boxSelect'}
 		<!--
 			The same choice as `select`, shown rather than hidden.
@@ -262,7 +270,7 @@
 		<DatePicker bind:data={asText, write} {oldDays} {year} {futureDays} />
 		<input type="hidden" {name} value={asText()} />
 	{:else if type === 'combo'}
-		<ComboboxComp {name} id={fieldId} bind:value={asScalar, write} {items} {required} />
+		<ComboboxComp {name} {label} id={fieldId} bind:value={asScalar, write} {items} {required} />
 	{:else if type === 'checkbox'}
 		<CheckboxComp {items} bind:checkedValues={asList, write} />
 		<input type="hidden" {name} value={asText()} />

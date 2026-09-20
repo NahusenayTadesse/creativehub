@@ -22,7 +22,9 @@
 
 	const tz = getLocalTimeZone();
 	const minDate = $derived(oldDays ? undefined : today(tz));
-	const maxDate = $derived(futureDays ? today(tz) : undefined);
+	/* Each prop allows what it is named after — see the note in DatePicker2,
+	   where the same line was inverted. */
+	const maxDate = $derived(futureDays ? undefined : today(tz));
 
 	// Internal state is now an array
 	let selectedDates = $state<CalendarDate[]>(

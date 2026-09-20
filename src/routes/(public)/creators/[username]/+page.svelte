@@ -169,6 +169,16 @@
 		if ($message?.type === 'error') toast.error($message.text);
 	});
 
+	/**
+	 * Today plus `days`, as the `YYYY-MM-DD` the date field is bound to.
+	 *
+	 * Built in one expression rather than by mutating a `Date`, which
+	 * `svelte/prefer-svelte-reactivity` refuses on sight — and mutation buys
+	 * nothing here, since the value is read once and thrown away.
+	 */
+	const inDays = (days: number) =>
+		new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
 	/** Prefills the booking dialog from whichever package was chosen. */
 	function openBooking(pkg: (typeof creator.packages)[number] | null) {
 		if (pkg) {
@@ -179,11 +189,19 @@
 			$form.currencyCode = pkg.currencyCode as typeof $form.currencyCode;
 			$form.deliverables = (pkg.deliverables ?? []).join('\n');
 			$form.revisionsAllowed = pkg.revisions;
+			/* The turnaround the package advertises, counted from today. The field
+			   used to open on today whatever the package said, so a brand that did
+			   not change it froze a deadline that had already passed by the time
+			   the creator read the proposal. */
+			$form.deadline = inDays(pkg.deliveryDays);
 		} else {
 			$form.title = m.profile_custom_collaboration({ name: creator.fullName });
 			$form.price = creator.startingPrice;
 			$form.currencyCode = creator.currencyCode as typeof $form.currencyCode;
 			$form.deliverables = '';
+			/* No package to take a turnaround from, so a fortnight — long enough to
+			   be a real date and short enough to be worth changing. */
+			$form.deadline = inDays(14);
 		}
 		$form.creatorId = creator.id;
 		bookingOpen = true;
@@ -1059,6 +1077,7 @@
 					type="date"
 					label={m.profile_deadline()}
 					futureDays
+					oldDays={false}
 				/>
 				<InputComp
 					{form}

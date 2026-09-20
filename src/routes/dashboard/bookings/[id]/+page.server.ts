@@ -16,7 +16,13 @@ import * as refunds from '$lib/server/refunds';
 import { requireBookingAccess, recordAudit } from '$lib/server/guards';
 import { refreshCreatorCompletedBookings, refreshCreatorRating } from '$lib/server/score-service';
 import { dealVersion, markBookingRead, markNotificationsReadForLink } from '$lib/server/inbox';
-import { canTransition, splitFee, type BookingStatus } from '$lib/domain/booking';
+import {
+	awaitsDeposit,
+	canStartWork,
+	canTransition,
+	splitFee,
+	type BookingStatus
+} from '$lib/domain/booking';
 import {
 	cancelAgreeProblem,
 	cancelRequestProblem,
@@ -157,7 +163,11 @@ export const load: PageServerLoad = async (event) => {
 		/* The operator's manual deposit is drawn from this rather than from
 		   `canPayOnline`: it records money that moved outside the platform, so
 		   it belongs to the gateway being on, not to Chapa being reachable. */
-		paymentsEnabled: PAYMENT_GATEWAY_ENABLED
+		paymentsEnabled: PAYMENT_GATEWAY_ENABLED,
+		/* Decided here rather than re-derived in the template, so the button and
+		   the action it posts to are asking the same question. */
+		canStartWork: canStartWork(current.booking),
+		awaitsDeposit: awaitsDeposit(current.booking)
 	};
 };
 
@@ -852,6 +862,58 @@ export const actions: Actions = {
 	},
 
 	/* ---------------- delivery ---------------- */
+
+	/**
+	 * The creator says they have started.
+	 *
+	 * This is the only way out of `booked` for a deal that needs no deposit —
+	 * see `canStartWork`. It is deliberately the creator's press and nobody
+	 * else's: it is a statement about what they are doing, the brand has
+	 * nothing to add to it, and an operator asserting it for them would put a
+	 * date on the record that nobody stands behind.
+	 *
+	 * Where a deposit *is* expected the button is not drawn and this refuses,
+	 * because there the deposit arriving is what starts the work, and letting
+	 * the creator step past it would have them delivering against an escrow
+	 * that was never funded.
+	 */
+	startWork: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(bookingIdSchema));
+
+		if (side !== 'creator') return fail(403, { message: m.srv_only_creator_starts() });
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
+		if (booking.status !== 'booked') {
+			return fail(409, { message: m.srv_not_open_for_start() });
+		}
+		if (awaitsDeposit(booking)) {
+			return fail(409, { message: m.srv_deposit_before_start() });
+		}
+
+		/* No column records when work began; the audit entry this writes is the
+		   record, and it is dated. */
+		const result = await transition(
+			event,
+			id,
+			'booked',
+			'in_production',
+			{},
+			'Creator started work'
+		);
+		if (!result.ok) return fail(409, { message: result.text });
+
+		const { organizationOwnerId } = await bookingParties(booking.organizationId, booking.creatorId);
+
+		await notifyDeal(
+			organizationOwnerId,
+			m.notif_work_started_title(),
+			m.notif_work_started_body({ title: booking.title }),
+			`/dashboard/bookings/${id}`
+		);
+
+		return { started: true };
+	},
 
 	submit: async (event) => {
 		const id = Number(event.params.id);

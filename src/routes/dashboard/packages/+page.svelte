@@ -1,5 +1,6 @@
 <script lang="ts">
 	import CrudSection from '$lib/components/crud-section.svelte';
+	import OnboardingSteps from '$lib/components/onboarding-steps.svelte';
 	import type { CrudField } from '$lib/components/Table/crud-dialog.svelte';
 	import { Check } from '@lucide/svelte';
 	import * as m from '$lib/paraglide/messages';
@@ -67,6 +68,12 @@
 	nameKey="title"
 	emptyMessage={m.pk_empty()}
 >
+	{#snippet notice()}
+		{#if data.creator && !data.creator.isPublished}
+			<OnboardingSteps step={3} />
+		{/if}
+	{/snippet}
+
 	{#snippet row(pkg)}
 		<div class="space-y-3">
 			<div class="flex items-start justify-between gap-2">

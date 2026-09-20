@@ -48,6 +48,9 @@
 	/* One proxy per instance: `form` and `name` identify the field this control
 	   is for, and neither changes under it. */
 	let file = $state(untrack(() => fileProxy(form, name)));
+
+	/* How many files are in the picker, counting "no list at all" as none. */
+	const picked = $derived($file?.length ?? 0);
 	let isDragging = $state(false);
 	let isProcessing = $state(false);
 
@@ -117,7 +120,16 @@
 		multiple={false}
 	/>
 
-	{#if $file?.length === 0 && image === ''}
+	<!--
+		`$file` is a `FileList` in the browser and `undefined` on the server, where
+		`fileProxy` has no file input to read. `$file?.length === 0` was therefore
+		`undefined === 0` during SSR — false — so both branches below fell through
+		to the "a file is selected" card and rendered it with no file:
+		`undefined / 1024 / 1024` printed as **NaN MB (Optimized)**, on the server
+		HTML of every page carrying an upload. Counting a missing list as empty is
+		what it always meant.
+	-->
+	{#if picked === 0 && image === ''}
 		<Label
 			for={name}
 			class="group relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed py-2! transition-all
@@ -150,7 +162,7 @@
 				</div>
 			</div>
 		</Label>
-	{:else if image && $file?.length === 0}
+	{:else if image && picked === 0}
 		<div
 			class="relative animate-in overflow-hidden rounded-xl border bg-card p-4 shadow-sm duration-200 zoom-in-95 fade-in"
 		>

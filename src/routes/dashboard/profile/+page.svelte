@@ -12,7 +12,15 @@
 	import Errors from '$lib/formComponents/Errors.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
-	import { Eye, EyeOff, ExternalLink, Award, CircleCheckBig, CircleAlert } from '@lucide/svelte';
+	import {
+		Eye,
+		EyeOff,
+		ExternalLink,
+		Award,
+		CircleCheckBig,
+		CircleAlert,
+		Radio
+	} from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
 
 	let { data } = $props();
@@ -69,6 +77,19 @@
 	]);
 
 	/* CheckboxComp works in strings; the schema coerces back to numbers. */
+
+	/*
+	 * Whether `/discover` will actually list this profile.
+	 *
+	 * The same predicate as `verifiedCreators()` in the query layer: publishing
+	 * puts the page on the web, but the directory only shows creators somebody
+	 * other than themselves has stood behind — which here means at least one
+	 * channel confirmed. Kept as one expression so the difference between "live"
+	 * and "listed" is stated once.
+	 */
+	const listedInDiscovery = $derived(
+		creator.isPublished && creator.verificationLevel !== 'unverified'
+	);
 
 	const blockers = $derived.by(() => {
 		const list: string[] = [];
@@ -129,8 +150,21 @@
 			<span class="block text-[10px] font-black tracking-widest text-ink-soft uppercase">
 				{m.pf_visibility()}
 			</span>
+			<!--
+				Three states, not two. "Live in discovery" used to be printed the
+				moment a profile was published — but discovery filters out
+				`unverified`, so a creator who had just finished every step the
+				publish gate asks for was told they were listed while `/discover`
+				was not showing them.
+			-->
 			<span class="text-lg font-black text-ink">
-				{creator.isPublished ? m.pf_live_in_discovery() : m.pf_not_published()}
+				{#if !creator.isPublished}
+					{m.pf_not_published()}
+				{:else if listedInDiscovery}
+					{m.pf_live_in_discovery()}
+				{:else}
+					{m.pf_published_not_listed()}
+				{/if}
 			</span>
 		</div>
 		<div class="bento-card bento-card-static">
@@ -179,6 +213,29 @@
 					{m.pf_ready_body()}
 				</p>
 			{/if}
+		</div>
+	{/if}
+
+	<!--
+		The step after publishing, which nothing used to name. A creator who has
+		done everything the publish gate asks for is still absent from `/discover`
+		until a channel is confirmed, and being told "Live in discovery" while
+		nobody can find you is the kind of silence people leave over.
+	-->
+	{#if creator.isPublished && !listedInDiscovery}
+		<div class="bento-card-yellow space-y-2">
+			<h3 class="flex items-center gap-1.5 text-sm font-black text-ink">
+				<CircleAlert class="h-4 w-4 text-warn-fg" />
+				{m.pf_not_listed_title()}
+			</h3>
+			<p class="text-xs font-medium text-warn-fg">{m.pf_not_listed_body()}</p>
+			<a
+				href={resolve('/dashboard/channels')}
+				class="inline-flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-4 py-2 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel"
+			>
+				<Radio class="h-3.5 w-3.5 text-brand-fg" />
+				{m.pf_not_listed_action()}
+			</a>
 		</div>
 	{/if}
 

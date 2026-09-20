@@ -353,6 +353,22 @@
 							{m.campaign_creators_only_body()}
 						</p>
 					</div>
+				{:else if !data.creator.isPublished}
+					<!-- Said here rather than after the pitch is written: the server
+					     refuses an unpublished profile, and finding that out with a
+					     finished pitch in the box is the wrong moment to learn it. -->
+					<div class="space-y-2 text-center">
+						<h3 class="text-sm font-black text-ink">{m.campaign_publish_first()}</h3>
+						<p class="text-xs font-medium text-ink-soft">
+							{m.campaign_publish_first_body()}
+						</p>
+						<a
+							href={resolve('/dashboard/profile')}
+							class="mt-1 inline-block rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
+						>
+							{m.campaign_publish_first_action()}
+						</a>
+					</div>
 				{:else}
 					<h3 class="text-sm font-black text-ink">{m.campaign_pitch_heading()}</h3>
 

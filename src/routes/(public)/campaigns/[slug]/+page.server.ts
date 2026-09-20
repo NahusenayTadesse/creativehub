@@ -42,7 +42,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	return {
 		campaign,
-		creator: creator ? { id: creator.id, fullName: creator.fullName } : null,
+		creator: creator
+			? { id: creator.id, fullName: creator.fullName, isPublished: creator.isPublished }
+			: null,
 		existingApplication,
 		form
 	};
@@ -55,7 +57,18 @@ export const actions: Actions = {
 		const creator = await getCreatorFor(event.locals.user.id);
 		const form = await superValidate(event.request, zod4(applicationSchema));
 
-		if (!creator) {
+		/*
+		 * A published profile, which is what this refusal has always said and
+		 * never checked.
+		 *
+		 * The brand's side of an application links straight to
+		 * `/creators/<handle>`, and that page answers 404 for a profile its owner
+		 * has not published — so an unpublished creator could pitch, and the only
+		 * thing the brand could do with the pitch was click into a dead page.
+		 * Publishing is three steps the creator has already been walked through,
+		 * and it is the point at which there is something for a brand to read.
+		 */
+		if (!creator || !creator.isPublished) {
 			return message(
 				form,
 				{ type: 'error', text: m.srv_need_published_profile() },

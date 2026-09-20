@@ -87,7 +87,21 @@ const money = z.coerce
 	.min(0, { error: () => m.val_not_negative() })
 	.default(0);
 const count = z.coerce.number().int().min(0).default(0);
-const refId = z.coerce.number().int().positive();
+/**
+ * A required foreign key, as a select posts one.
+ *
+ * Every issue carries the same sentence on purpose. An empty `<select>` posts
+ * `""`, which `z.coerce.number()` turns into `0`, so a field nobody filled in
+ * fails `.positive()` — and with no `error` of its own that surfaced as Zod's
+ * own English, **"Too small: expected number to be >0"**, printed under a
+ * country picker in a form whose every other message is translated. A missing
+ * key coerces to `NaN` and failed `.int()` just as opaquely. There is only one
+ * thing wrong in either case, and only one thing to say about it.
+ */
+const refId = z.coerce
+	.number({ error: () => m.val_required() })
+	.int({ error: () => m.val_required() })
+	.positive({ error: () => m.val_required() });
 const optionalRefId = z.coerce.number().int().positive().optional();
 const active = z.coerce.boolean().default(true);
 /** Textareas that hold one item per line; crud.ts turns these into JSON arrays. */
@@ -321,7 +335,13 @@ export const creatorCreateProfile = z.object({
 		.min(20, { error: () => m.val_bio_min() })
 		.max(2000),
 	countryId: refId,
-	city: z.string().trim().min(2).max(120),
+	/* Worded, for the same reason as `refId`: an empty box here used to answer
+	   with "Too small: expected string to have >=2 characters". */
+	city: z
+		.string()
+		.trim()
+		.min(2, { error: () => m.val_required() })
+		.max(120),
 	primaryPlatformId: refId,
 	startingPrice: money,
 	currencyCode: currency
@@ -628,6 +648,28 @@ export const applicationDecision = z.object({
 	decisionNote: optionalText
 });
 
+/**
+ * A date work is due by, as the `YYYY-MM-DD` the date picker binds to. Empty
+ * means no date was set, which is allowed.
+ *
+ * A deadline already in the past is refused here rather than in each action,
+ * because both places that take one — the opening offer and every counter —
+ * end up in the terms snapshot, and a deal frozen against a date that has gone
+ * is late at the moment both sides agree to it.
+ *
+ * Compared against today in UTC while the picker offers the reader's own day.
+ * The two differ by at most a day and only ever in the lenient direction, which
+ * is the right way for a validation of somebody else's calendar to be wrong.
+ */
+const futureDate = z
+	.string()
+	.trim()
+	.optional()
+	.default('')
+	.refine((value) => !value || value >= new Date().toISOString().slice(0, 10), {
+		error: () => m.val_deadline_past()
+	});
+
 export const bookingCreate = z.object({
 	creatorId: refId,
 	packageId: optionalRefId,
@@ -637,7 +679,7 @@ export const bookingCreate = z.object({
 	compensationType: z.enum(COMPENSATION).default('paid'),
 	price: money,
 	currencyCode: currency,
-	deadline: z.string().trim().optional().default(''),
+	deadline: futureDate,
 	revisionsAllowed: z.coerce.number().int().min(0).max(10).default(2),
 	note: optionalText
 });
@@ -648,7 +690,7 @@ export const proposalSchema = z.object({
 	price: money,
 	currencyCode: currency,
 	deliverables: lines,
-	deadline: z.string().trim().optional().default(''),
+	deadline: futureDate,
 	revisionsAllowed: z.coerce.number().int().min(0).max(10).default(2),
 	note: optionalText
 });
