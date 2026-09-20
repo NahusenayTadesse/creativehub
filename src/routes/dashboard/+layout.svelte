@@ -4,14 +4,29 @@
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import NotificationBell from '$lib/components/notification-bell.svelte';
+	import DashboardBottomNav from '$lib/components/dashboard-bottom-nav.svelte';
 	import { LogOut, ExternalLink } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { resolveLogos } from '$lib/brand';
+	import { setAppBadge } from '$lib/push-client';
 
 	let { data, children } = $props();
 
 	/* `settings` comes from the root layout, so it is on every page's data. */
 	const logos = $derived(resolveLogos(page.data.settings));
+
+	/*
+	 * The count on the installed app's icon.
+	 *
+	 * Driven from the same figure the bell in the header shows, so the two can
+	 * never disagree, and re-run on every navigation because that is when the
+	 * layout's data is refreshed. Does nothing in a tab — the platforms only
+	 * draw a badge on an installed app — and nothing at all where the API is
+	 * absent.
+	 */
+	$effect(() => {
+		void setAppBadge(data.unreadNotifications ?? 0);
+	});
 
 	/**
 	 * Turns /dashboard/admin/countries into "Countries". A record page ends in an
@@ -64,7 +79,7 @@
 						<button
 							type="submit"
 							title={m.nav_sign_out()}
-							class="rounded-lg p-2 text-ink-dim transition-colors hover:bg-well hover:text-ink"
+							class="rounded-lg p-2.5 text-ink-dim transition-colors hover:bg-well hover:text-ink sm:p-2"
 						>
 							<LogOut class="h-4 w-4" />
 						</button>
@@ -73,8 +88,15 @@
 			</div>
 		</header>
 
-		<div class="flex-1 p-4 sm:p-6">
+		<!-- Room for the fixed bar on a phone; nothing to reserve above `md`. -->
+		<div class="flex-1 p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:p-6 md:pb-6">
 			{@render children()}
 		</div>
+
+		<!--
+			Inside the provider, because its last slot opens the sidebar rather than
+			navigating — `useSidebar()` only answers under it.
+		-->
+		<DashboardBottomNav role={data.role} counts={data.counts} />
 	</Sidebar.Inset>
 </Sidebar.Provider>

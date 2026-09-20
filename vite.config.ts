@@ -73,6 +73,20 @@ export default defineConfig({
 					'font-src': ['self', 'data:'],
 					'connect-src': ['self'],
 					/*
+					 * The service worker, and the manifest that installs the app.
+					 *
+					 * Both would fall back to `default-src 'self'` and be allowed
+					 * anyway. They are named because the fallback chain is the thing
+					 * that quietly changes: `worker-src` falls back through
+					 * `child-src` to `script-src`, which carries `unsafe-hashes` and a
+					 * hash for Svelte's event replay, and the day somebody widens that
+					 * line for an unrelated reason they would be widening what may
+					 * register a worker too. A worker is the one script on this site
+					 * that outlives the page that started it.
+					 */
+					'worker-src': ['self'],
+					'manifest-src': ['self'],
+					/*
 					 * `accounts.google.com` because the Google sign-in button is a
 					 * real form post: it submits to this origin, and the action
 					 * answers with a 303 to Google's consent screen. Browsers apply
@@ -148,6 +162,29 @@ export default defineConfig({
 			'simple-icons',
 			/* The IP-to-country reader — CommonJS, with no dependencies of its own. */
 			'mmdb-lib',
+			/* Web push, and its whole CommonJS subtree.
+			   Reached only from `$lib/server/push.ts`. The sixteen below it are
+			   named the way the rest of this list was: run `verify:build`, add what
+			   it prints, repeat — three rounds, because each layer only becomes
+			   visible once the one above it is inlined. */
+			'web-push',
+			'asn1.js',
+			'http_ece',
+			'https-proxy-agent',
+			'jws',
+			'has-flag',
+			'buffer-equal-constant-time',
+			'ecdsa-sig-formatter',
+			'ms',
+			'supports-color',
+			'agent-base',
+			'bn.js',
+			'debug',
+			'inherits',
+			'jwa',
+			'minimalistic-assert',
+			'safe-buffer',
+			'safer-buffer',
 			'sanitize-html',
 			'htmlparser2',
 			'deepmerge',
@@ -171,7 +208,7 @@ export default defineConfig({
 		 * the same module the build produces.
 		 */
 		/* `sanitize-html` and `mmdb-lib` are CommonJS too; see the note above `nodemailer`. */
-		optimizeDeps: { include: ['nodemailer', 'sanitize-html', 'mmdb-lib'] }
+		optimizeDeps: { include: ['nodemailer', 'sanitize-html', 'mmdb-lib', 'web-push'] }
 	},
 
 	/**

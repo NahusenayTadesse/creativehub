@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AppImage from '$lib/components/app-image.svelte';
+	import { creatorTransitionStyle } from '$lib/domain/view-transition';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { superForm } from 'sveltekit-superforms';
@@ -188,9 +189,34 @@
 		bookingOpen = true;
 	}
 
+	/**
+	 * The operating system's own share sheet, where there is one.
+	 *
+	 * `navigator.share` is the difference between "copied to clipboard, now go
+	 * and find WhatsApp yourself" and the sheet a native app opens — and sharing
+	 * a creator with a colleague is most of what a brand does on a phone. Desktop
+	 * browsers largely do not implement it, so the clipboard stays as the fallback
+	 * rather than being replaced.
+	 *
+	 * An `AbortError` is the reader closing the sheet, which is not a failure and
+	 * must not fall through to copying a link they decided not to send.
+	 */
 	const share = async () => {
+		const url = window.location.href;
+
+		if (navigator.share) {
+			try {
+				await navigator.share({ title: creator.fullName, text: m.profile_share_text(), url });
+				return;
+			} catch (err) {
+				if ((err as Error)?.name === 'AbortError') return;
+				/* Anything else — no handler installed, a refused permission — falls
+				   through to the clipboard below. */
+			}
+		}
+
 		try {
-			await navigator.clipboard.writeText(window.location.href);
+			await navigator.clipboard.writeText(url);
 			toast.success(m.profile_link_copied());
 		} catch {
 			toast.error(m.profile_link_copy_failed());
@@ -297,7 +323,7 @@
 				<button
 					type="button"
 					onclick={share}
-					aria-label={m.profile_copy_link()}
+					aria-label={m.profile_share()}
 					class="rounded-full bg-black/40 p-2.5 text-white backdrop-blur-md transition-colors hover:bg-black/60"
 				>
 					<Share2 class="h-4 w-4" />
@@ -327,12 +353,14 @@
 				-->
 				<div class="flex flex-col items-start gap-3 lg:flex-row lg:items-end lg:gap-4">
 					<div class="relative">
+						<!-- The other half of the morph — see the directory card. -->
 						<AppImage
 							src={creator.avatar}
 							alt={creator.fullName}
 							kind="avatar"
 							seed={creator.username}
 							label={creator.fullName}
+							style={creatorTransitionStyle(creator.username)}
 							class="h-24 w-24 rounded-3xl border-4 border-surface bg-surface object-cover shadow-md lg:h-32 lg:w-32"
 							loading="lazy"
 							decoding="async"

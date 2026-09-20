@@ -16,6 +16,7 @@ import {
 } from '$lib/server/queries';
 import { DEFAULT_PREFERENCES } from '$lib/domain/notify';
 import { notify } from '$lib/server/notify';
+import { vapidPublicKey } from '$lib/server/push';
 import {
 	accountDetails,
 	closureRequest,
@@ -57,7 +58,14 @@ export const load: PageServerLoad = async (event) => {
 		hasPassword,
 		sessions,
 		currentSessionId: event.locals.session?.id ?? null,
-		closureRequestedAt: settings?.closureRequestedAt ?? null
+		closureRequestedAt: settings?.closureRequestedAt ?? null,
+		/*
+		 * Public by design — it is in every subscribe call the browser makes, and
+		 * a push service needs it to verify our signature. Null when the app has
+		 * no key pair, which is what hides the switch rather than offering one
+		 * that cannot work.
+		 */
+		vapidPublicKey: vapidPublicKey()
 	};
 };
 

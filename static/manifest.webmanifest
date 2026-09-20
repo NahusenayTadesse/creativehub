@@ -1,0 +1,55 @@
+{
+	"id": "/",
+	"name": "Influencer Ethiopia",
+	"short_name": "Influencer",
+	"description": "Find Ethiopian creators, compare their real reach, and book them — for brands and creators alike.",
+	"start_url": "/?source=pwa",
+	"scope": "/",
+	"display": "standalone",
+	"display_override": ["standalone", "minimal-ui"],
+	"background_color": "#f2f5f9",
+	"theme_color": "#ffffff",
+	"lang": "en",
+	"dir": "ltr",
+	"categories": ["business", "social", "shopping"],
+	"icons": [
+		{
+			"src": "/icons/icon-192.png",
+			"sizes": "192x192",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/icon-512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/icon-maskable-512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "maskable"
+		}
+	],
+	"shortcuts": [
+		{
+			"name": "Discover creators",
+			"short_name": "Discover",
+			"url": "/discover",
+			"icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+		},
+		{
+			"name": "Open campaigns",
+			"short_name": "Campaigns",
+			"url": "/campaigns",
+			"icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+		},
+		{
+			"name": "My dashboard",
+			"short_name": "Dashboard",
+			"url": "/dashboard",
+			"icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+		}
+	]
+}

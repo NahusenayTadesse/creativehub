@@ -1312,6 +1312,50 @@ export const savedCreators = mysqlTable(
 	(t) => [uniqueIndex('saved_creator_unique').on(t.organizationId, t.creatorId)]
 );
 
+/**
+ * One browser's standing permission to be pushed to.
+ *
+ * A push subscription is not an account setting — it belongs to a *browser on a
+ * device*, so one person signed in on a phone and a laptop holds two rows, and
+ * clearing site data on either one silently invalidates that row without
+ * telling us. `endpoint` is the push service's URL for that browser and is what
+ * identifies it; it is unique, because re-subscribing in the same browser
+ * returns the same endpoint and must update the row rather than add a second.
+ *
+ * ## These are credentials
+ *
+ * `p256dh` and `auth` are the keys the payload is encrypted to. They are not
+ * secrets that let anyone read our data, but together with the endpoint they
+ * are permission to put a notification on somebody's lock screen, so nothing
+ * outside `$lib/server/push.ts` selects them and no route returns them.
+ *
+ * ## Dead rows
+ *
+ * A push service answers 404 or 410 once a subscription is gone for good —
+ * the app was uninstalled, the browser's storage cleared. That is the only
+ * reliable signal, so it is the one acted on: those rows are deleted on the
+ * spot. A transient 5xx is left alone.
+ */
+export const pushSubscriptions = mysqlTable(
+	'push_subscriptions',
+	{
+		id: id(),
+		userId: userRef('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** The push service's URL for this browser. Long: FCM's run past 200 characters. */
+		endpoint: varchar('endpoint', { length: 500 }).notNull(),
+		p256dh: varchar('p256dh', { length: 255 }).notNull(),
+		auth: varchar('auth', { length: 255 }).notNull(),
+		/** For an operator reading a support question about which device this is. */
+		userAgent: varchar('user_agent', { length: 255 }),
+		/** Touched whenever a push to this row succeeds, so stale rows are visible. */
+		lastSeenAt: timestamp('last_seen_at', { fsp: 3 }),
+		createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull()
+	},
+	(t) => [uniqueIndex('push_endpoint_idx').on(t.endpoint), index('push_user_idx').on(t.userId)]
+);
+
 export const notifications = mysqlTable(
 	'notifications',
 	{

@@ -80,7 +80,9 @@
 			{/snippet}
 		</PageHeader>
 
-		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+		<!-- Two across on a phone: one tile per row put a single figure in 330px of
+		     screen, so four stats meant four scrolls to read four numbers. -->
+		<div class="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4">
 			<StatTile
 				tone="dark"
 				label={m.dashc_earned()}
@@ -145,7 +147,9 @@
 			{/snippet}
 		</PageHeader>
 
-		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+		<!-- Two across on a phone: one tile per row put a single figure in 330px of
+		     screen, so four stats meant four scrolls to read four numbers. -->
+		<div class="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4">
 			<StatTile
 				tone="dark"
 				label={m.dashb_committed()}
@@ -219,7 +223,9 @@
 			{/snippet}
 		</PageHeader>
 
-		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+		<!-- Two across on a phone: one tile per row put a single figure in 330px of
+		     screen, so four stats meant four scrolls to read four numbers. -->
+		<div class="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4">
 			<StatTile
 				tone="dark"
 				label={m.dasha_booking_volume()}

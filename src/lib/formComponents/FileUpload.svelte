@@ -11,11 +11,37 @@
 		Loader
 	} from '@lucide/svelte';
 	import { fileProxy } from 'sveltekit-superforms';
+	import type { Writable } from 'svelte/store';
 	import { assetUrl } from '$lib/assets';
 	import imageCompression from 'browser-image-compression';
 	import * as m from '$lib/paraglide/messages';
 
-	let { form, name, placeholder = undefined, image = '' } = $props();
+	let {
+		form,
+		name,
+		placeholder = undefined,
+		image = '',
+		/**
+		 * Opens the camera directly instead of the file picker, on a phone.
+		 *
+		 * `"environment"` is the rear camera, which is what every upload here
+		 * wants: an analytics screen photographed off another device, a product
+		 * shot, a portfolio still. Desktop browsers ignore the attribute, and a
+		 * phone that has no camera falls back to the picker on its own, so this
+		 * never removes the ordinary way in — it only saves two taps where the
+		 * source really is the camera.
+		 *
+		 * Off by default. An avatar or a cover is usually a file somebody already
+		 * has, and forcing the viewfinder on them would be the opposite of this.
+		 */
+		capture = undefined
+	}: {
+		form: Writable<Record<string, unknown>>;
+		name: string;
+		placeholder?: string;
+		image?: string;
+		capture?: 'user' | 'environment' | undefined;
+	} = $props();
 
 	const hint = $derived(placeholder ?? m.up_default_hint());
 
@@ -86,6 +112,7 @@
 		bind:files={$file}
 		{name}
 		accept="image/*,application/pdf"
+		{capture}
 		onchange={(e) => handleFileSelection(e.currentTarget.files)}
 		multiple={false}
 	/>

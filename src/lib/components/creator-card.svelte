@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AppImage from '$lib/components/app-image.svelte';
+	import { creatorTransitionStyle } from '$lib/domain/view-transition';
 	import * as m from '$lib/paraglide/messages';
 	import { MapPin, Star, Heart, Award, Eye } from '@lucide/svelte';
 	import { formatReach } from '$lib/domain/money';
@@ -59,6 +60,8 @@
 		<div
 			class="relative h-[142px] w-[104px] shrink-0 overflow-hidden rounded-2xl bg-well sm:h-[158px] sm:w-[116px]"
 		>
+			<!-- Paired with the same picture on the profile, so the card opens into
+			     the page rather than the two cross-fading past each other. -->
 			<AppImage
 				src={creator.avatar}
 				alt={creator.fullName}
@@ -67,6 +70,7 @@
 				label={creator.fullName}
 				loading="lazy"
 				decoding="async"
+				style={creatorTransitionStyle(creator.username)}
 				class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
 			/>
 

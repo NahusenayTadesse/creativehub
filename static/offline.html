@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Offline — Influencer Ethiopia</title>
+		<link rel="icon" href="/favicon.png" type="image/png" />
+		<!--
+			A plain static file rather than a SvelteKit route.
+
+			The root layout loads reference data and settings from the database on
+			every page, so nothing under it can be prerendered, and a route that
+			needs the server is no use as the page shown when the server cannot be
+			reached. This has no build step, no JavaScript and no request of its
+			own: the service worker keeps a copy and serves it when a navigation
+			fails.
+
+			Both languages, because the one thing this page cannot do is ask the
+			server which the reader wanted.
+		-->
+		<style>
+			:root {
+				color-scheme: light;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				min-height: 100svh;
+				display: grid;
+				place-items: center;
+				padding: 24px;
+				background: #f2f5f9;
+				color: #0a1a2f;
+				font-family:
+					'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+				text-align: center;
+			}
+			.card {
+				max-width: 26rem;
+				width: 100%;
+				background: #fff;
+				border: 2px solid #0a1a2f;
+				border-radius: 20px;
+				padding: 32px 24px;
+				box-shadow: 4px 4px 0 0 rgba(10, 26, 47, 0.16);
+			}
+			img {
+				width: 64px;
+				height: 64px;
+				margin-bottom: 16px;
+			}
+			h1 {
+				margin: 0 0 8px;
+				font-size: 1.1rem;
+				font-weight: 900;
+			}
+			p {
+				margin: 0 0 20px;
+				font-size: 0.82rem;
+				line-height: 1.55;
+				color: #384860;
+				font-weight: 500;
+			}
+			.am {
+				margin-top: 18px;
+				padding-top: 18px;
+				border-top: 1px solid #dde4ee;
+			}
+			a {
+				display: inline-block;
+				background: #0172a4;
+				color: #fff;
+				text-decoration: none;
+				font-weight: 900;
+				font-size: 0.8rem;
+				padding: 10px 22px;
+				border-radius: 12px;
+				border: 2px solid #0a1a2f;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="card">
+			<img src="/icons/icon-192.png" alt="" width="64" height="64" />
+
+			<h1>You are offline</h1>
+			<p>
+				This page needs a connection. Anything you have already opened stays available — try again
+				once you are back.
+			</p>
+
+			<a href="/">Try again</a>
+
+			<div class="am">
+				<h1>ከመስመር ውጭ ነዎት</h1>
+				<p>
+					ይህ ገጽ ግንኙነት ይፈልጋል። አስቀድመው የከፈቷቸው እንደተጠበቁ ይቆያሉ — መልሰው ሲገናኙ እንደገና ይሞክሩ።
+				</p>
+			</div>
+		</div>
+	</body>
+</html>

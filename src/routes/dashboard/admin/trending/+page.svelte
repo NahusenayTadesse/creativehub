@@ -644,7 +644,11 @@
 				<p class="text-xs font-medium text-ink-soft">{m.at_board_empty_body()}</p>
 			</div>
 		{:else}
-			<div class="overflow-x-auto [contain:inline-size]">
+			<!-- `min-w-0` as well as the containment: the wrapper sits inside a flex
+			     column, and a flex item's automatic minimum size is its content, so
+			     without it the 720px table widens the wrapper instead of scrolling
+			     inside it — and the whole page scrolls sideways on a phone. -->
+			<div class="min-w-0 overflow-x-auto [contain:inline-size]">
 				<table class="w-full min-w-[720px] text-left">
 					<thead>
 						<tr
@@ -1921,7 +1925,11 @@
 		{#if !data.runs.length}
 			<p class="py-4 text-center text-xs font-medium text-ink-dim">{m.at_runs_empty()}</p>
 		{:else}
-			<div class="overflow-x-auto [contain:inline-size]">
+			<!-- `min-w-0` as well as the containment: the wrapper sits inside a flex
+			     column, and a flex item's automatic minimum size is its content, so
+			     without it the 720px table widens the wrapper instead of scrolling
+			     inside it — and the whole page scrolls sideways on a phone. -->
+			<div class="min-w-0 overflow-x-auto [contain:inline-size]">
 				<table class="w-full min-w-[640px] text-left">
 					<thead>
 						<tr

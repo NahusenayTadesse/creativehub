@@ -53,7 +53,7 @@
 				href={tabLink(tab.key)}
 				data-sveltekit-noscroll
 				aria-current={tab.active ? 'page' : undefined}
-				class="rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] {tab.active
+				class="inline-flex min-h-9 items-center rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] sm:min-h-0 {tab.active
 					? 'bg-inverse text-inverse-ink'
 					: 'bg-surface text-ink hover:bg-well'}"
 			>

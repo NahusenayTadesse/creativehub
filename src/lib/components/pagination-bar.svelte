@@ -27,11 +27,11 @@
 	const windowed = $derived(pageWindow(result.page, result.pageCount));
 
 	const linkClass =
-		'flex h-8 min-w-8 cursor-pointer items-center justify-center gap-1 rounded-xl border-2 border-edge px-2.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors';
+		'flex h-9 min-w-9 cursor-pointer items-center sm:h-8 sm:min-w-8  justify-center gap-1 rounded-xl border-2 border-edge px-2.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors';
 	const idleClass = 'bg-surface text-ink hover:bg-well';
 	const currentClass = 'bg-inverse text-inverse-ink';
 	const disabledClass =
-		'flex h-8 min-w-8 items-center justify-center gap-1 rounded-xl border-2 border-edge-mid px-2.5 text-xs font-black text-ink-faint';
+		'flex h-9 min-w-9 items-center sm:h-8 sm:min-w-8  justify-center gap-1 rounded-xl border-2 border-edge-mid px-2.5 text-xs font-black text-ink-faint';
 </script>
 
 {#if result.total > 0}

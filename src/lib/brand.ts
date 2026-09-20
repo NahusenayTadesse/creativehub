@@ -22,7 +22,7 @@ import { assetUrl } from '$lib/assets';
  * shipped and the old red logo went on being served. A new query string is a
  * new URL, so it is fetched fresh at once.
  */
-export const BRAND_VERSION = '2026-09-17';
+export const BRAND_VERSION = '2026-09-20';
 
 /** What ships in `static/`. Absolute paths, so `assetUrl` passes them through. */
 export const DEFAULT_LOGOS = {

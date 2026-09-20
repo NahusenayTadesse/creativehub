@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import {
+		currentPushState,
+		subscribeToPush,
+		unsubscribeFromPush,
+		type PushState
+	} from '$lib/push-client';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { superForm } from 'sveltekit-superforms';
@@ -13,8 +19,10 @@
 	import {
 		BadgeCheck,
 		Bell,
+		BellOff,
 		KeyRound,
 		Laptop,
+		Loader,
 		LogOut,
 		Mail,
 		TriangleAlert,
@@ -146,6 +154,42 @@
 			if (result.type === 'success') toast.success(m.set_close_cancelled());
 			await update();
 		};
+
+	/* ---------------------------------------------------------------- *
+	 * Push notifications
+	 *
+	 * A device-level switch, not a preference: what arrives is decided by the
+	 * rows below, and this decides whether this browser may be interrupted at
+	 * all. It is a button rather than a checkbox because turning it on raises a
+	 * permission prompt, which a checkbox's appearance would not warn anybody
+	 * about.
+	 * ---------------------------------------------------------------- */
+
+	let pushState = $state<PushState>('unavailable');
+	let pushBusy = $state(false);
+
+	onMount(async () => {
+		pushState = await currentPushState(data.vapidPublicKey);
+	});
+
+	async function togglePush() {
+		if (pushBusy || !data.vapidPublicKey) return;
+		pushBusy = true;
+		try {
+			pushState =
+				pushState === 'subscribed'
+					? await unsubscribeFromPush()
+					: await subscribeToPush(data.vapidPublicKey);
+
+			if (pushState === 'subscribed') toast.success(m.set_push_on());
+			else if (pushState === 'denied') toast.error(m.set_push_blocked());
+			else toast.success(m.set_push_off());
+		} catch {
+			toast.error(m.set_push_failed());
+		} finally {
+			pushBusy = false;
+		}
+	}
 
 	/* Labels live here rather than in domain/notify.ts so the message calls stay
 	   lazy — the locale is decided per request. */
@@ -352,6 +396,46 @@
 		<p class="text-[11px] font-medium text-ink-dim">
 			{m.set_notify_mail_note({ email: data.email })}
 		</p>
+
+		<!--
+			Only drawn where it can work: no key pair, or a browser with no push,
+			and there is nothing here to offer. A refusal is shown rather than
+			hidden, because only the reader can undo one and they need telling
+			where.
+		-->
+		{#if pushState !== 'unavailable'}
+			<div
+				class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-edge-soft bg-panel p-3"
+			>
+				<div class="min-w-0">
+					<p class="text-xs font-black text-ink">{m.set_push_title()}</p>
+					<p class="text-[11px] font-medium text-ink-dim">
+						{pushState === 'denied' ? m.set_push_blocked_help() : m.set_push_help()}
+					</p>
+				</div>
+
+				{#if pushState !== 'denied'}
+					<button
+						type="button"
+						onclick={togglePush}
+						disabled={pushBusy}
+						class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border-2 border-edge px-3 py-1.5 text-[11px] font-black disabled:opacity-60
+							{pushState === 'subscribed'
+							? 'bg-surface text-danger-fg hover:bg-danger-soft'
+							: 'bg-brand text-brand-ink hover:bg-brand-strong'}"
+					>
+						{#if pushBusy}
+							<Loader class="h-3.5 w-3.5 animate-spin" />
+						{:else if pushState === 'subscribed'}
+							<BellOff class="h-3.5 w-3.5" />
+						{:else}
+							<Bell class="h-3.5 w-3.5" />
+						{/if}
+						{pushState === 'subscribed' ? m.set_push_disable() : m.set_push_enable()}
+					</button>
+				{/if}
+			</div>
+		{/if}
 
 		<form method="POST" action="?/notifications" use:notifyEnhance class="space-y-3">
 			<div class="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 gap-y-3">

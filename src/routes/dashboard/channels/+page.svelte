@@ -468,11 +468,17 @@
 			<Errors allErrors={$proofAllErrors} />
 			<input type="hidden" name="socialAccountId" value={proofAccount?.id ?? ''} />
 
+			<!--
+				The camera, not the picker. A creator proving their figures is looking
+				at an analytics screen — often on a second phone, or on a laptop beside
+				them — and the shot they need does not exist yet.
+			-->
 			<InputComp
 				form={proofForm}
 				errors={proofErrors}
 				name="screenshot"
 				type="file"
+				capture="environment"
 				label={m.ch_proof_screenshot()}
 				placeholder={m.ch_proof_screenshot_hint()}
 				required

@@ -3,6 +3,7 @@ import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { shouldNotify, type NotifyCategory, type Preferences } from '$lib/domain/notify';
 import { sendMail, absoluteUrl, type MailContent } from '$lib/server/mail';
+import { sendPush } from '$lib/server/push';
 
 /**
  * Telling somebody something.
@@ -148,6 +149,34 @@ export async function notify(
 				kind: event.kind,
 				createdBy: event.actorId ?? null
 			}))
+		);
+	}
+
+	/*
+	 * Push, to whoever has a browser registered.
+	 *
+	 * Detached like the mail below, and for the same reason: `notify` is called
+	 * from inside actions that have already done the thing being reported, and a
+	 * push service being slow must not hold up a booking's response. It resolves
+	 * rather than rejects, so the `void` is what says the omission is deliberate.
+	 *
+	 * The category's rule is checked per recipient — see `domain/notify` for why
+	 * push follows the in-app preference — and a recipient with no subscription
+	 * simply has no rows to send to.
+	 */
+	const wantsPush = recipients.filter((r) => shouldNotify(r.prefs, event.category, 'push'));
+	if (wantsPush.length) {
+		void sendPush(
+			db,
+			wantsPush.map((r) => r.id),
+			{
+				title: event.title,
+				body: event.body ?? undefined,
+				url: event.link ?? undefined,
+				/* One live notification per thing, so a busy booking is one line on
+				   the lock screen rather than forty. */
+				tag: event.link ?? event.kind
+			}
 		);
 	}
 

@@ -47,7 +47,11 @@
 	};
 </script>
 
-<div class="{toneClass[tone]} flex flex-col justify-between gap-2">
+<!--
+	`p-4` on a phone against the 1.5rem the card class sets: at half the screen
+	width the default padding leaves less room for the figure than it takes.
+-->
+<div class="{toneClass[tone]} flex flex-col justify-between gap-2 p-4! sm:p-6!">
 	<div>
 		<div class="flex items-start justify-between gap-2">
 			<span
@@ -61,7 +65,11 @@
 				{@render icon()}
 			{/if}
 		</div>
-		<span class="text-3xl font-black {tone === 'dark' ? 'text-inverse-ink' : 'text-ink'}">
+		<span
+			class="text-2xl font-black break-words sm:text-3xl {tone === 'dark'
+				? 'text-inverse-ink'
+				: 'text-ink'}"
+		>
 			{value}
 		</span>
 	</div>

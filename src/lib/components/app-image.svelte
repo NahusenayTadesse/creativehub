@@ -40,6 +40,8 @@
 		height?: number | string;
 		loading?: 'lazy' | 'eager';
 		decoding?: 'async' | 'sync' | 'auto';
+		/** Carries `view-transition-name` where a picture morphs between pages. */
+		style?: string;
 	} = $props();
 
 	const fallback = $derived(placeholderImage(kind, seed || label || alt, label || alt));

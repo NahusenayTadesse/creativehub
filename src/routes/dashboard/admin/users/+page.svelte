@@ -29,6 +29,9 @@
 
 	let { data } = $props();
 
+	/* One row of the listing, named so the cell snippets below can take it. */
+	type UserRow = (typeof data.users.rows)[number];
+
 	const ROLE_ITEMS = $derived([
 		{ value: 'creator', name: m.au_role_creator() },
 		{ value: 'business', name: m.au_role_brand() },
@@ -239,7 +242,7 @@
 				<a
 					href={roleLink(tab.key)}
 					data-sveltekit-noscroll
-					class="cursor-pointer rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {roleFilter ===
+					class="inline-flex min-h-9 cursor-pointer items-center rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all sm:min-h-0 {roleFilter ===
 					tab.key
 						? 'bg-inverse text-inverse-ink'
 						: 'bg-surface text-ink hover:bg-well'}"
@@ -253,7 +256,7 @@
 			<a
 				href={bannedLink}
 				data-sveltekit-noscroll
-				class="inline-flex cursor-pointer items-center gap-1 rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all {bannedOnly
+				class="inline-flex min-h-9 cursor-pointer items-center gap-1 rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all sm:min-h-0 {bannedOnly
 					? 'bg-danger-soft text-danger-fg'
 					: 'bg-surface text-ink hover:bg-well'}"
 			>
@@ -265,7 +268,157 @@
 		<SearchInput value={listState.search} placeholder={m.au_search_placeholder()} class="sm:w-64" />
 	</div>
 
-	<div class="bento-card bento-card-static overflow-x-auto p-0!">
+	<!--
+		Two shapes for one list.
+
+		Five columns and a role picker need 900px, which a phone does not have —
+		it scrolled the whole page sideways. Rather than shrink the table until it
+		is unreadable, the row becomes a card below `md`: the same facts stacked,
+		the same forms, no sideways scroll. The cells are snippets so the two
+		layouts cannot drift into disagreeing about what a user row says.
+	-->
+	{#snippet identity(user: UserRow)}
+		<p class="text-xs font-black text-ink">{user.name}</p>
+		<p class="text-[11px] font-bold break-all text-ink-dim">{user.email}</p>
+	{/snippet}
+
+	{#snippet linkedTo(user: UserRow)}
+		{#if user.creatorUsername}
+			<a
+				href={resolve(`/creators/${user.creatorUsername}`)}
+				class="hover:text-brand-soft-fg hover:underline"
+			>
+				@{user.creatorUsername}
+			</a>
+		{:else if user.organizationName}
+			{user.organizationName}
+		{:else}
+			<span class="text-ink-faint">—</span>
+		{/if}
+	{/snippet}
+
+	{#snippet roleBadge(user: UserRow)}
+		<span
+			class="inline-flex items-center gap-1 rounded-lg border-2 px-2 py-0.5 text-[10px] font-black tracking-wider uppercase {roleTone[
+				user.role ?? 'creator'
+			]}"
+		>
+			{#if user.role === 'admin'}
+				<ShieldCheck class="h-3 w-3" />
+			{:else if user.role === 'business'}
+				<Briefcase class="h-3 w-3" />
+			{:else if user.role === 'encoder'}
+				<Database class="h-3 w-3" />
+			{:else}
+				<UserCheck class="h-3 w-3" />
+			{/if}
+			{user.role === 'admin'
+				? m.au_role_operator()
+				: user.role === 'business'
+					? m.au_role_brand()
+					: user.role === 'encoder'
+						? m.au_role_encoder()
+						: m.au_role_creator()}
+		</span>
+	{/snippet}
+
+	{#snippet status(user: UserRow)}
+		{#if user.banned}
+			<span
+				class="inline-flex items-center gap-1 rounded-lg border-2 border-danger-edge bg-danger-soft px-2 py-0.5 text-[10px] font-black tracking-wider text-danger-fg uppercase"
+			>
+				<Ban class="h-3 w-3" />
+				{m.au_status_banned()}
+			</span>
+			<!-- The reason is what makes a ban liftable six months later, so
+			     it is shown rather than filed. -->
+			{#if user.banReason}
+				<p class="mt-1 max-w-[16rem] text-[11px] font-bold text-ink-dim">
+					{user.banReason}
+				</p>
+			{/if}
+			<p class="mt-0.5 text-[11px] font-bold text-ink-faint">
+				{user.banExpires
+					? m.au_ban_until({ date: formatDate(user.banExpires) })
+					: m.au_ban_no_end()}
+			</p>
+		{:else}
+			<span class="text-[11px] font-bold text-ink-soft">{m.au_status_active()}</span>
+		{/if}
+	{/snippet}
+
+	{#snippet actions(user: UserRow, align: 'start' | 'end')}
+		<div class="flex flex-col gap-2 {align === 'end' ? 'items-end' : 'items-start'}">
+			<form
+				method="POST"
+				action="?/setRole"
+				use:enhance={handler}
+				class="flex w-full items-center gap-2 {align === 'end' ? 'justify-end' : ''}"
+			>
+				<input type="hidden" name="userId" value={user.id} />
+				<div class="w-40 shrink-0">
+					<InputComp
+						name="role"
+						type="select"
+						label={m.au_role_label()}
+						labelHidden
+						items={ROLE_ITEMS}
+						value={user.role ?? 'creator'}
+					/>
+				</div>
+				<button
+					type="submit"
+					class="min-h-9 rounded-lg border-2 border-edge bg-brand px-3 py-1 text-xs font-black text-brand-ink hover:bg-brand-strong"
+				>
+					{m.common_save()}
+				</button>
+			</form>
+
+			<!-- Nothing to ban yourself with: the action refuses it, and so
+			     does better-auth behind it. -->
+			{#if user.id !== data.user?.id}
+				{#if user.banned}
+					<form method="POST" action="?/unban" use:enhance={unbanHandler}>
+						<input type="hidden" name="userId" value={user.id} />
+						<button
+							type="submit"
+							class="inline-flex min-h-9 items-center gap-1 rounded-lg border-2 border-edge bg-surface px-2.5 py-1 text-[11px] font-black text-ink-soft transition-colors hover:bg-well"
+						>
+							<ShieldOff class="h-3 w-3" />
+							{m.au_ban_lift()}
+						</button>
+					</form>
+				{:else}
+					<UserBanDialog userId={user.id} name={user.name} />
+				{/if}
+			{/if}
+		</div>
+	{/snippet}
+
+	<!-- Phone: one card per account. -->
+	<div class="space-y-3 md:hidden">
+		{#each data.users.rows as user (user.id)}
+			<div class="bento-card bento-card-static space-y-3">
+				<div class="flex items-start justify-between gap-2">
+					<div class="min-w-0">{@render identity(user)}</div>
+					<div class="shrink-0">{@render roleBadge(user)}</div>
+				</div>
+
+				<div
+					class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-ink-soft"
+				>
+					<span>{@render linkedTo(user)}</span>
+				</div>
+
+				<div>{@render status(user)}</div>
+
+				<div class="border-t-2 border-edge-soft pt-3">{@render actions(user, 'start')}</div>
+			</div>
+		{/each}
+	</div>
+
+	<!-- Tablet and up: the table, which is the better shape once there is room. -->
+	<div class="bento-card bento-card-static hidden overflow-x-auto p-0! md:block">
 		<table class="w-full min-w-[900px] text-sm">
 			<thead>
 				<tr class="border-b-2 border-edge bg-panel">
@@ -299,119 +452,13 @@
 			<tbody>
 				{#each data.users.rows as user (user.id)}
 					<tr class="border-b border-edge-soft last:border-0">
-						<td class="px-4 py-3">
-							<p class="text-xs font-black text-ink">{user.name}</p>
-							<p class="text-[11px] font-bold text-ink-dim">{user.email}</p>
-						</td>
+						<td class="px-4 py-3">{@render identity(user)}</td>
 						<td class="px-4 py-3 text-[11px] font-bold text-ink-soft">
-							{#if user.creatorUsername}
-								<a
-									href={resolve(`/creators/${user.creatorUsername}`)}
-									class="hover:text-brand-soft-fg hover:underline"
-								>
-									@{user.creatorUsername}
-								</a>
-							{:else if user.organizationName}
-								{user.organizationName}
-							{:else}
-								<span class="text-ink-faint">—</span>
-							{/if}
+							{@render linkedTo(user)}
 						</td>
-						<td class="px-4 py-3">
-							<span
-								class="inline-flex items-center gap-1 rounded-lg border-2 px-2 py-0.5 text-[10px] font-black tracking-wider uppercase {roleTone[
-									user.role ?? 'creator'
-								]}"
-							>
-								{#if user.role === 'admin'}
-									<ShieldCheck class="h-3 w-3" />
-								{:else if user.role === 'business'}
-									<Briefcase class="h-3 w-3" />
-								{:else if user.role === 'encoder'}
-									<Database class="h-3 w-3" />
-								{:else}
-									<UserCheck class="h-3 w-3" />
-								{/if}
-								{user.role === 'admin'
-									? m.au_role_operator()
-									: user.role === 'business'
-										? m.au_role_brand()
-										: user.role === 'encoder'
-											? m.au_role_encoder()
-											: m.au_role_creator()}
-							</span>
-						</td>
-						<td class="px-4 py-3">
-							{#if user.banned}
-								<span
-									class="inline-flex items-center gap-1 rounded-lg border-2 border-danger-edge bg-danger-soft px-2 py-0.5 text-[10px] font-black tracking-wider text-danger-fg uppercase"
-								>
-									<Ban class="h-3 w-3" />
-									{m.au_status_banned()}
-								</span>
-								<!-- The reason is what makes a ban liftable six months later, so
-								     it is shown rather than filed. -->
-								{#if user.banReason}
-									<p class="mt-1 max-w-[16rem] text-[11px] font-bold text-ink-dim">
-										{user.banReason}
-									</p>
-								{/if}
-								<p class="mt-0.5 text-[11px] font-bold text-ink-faint">
-									{user.banExpires
-										? m.au_ban_until({ date: formatDate(user.banExpires) })
-										: m.au_ban_no_end()}
-								</p>
-							{:else}
-								<span class="text-[11px] font-bold text-ink-soft">{m.au_status_active()}</span>
-							{/if}
-						</td>
-						<td class="px-4 py-3">
-							<div class="flex flex-col items-end gap-2">
-								<form
-									method="POST"
-									action="?/setRole"
-									use:enhance={handler}
-									class="flex items-center gap-2"
-								>
-									<input type="hidden" name="userId" value={user.id} />
-									<div class="w-40">
-										<InputComp
-											name="role"
-											type="select"
-											label={m.au_role_label()}
-											labelHidden
-											items={ROLE_ITEMS}
-											value={user.role ?? 'creator'}
-										/>
-									</div>
-									<button
-										type="submit"
-										class="rounded-lg border-2 border-edge bg-brand px-3 py-1 text-xs font-black text-brand-ink hover:bg-brand-strong"
-									>
-										{m.common_save()}
-									</button>
-								</form>
-
-								<!-- Nothing to ban yourself with: the action refuses it, and so
-								     does better-auth behind it. -->
-								{#if user.id !== data.user?.id}
-									{#if user.banned}
-										<form method="POST" action="?/unban" use:enhance={unbanHandler}>
-											<input type="hidden" name="userId" value={user.id} />
-											<button
-												type="submit"
-												class="inline-flex items-center gap-1 rounded-lg border-2 border-edge bg-surface px-2.5 py-1 text-[11px] font-black text-ink-soft transition-colors hover:bg-well"
-											>
-												<ShieldOff class="h-3 w-3" />
-												{m.au_ban_lift()}
-											</button>
-										</form>
-									{:else}
-										<UserBanDialog userId={user.id} name={user.name} />
-									{/if}
-								{/if}
-							</div>
-						</td>
+						<td class="px-4 py-3">{@render roleBadge(user)}</td>
+						<td class="px-4 py-3">{@render status(user)}</td>
+						<td class="px-4 py-3">{@render actions(user, 'end')}</td>
 					</tr>
 				{/each}
 			</tbody>

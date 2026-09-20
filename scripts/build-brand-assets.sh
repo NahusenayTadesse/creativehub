@@ -30,6 +30,8 @@ cd "$(dirname "$0")/.."
 
 SRC=assets-src/brand
 OUT=static/brand
+ICONS=static/icons
+SPLASH=static/icons/splash
 mkdir -p "$OUT"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -89,6 +91,52 @@ magick "$SRC/mark.png" -trim +repage -resize '512x512>' -quality 90 "$OUT/mark.w
 magick "$SRC/mark.png" -trim +repage -resize 48x48 -background none -gravity center -extent 48x48 static/favicon.png
 magick "$SRC/mark.png" -trim +repage -resize 180x180 -background none -gravity center -extent 180x180 static/apple-touch-icon.png
 
+# ---------------------------------------------------------------- app icons
+#
+# What a phone draws on its home screen once the site is installed. Two plain
+# sizes, because the manifest wants a small one for the launcher and a large one
+# for the splash screen; both are `any`, transparent, drawn as they are.
+mkdir -p "$ICONS"
+magick "$SRC/mark.png" -trim +repage -resize 192x192 -background none -gravity center -extent 192x192 "$ICONS/icon-192.png"
+magick "$SRC/mark.png" -trim +repage -resize 512x512 -background none -gravity center -extent 512x512 "$ICONS/icon-512.png"
+
+# The maskable copy is a different picture, not a resize of those two.
+#
+# Android crops a maskable icon to whatever shape the launcher uses — circle,
+# squircle, teardrop — and only the middle 80% is guaranteed to survive it. So
+# the mark is drawn at 60% of the canvas and centred, which leaves room for the
+# worst of those crops, and the transparency is filled with the brand navy: a
+# maskable icon is never composited over anything, so a transparent one comes
+# out as the mark floating on whatever the launcher chose.
+magick "$SRC/mark.png" -trim +repage -resize 308x308 -background '#001020' -gravity center -extent 512x512 "$ICONS/icon-maskable-512.png"
+
+# ---------------------------------------------------------------- iOS splash
+#
+# The screen iOS shows while an installed app starts.
+#
+# Android takes the manifest's icon and colours and composes one itself. iOS
+# does neither: without these it shows a white rectangle for as long as the app
+# takes to boot, which is the single most "this is a web page" moment an
+# installed app has.
+#
+# Each file is an exact device resolution — iOS matches them on pixel size, and
+# anything that does not match one is ignored rather than scaled. The list is
+# the sizes in use rather than every size ever shipped: one per modern iPhone
+# family, in both orientations, plus the two common iPad widths. The mark is
+# drawn at a fifth of the shorter edge on the brand ground, which is what the
+# manifest's `background_color` gives Android.
+mkdir -p "$SPLASH"
+for size in 1179x2556 2556x1179 1290x2796 2796x1290 1170x2532 2532x1170 \
+	1284x2778 2778x1284 1125x2436 2436x1125 1242x2688 2688x1242 \
+	828x1792 1792x828 750x1334 1334x750 1640x2360 2360x1640 1668x2388 2388x1668; do
+	w=${size%x*}
+	h=${size#*x}
+	short=$((w < h ? w : h))
+	mark=$((short / 5))
+	magick "$SRC/mark.png" -trim +repage -resize "${mark}x${mark}" \
+		-background '#f2f5f9' -gravity center -extent "${w}x${h}" "$SPLASH/splash-${w}x${h}.png"
+done
+
 # ---------------------------------------------------------------- partners
 #
 # The co-branded lockup has no new original, so it is rebuilt: the new wordmark
@@ -108,5 +156,8 @@ magick "$SRC/partners.png" -crop 840x300+860+260 +repage \
 magick "$tmp/ours.png" \( -size 60x1 xc:none \) "$tmp/theirs.png" -background none -gravity center +append \
 	-bordercolor none -border 12 -resize 'x320>' -quality 90 "$OUT/partners.webp"
 
-echo "Brand assets written to $OUT and static/:"
-ls -la "$OUT" static/favicon.png static/apple-touch-icon.png
+echo "Brand assets written to $OUT, $ICONS and static/:"
+ls -la "$OUT" "$ICONS" static/favicon.png static/apple-touch-icon.png
+echo "$(ls -1 "$SPLASH" | wc -l) iOS splash screens in $SPLASH"
+echo
+echo "Now bump BRAND_VERSION in src/lib/brand.ts — Cloudflare keeps the old files for a week."

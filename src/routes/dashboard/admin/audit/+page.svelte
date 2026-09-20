@@ -43,7 +43,7 @@
 			<a
 				href={entityLink('all')}
 				data-sveltekit-noscroll
-				class="cursor-pointer rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] {entityFilter ===
+				class="inline-flex min-h-9 cursor-pointer items-center rounded-xl border-2 border-edge px-3 py-1.5 text-xs font-black shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] sm:min-h-0 {entityFilter ===
 				'all'
 					? 'bg-inverse text-inverse-ink'
 					: 'bg-surface text-ink hover:bg-well'}"

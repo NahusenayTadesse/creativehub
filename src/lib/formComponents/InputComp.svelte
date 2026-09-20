@@ -74,6 +74,7 @@
 		year = false,
 		futureDays = false,
 		image = '',
+		capture = undefined,
 		className = ''
 	}: {
 		label: string;
@@ -135,6 +136,8 @@
 		year?: boolean;
 		futureDays?: boolean;
 		image?: string;
+		/** `file` only: open the camera rather than the picker. See `FileUpload`. */
+		capture?: 'user' | 'environment' | undefined;
 		className?: string;
 	} = $props();
 
@@ -232,7 +235,7 @@
 			aria-describedby={describedBy}
 		/>
 	{:else if type === 'file'}
-		<FileUpload {name} {form} {image} {placeholder} />
+		<FileUpload {name} {form} {image} {placeholder} {capture} />
 	{:else if type === 'select'}
 		<ComboboxComp {name} id={fieldId} bind:value={asScalar, write} {items} {disabled} {required} />
 	{:else if type === 'boxSelect'}

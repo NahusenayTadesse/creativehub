@@ -204,6 +204,13 @@
       "when": 1789918478724,
       "tag": "0028_verify_channelless_operator_supply",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1789924385466,
+      "tag": "0029_glorious_abomination",
+      "breakpoints": true
     }
   ]
 }

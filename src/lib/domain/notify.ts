@@ -6,7 +6,18 @@
  * matters most for the ones a preference cannot override.
  */
 
-export type NotifyChannel = 'email' | 'app';
+export type NotifyChannel = 'email' | 'app' | 'push';
+
+/**
+ * Push follows the in-app preference rather than having one of its own.
+ *
+ * Two switches for "tell me when a booking moves" would be two ways to say the
+ * same thing and one more row of toggles to read. The consent that push
+ * actually needs is a different question — may we interrupt you at all — and
+ * the browser already asks it: no permission means no subscription means no
+ * push, whatever these say. So the preference answers *what*, the subscription
+ * answers *whether*, and neither is a duplicate of the other.
+ */
 
 export type NotifyCategory =
 	/** Proposals, countered terms, submissions, settlement — the deal itself. */
@@ -68,12 +79,16 @@ type Rule = keyof Preferences | 'always' | 'never';
  * page truthful about what it controls.
  */
 const RULES: Record<NotifyCategory, Record<NotifyChannel, Rule>> = {
-	deals: { email: 'dealsEmail', app: 'dealsApp' },
-	messages: { email: 'messagesEmail', app: 'messagesApp' },
-	opportunities: { email: 'opportunitiesEmail', app: 'opportunitiesApp' },
-	account: { email: 'accountEmail', app: 'always' },
-	product: { email: 'productEmail', app: 'never' },
-	security: { email: 'always', app: 'always' }
+	deals: { email: 'dealsEmail', app: 'dealsApp', push: 'dealsApp' },
+	messages: { email: 'messagesEmail', app: 'messagesApp', push: 'messagesApp' },
+	opportunities: {
+		email: 'opportunitiesEmail',
+		app: 'opportunitiesApp',
+		push: 'opportunitiesApp'
+	},
+	account: { email: 'accountEmail', app: 'always', push: 'always' },
+	product: { email: 'productEmail', app: 'never', push: 'never' },
+	security: { email: 'always', app: 'always', push: 'always' }
 };
 
 /**
