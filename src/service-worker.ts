@@ -11,18 +11,24 @@
  * role, and half the routes are a creator's own bookings or an operator's
  * queues. A cached page is a page that can be handed to the next person to open
  * the browser, or to the same person after they sign out, and no amount of
- * cache-busting makes that safe. So the only things kept are the ones that are
- * identical for everybody and already versioned by their filename:
+ * cache-busting makes that safe.
  *
- * - `build` — the hashed JavaScript and CSS SvelteKit emits. A new deploy is a
- *   new set of filenames, which is why these can be served from the cache
- *   without asking: the name *is* the version.
- * - a short, explicit list of static files — the icons, the manifest and the
- *   offline page.
+ * **And almost nothing else is stored either.** What is kept is the shell that
+ * has to exist when the network does not: the offline page, and the icons and
+ * manifest it names. Four files.
  *
- * Deliberately not `files`, which is the whole of `static/`: that is a megabyte
- * and a half of hero and gallery artwork nobody needs before they have asked
- * for it.
+ * The build's hashed Javascript and CSS are deliberately *not* precached,
+ * though they are the obvious candidate. SvelteKit already serves them
+ * `immutable` with a year's lifetime, so the browser's own HTTP cache makes a
+ * repeat visit fast without a second copy — and precaching them means fetching
+ * every one with `cache: 'reload'`, which bypasses that cache by definition.
+ * Measured against production that was 285 requests on install, and the worker
+ * was still installing eight seconds later on a good connection. On a phone on
+ * mobile data it is a long wait and somebody's data, spent again on every
+ * deploy, for a copy of files the browser already had.
+ *
+ * Nor `files`, which is the whole of `static/`: that is two megabytes of hero
+ * artwork and launch images nobody needs before they have asked for them.
  *
  * ## What it does with everything else
  *
@@ -42,16 +48,19 @@
  * load instead — or immediately, if the page asks, which is what the update
  * prompt in `pwa.svelte.ts` does.
  */
-import { build, version } from '$service-worker';
+import { version } from '$service-worker';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
 
 const CACHE = `assets-${version}`;
 
-/** The offline fallback, and the few static files worth having before they are asked for. */
-const SHELL = ['/offline.html', '/manifest.webmanifest', '/icons/icon-192.png', '/favicon.png'];
-
-const PRECACHE = [...build, ...SHELL];
+/**
+ * Everything the worker keeps: the offline page and what it draws.
+ *
+ * Four files, so an install is four requests and finishes before anybody
+ * notices. See the note above for why the build's assets are not here.
+ */
+const PRECACHE = ['/offline.html', '/manifest.webmanifest', '/icons/icon-192.png', '/favicon.png'];
 
 worker.addEventListener('install', (event) => {
 	event.waitUntil(
@@ -201,10 +210,10 @@ worker.addEventListener('fetch', (event) => {
 	if (NEVER_CACHE.some((path) => url.pathname.startsWith(path))) return;
 
 	/*
-	 * Versioned assets: the cache is authoritative.
+	 * The shell: the cache is authoritative.
 	 *
-	 * These filenames contain a content hash, so a hit is by definition the
-	 * right bytes and the network has nothing better to offer.
+	 * These four are fetched from the network on install and are not expected to
+	 * change within a version, so a hit is the right bytes.
 	 */
 	if (precached.has(url.pathname)) {
 		event.respondWith((async () => (await caches.match(url.pathname)) ?? fetch(request))());
