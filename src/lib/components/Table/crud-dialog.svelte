@@ -26,6 +26,13 @@
 			/** Button label, e.g. "Check this account". */
 			label: string;
 		};
+		/**
+		 * Fills this field in from the others — a channel's address from its
+		 * platform and handle. It keeps following them for as long as the field
+		 * is empty or still holds what it last worked out; once the reader types
+		 * something of their own, that is left alone.
+		 */
+		derive?: (values: Record<string, unknown>) => string | null;
 	};
 
 	/** The shape a `check` endpoint answers with. */
@@ -93,8 +100,27 @@
 		}
 	);
 
+	/* What each `derive` field last worked out, so a value the reader typed can
+	   be told apart from one this dialog wrote. Not state: nothing renders it. */
+	const derived: Record<string, string> = {};
+
+	function syncDerived() {
+		for (const field of fields) {
+			if (!field.derive) continue;
+			const next = field.derive($form) ?? '';
+			const current = String($form[field.name] ?? '');
+			if (!current || current === derived[field.name]) $form[field.name] = next;
+			derived[field.name] = next;
+		}
+	}
+
 	const prefill = () => {
 		for (const [key, value] of Object.entries(values)) $form[key] = value;
+		/* Remembered, not written: a stored address the owner typed themselves
+		   must not be replaced just by opening the dialog. */
+		for (const field of fields) {
+			if (field.derive) derived[field.name] = field.derive($form) ?? '';
+		}
 	};
 
 	prefill();
@@ -243,6 +269,7 @@
 							rows={field.rows ?? 5}
 							items={field.items ?? []}
 							image={existing[field.name] ?? ''}
+							onChange={syncDerived}
 						/>
 					{/snippet}
 

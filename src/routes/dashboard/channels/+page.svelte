@@ -26,6 +26,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { page } from '$app/state';
 	import { formatReach } from '$lib/domain/money';
+	import { profileUrlFor } from '$lib/domain/social-link';
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -193,7 +194,15 @@
 			type: 'number',
 			placeholder: '6.8'
 		},
-		{ name: 'profileUrl', label: m.ch_channel_url(), placeholder: 'https://…' },
+		{
+			name: 'profileUrl',
+			label: m.ch_channel_url(),
+			placeholder: 'https://…',
+			/* The same address the save would fill in for an empty field, shown
+			   while the handle is typed so it can be seen, and corrected, first. */
+			derive: (values) =>
+				profileUrlFor(platformName(Number(values.platformId)), String(values.handle ?? ''))
+		},
 		{ name: 'sortOrder', label: m.common_sort_order(), type: 'number' },
 		{
 			name: 'isActive',
