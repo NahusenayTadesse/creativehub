@@ -1,11 +1,11 @@
 import * as m from '$lib/paraglide/messages';
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { APIError } from 'better-auth/api';
 import type { PageServerLoad, Actions } from './$types';
 import { eq } from 'drizzle-orm';
-import { auth } from '$lib/server/auth';
+import { auth, googleEnabled } from '$lib/server/auth';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { registerSchema } from '$lib/schemas';
@@ -17,7 +17,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const form = await superValidate(zod4(registerSchema));
 	if (requested === 'business' || requested === 'creator') form.data.role = requested;
 
-	return { form };
+	return { form, google: googleEnabled };
 };
 
 export const actions: Actions = {
@@ -100,9 +100,54 @@ export const actions: Actions = {
 		}
 
 		/* New accounts land on the step that finishes their profile. */
-		redirect(
-			303,
-			form.data.role === 'business' ? '/dashboard/organization/create' : '/dashboard/profile/create'
-		);
+		redirect(303, firstStep(form.data.role));
+	},
+
+	/**
+	 * Signing up through Google, as the side of the market the page has
+	 * selected.
+	 *
+	 * The role goes into the OAuth state and is stamped on the account as
+	 * better-auth creates it — see `signupRole` in `$lib/server/auth`. Anything
+	 * but `business` is a creator, the same default the password form has.
+	 *
+	 * An address that already has an account is simply signed in, keeping the
+	 * role it has, and lands on the dashboard like any other returning user.
+	 * One whose password account was never confirmed is refused by Google
+	 * linking, and /login explains that, which is why failures go there.
+	 *
+	 * `redirect()` throws, so it sits outside the `try`, as on /login.
+	 */
+	google: async (event) => {
+		if (!googleEnabled) error(503, m.srv_google_unavailable());
+
+		const data = await event.request.formData();
+		const role = data.get('role') === 'business' ? 'business' : 'creator';
+		let url: string | undefined;
+
+		try {
+			const result = await auth.api.signInSocial({
+				body: {
+					provider: 'google',
+					callbackURL: '/dashboard',
+					newUserCallbackURL: firstStep(role),
+					errorCallbackURL: '/login',
+					additionalData: { signupRole: role }
+				},
+				headers: event.request.headers
+			});
+			url = result.url;
+		} catch (err) {
+			console.error('Google sign-up failed to start:', err);
+			redirect(303, '/login?error=start_failed');
+		}
+
+		if (!url) redirect(303, '/login?error=start_failed');
+		redirect(303, url);
 	}
 };
+
+/** Where a new account finishes setting itself up. */
+function firstStep(role: 'creator' | 'business') {
+	return role === 'business' ? '/dashboard/organization/create' : '/dashboard/profile/create';
+}

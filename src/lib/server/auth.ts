@@ -4,6 +4,7 @@ import { betterAuth } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { admin as adminPlugin } from 'better-auth/plugins/admin';
+import { getOAuthState } from 'better-auth/api';
 import { getRequestEvent } from '$app/server';
 import { db } from '$lib/server/db';
 import { sendSecurityMail } from '$lib/server/notify';
@@ -27,6 +28,29 @@ export { ROLES, type Role } from '$lib/roles';
 const googleClientId = env.GOOGLE_CLIENT_ID;
 const googleClientSecret = env.GOOGLE_SECRET;
 export const googleEnabled = Boolean(googleClientId && googleClientSecret);
+
+/**
+ * The side of the market a Google sign-up asked for on /register.
+ *
+ * It rides in the OAuth state — `additionalData` on `signInSocial` — because
+ * the account is created in Google's callback, a request that carries nothing
+ * else of ours. The state is written and read by better-auth alone, so this is
+ * the value the register action put there, or a value somebody posted to
+ * `/api/auth/sign-in/social` by hand; either way it is narrowed to the two
+ * roles anyone may choose at sign-up, exactly as `registerSchema` narrows the
+ * password form's. Admin is never claimed (PRD FR-004).
+ *
+ * Nothing at all outside an OAuth callback: `getOAuthState` throws when there
+ * is no request state, which is every password sign-up and every seed run.
+ */
+async function signupRole(): Promise<'creator' | 'business' | null> {
+	try {
+		const role = ((await getOAuthState()) as { signupRole?: unknown } | null)?.signupRole;
+		return role === 'creator' || role === 'business' ? role : null;
+	} catch {
+		return null;
+	}
+}
 
 export const auth = betterAuth({
 	baseURL: env.ORIGIN,
@@ -152,6 +176,24 @@ export const auth = betterAuth({
 	 * the login page turns the `?error=` into a sentence like any other.
 	 */
 	onAPIError: { errorURL: '/login' },
+	/**
+	 * A Google account created from /register gets the role that page asked
+	 * for, on the row as it is written — so there is no moment, as there is for
+	 * the password form, when a brand exists as a creator. Only creation is
+	 * hooked: an existing account signing in through /register keeps its role.
+	 * The admin plugin's own hook spreads the user over its default, so the
+	 * role set here survives it.
+	 */
+	databaseHooks: {
+		user: {
+			create: {
+				before: async (user) => {
+					const role = await signupRole();
+					return role ? { data: { ...user, role } } : undefined;
+				}
+			}
+		}
+	},
 	/**
 	 * A ceiling on how fast anyone can talk to the auth endpoints.
 	 *

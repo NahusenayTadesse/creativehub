@@ -4,6 +4,7 @@
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import SiteLogo from '$lib/components/site-logo.svelte';
+	import GoogleButton from '$lib/components/google-button.svelte';
 	import { resolveLogos } from '$lib/brand';
 	import { superForm } from 'sveltekit-superforms';
 	import { toast } from 'svelte-sonner';
@@ -185,6 +186,15 @@
 					{/if}
 				</button>
 			</form>
+
+			{#if data.google}
+				<!-- Signs up as whichever side is selected above. Only the role is
+				     sent: Google supplies the name and the address, and there is
+				     no password. -->
+				<GoogleButton action="?/google">
+					<input type="hidden" name="role" value={$form.role} />
+				</GoogleButton>
+			{/if}
 
 			<p class="text-center text-xs font-medium text-ink-soft">
 				{m.register_already()}
