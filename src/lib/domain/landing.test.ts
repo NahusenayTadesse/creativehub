@@ -48,7 +48,10 @@ describe('landingLayout', () => {
 			{ key: 'gallery', visible: false },
 			{ key: 'gallery', visible: true }
 		]);
-		expect(keys(layout)).toEqual([...LANDING_SECTIONS]);
+		expect(keys(layout)).toEqual([
+			'gallery',
+			...LANDING_SECTIONS.filter((key) => key !== 'gallery')
+		]);
 		expect(layout[0]).toEqual({ key: 'gallery', visible: false });
 	});
 });

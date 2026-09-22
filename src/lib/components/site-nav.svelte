@@ -118,6 +118,16 @@
 				>
 					{m.nav_blog()}
 				</a>
+				<a
+					href={resolve('/how-it-works')}
+					class="rounded-xl px-4 py-2 text-xs font-black tracking-wider uppercase transition-all {isActive(
+						'/how-it-works'
+					)
+						? 'border-2 border-edge bg-inverse text-inverse-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))]'
+						: 'border-2 border-transparent text-ink-soft hover:bg-well'}"
+				>
+					{m.nav_how_it_works()}
+				</a>
 			</nav>
 
 			<div class="hidden items-center gap-3 lg:flex">
@@ -261,6 +271,17 @@
 					: ''}"
 			>
 				{m.nav_blog()}
+			</a>
+			<a
+				href={resolve('/how-it-works')}
+				onclick={() => (mobileOpen = false)}
+				class="block rounded-xl px-3 py-3 text-sm font-black text-ink hover:bg-panel {isActive(
+					'/how-it-works'
+				)
+					? 'bg-panel'
+					: ''}"
+			>
+				{m.nav_how_it_works()}
 			</a>
 
 			{#if user}

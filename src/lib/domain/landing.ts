@@ -7,13 +7,22 @@ import * as m from '$lib/paraglide/messages';
  * `<h1>`, so it is always first and always there. Everything below it is an
  * operator's to reorder or hide.
  */
+/*
+ * The shipped order reads as the page's argument: the creators themselves
+ * straight under the hero, then the ways into them; the open briefs with the
+ * three ways a brief pays right behind them, since the pay badge on every
+ * brief card is what that section explains; the brands posting them; the
+ * gallery as the one picture-led break before the page closes on how each
+ * side signs up. The gallery sat first once, where a second headline over a
+ * full-width photograph read as another hero and pushed the creators down.
+ */
 export const LANDING_SECTIONS = [
-	'gallery',
 	'trending',
 	'categories',
 	'campaigns',
-	'brands',
 	'compensation',
+	'brands',
+	'gallery',
 	'howItWorks',
 	/* Added after the first installs saved a layout. `landingLayout` appends any
 	   section a stored list never mentioned, and it appends in this order — so

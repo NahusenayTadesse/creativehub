@@ -87,6 +87,7 @@ export const GET: RequestHandler = async ({ url, setHeaders }) => {
 		{ path: '/discover', changefreq: 'daily', priority: '0.9' },
 		{ path: '/campaigns', changefreq: 'daily', priority: '0.9' },
 		{ path: '/blog', changefreq: 'daily', priority: '0.8' },
+		{ path: '/how-it-works', changefreq: 'monthly', priority: '0.6' },
 		...creators.map((creator) => ({
 			path: `/creators/${creator.username}`,
 			lastmod: day(creator.updatedAt),

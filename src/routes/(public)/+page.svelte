@@ -729,7 +729,9 @@
 
 {#snippet compensationSection()}
 	<!-- ================= COMPENSATION MODELS ================= -->
-	<section class="py-4 sm:py-12">
+	<!-- No padding of its own: the page's gap is the one interval between
+	     sections, and extra here left this section floating in a wider gap. -->
+	<section>
 		<div class="mx-auto max-w-7xl space-y-6 px-4 sm:space-y-8 sm:px-6 lg:px-8">
 			<div class="mx-auto max-w-2xl space-y-2 text-center">
 				<span

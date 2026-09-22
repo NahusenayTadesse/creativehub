@@ -54,3 +54,6 @@ build*.zip
 # for the branding work. Source material, not source code: the site's own assets
 # live in `static/brand/`, built from `assets-src/brand/`.
 /Influencer Ethiopia branding alignment/
+
+# Work logs and progress reports — notes for us, not for the repository
+/reports/
