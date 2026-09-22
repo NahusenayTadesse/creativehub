@@ -1,5 +1,6 @@
 import { and, desc, eq, isNull, lte } from 'drizzle-orm';
 import { db } from '$lib/server/db';
+import { HELP_SLUGS } from '$lib/domain/help';
 import * as t from '$lib/server/db/schema';
 import type { RequestHandler } from './$types';
 
@@ -88,6 +89,14 @@ export const GET: RequestHandler = async ({ url, setHeaders }) => {
 		{ path: '/campaigns', changefreq: 'daily', priority: '0.9' },
 		{ path: '/blog', changefreq: 'daily', priority: '0.8' },
 		{ path: '/how-it-works', changefreq: 'monthly', priority: '0.6' },
+		{ path: '/help', changefreq: 'monthly', priority: '0.6' },
+		/* Every help article by name: they are the pages a question typed into a
+		   search engine should land on, and nothing else links to all of them. */
+		...HELP_SLUGS.map((slug) => ({
+			path: `/help/${slug}`,
+			changefreq: 'monthly',
+			priority: '0.5'
+		})),
 		...creators.map((creator) => ({
 			path: `/creators/${creator.username}`,
 			lastmod: day(creator.updatedAt),
