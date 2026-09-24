@@ -869,6 +869,60 @@ site down with a typo.
 | `/health`      | A proxy or uptime check. Touches the database, because "Node is listening" is not the question being asked |
 | `/robots.txt`  | A route rather than a static file, so `Sitemap:` can be absolute                                           |
 | `/sitemap.xml` | Published creators and briefs only                                                                         |
+| `/api/jobs/*`  | The maintenance jobs, for the box's own cron. Loopback and token only — see below                          |
+
+### Scheduled maintenance
+
+Three sweeps have to happen on a schedule, and none of them can be a `npm run`
+in the server's crontab: the deploy ships `build/` alone and there is no
+`npm install` there. So cron calls the running app over the loopback, which
+already holds the dependencies, the database and `FILES_DIR`. Nothing new is
+deployed by hand, which is the point — a shell script copied to the box once is
+a file nothing updates, and the last one of those went four months stale
+without anybody noticing.
+
+| Job              | Does                                                             | Suggested cadence |
+| ---------------- | ---------------------------------------------------------------- | ----------------- |
+| `verify-socials` | Re-checks handles the platforms may have deleted or renamed      | every 15 minutes  |
+| `prune-uploads`  | Removes files on disk that no row points at, after a day's grace | weekly            |
+| `refresh-geoip`  | Fetches the month's DB-IP country database and swaps it in       | monthly           |
+
+Three properties make this safe to call as often as cron likes:
+
+- **Resumable.** Each job takes a ~50-second budget and reads its queue from
+  the database oldest-first, so a run that stops early is not a run lost.
+- **Never overlapping.** A second call while one is running is answered `409`,
+  not queued behind it.
+- **Recorded.** Every run writes a row to `job_runs` — what it examined, what
+  it changed, whether it stopped on the budget, and the error if it failed.
+  `GET /api/jobs/runs` reads them back. A job that has been failing for a
+  fortnight is otherwise indistinguishable from one that is working.
+
+`JOB_TOKEN` in the server's `.env` is the credential, and the route refuses any
+request carrying `X-Forwarded-For` — so a request that came through Cloudflare
+and LiteSpeed is refused whatever token it holds. Set it up on the box with:
+
+```bash
+# once, as admin, with JOB_TOKEN already in ~/apps/creator-network/.env
+cat > ~/bin/job <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+source ~/apps/creator-network/.env
+curl -fsS -m 120 -X POST -H "Authorization: Bearer $JOB_TOKEN" \
+  "http://127.0.0.1:3000/api/jobs/$1"
+SH
+chmod 700 ~/bin/job
+
+crontab -e
+```
+
+```cron
+# Maintenance. The app records every run in job_runs; this log is for the
+# failures that never reached it, so it is worth keeping.
+*/15 * * * * ~/bin/job verify-socials >> ~/logs/jobs.log 2>&1
+17 4 * * 0   ~/bin/job prune-uploads  >> ~/logs/jobs.log 2>&1
+23 3 3 * *   ~/bin/job refresh-geoip   >> ~/logs/jobs.log 2>&1
+```
 
 ---
 

@@ -1,15 +1,25 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { resolve } from '$app/paths';
+	import { CircleHelp } from '@lucide/svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let {
 		eyebrow,
 		title,
 		description = '',
+		help = undefined,
 		actions = undefined
 	}: {
 		eyebrow: string;
 		title: string;
 		description?: string;
+		/**
+		 * The help article that explains this page, as its slug. Rendered as a
+		 * quiet link beside the page's own actions, because the docs are worth
+		 * nothing if they are only reachable from the footer of the public site.
+		 */
+		help?: string;
 		actions?: Snippet;
 	} = $props();
 </script>
@@ -25,9 +35,18 @@
 		{/if}
 	</div>
 
-	{#if actions}
+	{#if help || actions}
 		<div class="flex flex-wrap items-center gap-2">
-			{@render actions()}
+			{#if help}
+				<a
+					href={resolve(`/help/${help}`)}
+					class="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold text-ink-dim transition-colors hover:bg-panel hover:text-ink"
+				>
+					<CircleHelp class="h-4 w-4" />
+					{m.help_link_label()}
+				</a>
+			{/if}
+			{@render actions?.()}
 		</div>
 	{/if}
 </div>

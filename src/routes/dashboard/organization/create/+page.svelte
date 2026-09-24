@@ -39,7 +39,12 @@
 <svelte:head><title>{m.ogc_meta_title()}</title></svelte:head>
 
 <div class="mx-auto max-w-2xl space-y-6">
-	<PageHeader eyebrow={m.ogc_eyebrow()} title={m.ogc_title()} description={m.ogc_description()} />
+	<PageHeader
+		help="set-up-your-organisation"
+		eyebrow={m.ogc_eyebrow()}
+		title={m.ogc_title()}
+		description={m.ogc_description()}
+	/>
 
 	<div class="bento-card bento-card-static">
 		<form method="POST" use:enhance enctype="multipart/form-data" class="space-y-2">

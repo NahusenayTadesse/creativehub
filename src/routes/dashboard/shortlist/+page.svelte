@@ -27,7 +27,12 @@
 <svelte:head><title>{m.sl_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
-	<PageHeader eyebrow={m.dashb_eyebrow()} title={m.sl_title()} description={m.sl_description()}>
+	<PageHeader
+		help="find-and-shortlist-creators"
+		eyebrow={m.dashb_eyebrow()}
+		title={m.sl_title()}
+		description={m.sl_description()}
+	>
 		{#snippet actions()}
 			<a
 				href={resolve('/discover')}

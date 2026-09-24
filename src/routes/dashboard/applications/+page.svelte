@@ -61,6 +61,7 @@
 
 <div class="space-y-6">
 	<PageHeader
+		help={isCreatorView ? 'apply-to-campaigns' : 'review-applications'}
 		eyebrow={isCreatorView ? m.dashc_eyebrow() : m.ap_eyebrow_campaign_ops()}
 		title={isCreatorView ? m.ap_title_creator() : m.ap_title_brand()}
 		description={isCreatorView ? m.ap_description_creator() : m.ap_description_brand()}

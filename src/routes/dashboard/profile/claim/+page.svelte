@@ -52,7 +52,12 @@
 <svelte:head><title>{m.cl_meta_title()}</title></svelte:head>
 
 <div class="mx-auto max-w-2xl space-y-6">
-	<PageHeader eyebrow={m.cl_eyebrow()} title={m.cl_title()} description={m.cl_description()} />
+	<PageHeader
+		help="claim-your-profile"
+		eyebrow={m.cl_eyebrow()}
+		title={m.cl_title()}
+		description={m.cl_description()}
+	/>
 
 	{#if data.open}
 		<!-- A claim is already with an operator. Nothing to do but wait, or take

@@ -2520,4 +2520,34 @@ export const staffInvitesRelations = relations(staffInvites, ({ one }) => ({
 	acceptedUser: one(user, { fields: [staffInvites.acceptedUserId], references: [user.id] })
 }));
 
+/* ================================================================== *
+ * SCHEDULED JOBS
+ *
+ * What the maintenance jobs did, and when. Cron drives them over the
+ * loopback (see `src/lib/server/jobs`), which means the only evidence a
+ * job ran — or has been failing quietly for a fortnight — is what it
+ * wrote here. Kept deliberately small: one row per run.
+ * ================================================================== */
+
+export const jobRuns = mysqlTable(
+	'job_runs',
+	{
+		id: id(),
+		/** The job's registry name, e.g. `verify-socials`. */
+		job: varchar('job', { length: 64 }).notNull(),
+		startedAt: timestamp('started_at', { fsp: 3 }).defaultNow().notNull(),
+		finishedAt: timestamp('finished_at', { fsp: 3 }),
+		/** False for a run that threw. The message is in `note`. */
+		ok: boolean('ok').default(false).notNull(),
+		/** Items the run looked at, and of those how many it changed. */
+		examined: int('examined').default(0).notNull(),
+		changed: int('changed').default(0).notNull(),
+		/** Whether the run stopped on its time budget with work still queued. */
+		stoppedEarly: boolean('stopped_early').default(false).notNull(),
+		/** The run's own one-line summary, or the error for a failed run. */
+		note: varchar('note', { length: 500 }).default('').notNull()
+	},
+	(table) => [index('job_runs_job_started_idx').on(table.job, table.startedAt)]
+);
+
 export * from './auth.schema';

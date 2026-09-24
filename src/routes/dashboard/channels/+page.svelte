@@ -230,6 +230,7 @@
 <svelte:head><title>{m.ch_meta_title()}</title></svelte:head>
 
 <CrudSection
+	help="connect-your-channels"
 	eyebrow={m.dashc_eyebrow()}
 	title={m.ch_title()}
 	description={m.ch_description()}

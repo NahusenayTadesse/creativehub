@@ -52,7 +52,12 @@
 <svelte:head><title>{m.vf_meta_title()}</title></svelte:head>
 
 <div class="mx-auto max-w-3xl space-y-6">
-	<PageHeader eyebrow={m.rv_eyebrow()} title={m.vf_title()} description={m.vf_description()} />
+	<PageHeader
+		help="get-verified"
+		eyebrow={m.rv_eyebrow()}
+		title={m.vf_title()}
+		description={m.vf_description()}
+	/>
 
 	{#if data.subject}
 		<div class="bento-card-mint flex flex-wrap items-center justify-between gap-3">

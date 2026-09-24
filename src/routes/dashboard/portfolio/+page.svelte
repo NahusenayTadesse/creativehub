@@ -47,6 +47,7 @@
 <svelte:head><title>{m.po_meta_title()}</title></svelte:head>
 
 <CrudSection
+	help="your-portfolio"
 	eyebrow={m.dashc_eyebrow()}
 	title={m.po_title()}
 	description={m.po_description()}

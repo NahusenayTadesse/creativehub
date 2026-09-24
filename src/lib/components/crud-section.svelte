@@ -27,6 +27,7 @@
 		eyebrow,
 		title,
 		description = '',
+		help = undefined,
 		label,
 		rows,
 		list = undefined,
@@ -47,6 +48,8 @@
 		eyebrow: string;
 		title: string;
 		description?: string;
+		/** The help article for this page, passed straight to `PageHeader`. */
+		help?: string;
 		/** Singular noun used in the dialogs, e.g. "Country". */
 		label: string;
 		/** This page of rows. */
@@ -107,7 +110,7 @@
 </script>
 
 <div class="space-y-6">
-	<PageHeader {eyebrow} {title} {description}>
+	<PageHeader {eyebrow} {title} {description} {help}>
 		{#snippet actions()}
 			{#if extraActions}
 				{@render extraActions()}

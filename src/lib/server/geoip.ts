@@ -10,14 +10,14 @@ import { FILES_DIR } from '$lib/server/serveFile';
  * The file is DB-IP's free "IP to Country Lite" (CC BY 4.0 — the privacy page
  * carries the credit the licence asks for). Nothing is sent anywhere: the
  * lookup is a walk through a tree held in memory, and an address never leaves
- * the process. `scripts/geoip-update.sh` fetches the month's edition.
+ * the process. The `refresh-geoip` job fetches the month's edition.
  *
  * A missing or unreadable file is not an error. It means nobody is located by
  * address — which is exactly how the site behaved before this existed — and it
  * is said once, not on every request.
  */
 
-const DB_PATH = path.resolve(
+export const GEOIP_DB_PATH = path.resolve(
 	env.GEOIP_DB_PATH || path.join(FILES_DIR, 'geoip', 'dbip-country-lite.mmdb')
 );
 
@@ -39,9 +39,9 @@ function currentReader(): Reader<CountryResponse> | null {
 	checkedAt = now;
 
 	try {
-		const { mtimeMs } = fs.statSync(DB_PATH);
+		const { mtimeMs } = fs.statSync(GEOIP_DB_PATH);
 		if (!reader || mtimeMs !== loadedMtime) {
-			reader = new Reader<CountryResponse>(fs.readFileSync(DB_PATH));
+			reader = new Reader<CountryResponse>(fs.readFileSync(GEOIP_DB_PATH));
 			loadedMtime = mtimeMs;
 			reportedMissing = false;
 		}
@@ -55,7 +55,7 @@ function currentReader(): Reader<CountryResponse> | null {
 					level: 'warn',
 					at: new Date().toISOString(),
 					message: 'geoip: no country database, so signed-out readers are not located',
-					path: DB_PATH,
+					path: GEOIP_DB_PATH,
 					error: err instanceof Error ? err.message : String(err),
 					hint: 'Run scripts/geoip-update.sh with this path.'
 				})

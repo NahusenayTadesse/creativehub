@@ -42,7 +42,12 @@
 <svelte:head><title>{m.og_meta_title()}</title></svelte:head>
 
 <div class="mx-auto max-w-3xl space-y-6">
-	<PageHeader eyebrow={m.dashb_eyebrow()} title={m.og_title()} description={m.og_description()} />
+	<PageHeader
+		help="set-up-your-organisation"
+		eyebrow={m.dashb_eyebrow()}
+		title={m.og_title()}
+		description={m.og_description()}
+	/>
 
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 		<div class="bento-card bento-card-static">

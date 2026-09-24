@@ -1,3 +1,4 @@
+import { globSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
 	HELP_QUICK_LINKS,
@@ -73,5 +74,30 @@ describe('searching', () => {
 	it('ignores case and finds nothing for gibberish', () => {
 		expect(searchHelp(all, 'DEPOSIT').length).toBeGreaterThan(0);
 		expect(searchHelp(all, 'zzzzq')).toHaveLength(0);
+	});
+});
+
+/**
+ * The dashboard links each page to the article that explains it. Those slugs
+ * are written as plain strings in the markup, so nothing but this test stands
+ * between a renamed article and a "Help" link that 404s.
+ */
+describe('the help links in the dashboard', () => {
+	const files = globSync('src/routes/dashboard/**/*.svelte');
+	const used = files.flatMap((file) =>
+		[...readFileSync(file, 'utf8').matchAll(/help="([a-z-]+)"/g)].map((match) => ({
+			file,
+			slug: match[1]
+		}))
+	);
+
+	it('finds the links at all', () => {
+		expect(used.length).toBeGreaterThan(10);
+	});
+
+	it('points every one at an article that exists', () => {
+		for (const { file, slug } of used) {
+			expect(HELP_SLUGS, `${file} links to /help/${slug}`).toContain(slug);
+		}
 	});
 });

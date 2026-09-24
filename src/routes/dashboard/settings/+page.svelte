@@ -235,7 +235,12 @@
 <svelte:head><title>{m.set_meta_title()}</title></svelte:head>
 
 <div class="mx-auto max-w-3xl space-y-6">
-	<PageHeader eyebrow={m.set_eyebrow()} title={m.set_title()} description={m.set_description()} />
+	<PageHeader
+		help="account-settings"
+		eyebrow={m.set_eyebrow()}
+		title={m.set_title()}
+		description={m.set_description()}
+	/>
 
 	<!-- ---------- account details ---------- -->
 	<div class="bento-card bento-card-static space-y-4">

@@ -161,6 +161,7 @@
 <svelte:head><title>{m.dc_meta_title()}</title></svelte:head>
 
 <CrudSection
+	help="post-a-campaign"
 	eyebrow={data.organizationName}
 	title={m.dc_title()}
 	description={m.dc_description()}

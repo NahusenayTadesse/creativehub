@@ -55,6 +55,7 @@
 <svelte:head><title>{m.pk_meta_title()}</title></svelte:head>
 
 <CrudSection
+	help="your-packages"
 	eyebrow={m.dashc_eyebrow()}
 	title={m.pk_title()}
 	description={m.pk_description()}

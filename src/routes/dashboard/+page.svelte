@@ -34,7 +34,12 @@
 
 <div class="space-y-6">
 	{#if data.view === 'onboarding'}
-		<PageHeader eyebrow={m.ob_eyebrow()} title={m.ob_title()} description={m.ob_description()} />
+		<PageHeader
+			help="find-your-way-around"
+			eyebrow={m.ob_eyebrow()}
+			title={m.ob_title()}
+			description={m.ob_description()}
+		/>
 
 		<!--
 			One card, not two. Both used to be drawn whoever was looking, so a

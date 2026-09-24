@@ -42,7 +42,12 @@
 <svelte:head><title>{m.pc_meta_title()}</title></svelte:head>
 
 <div class="mx-auto max-w-2xl space-y-6">
-	<PageHeader eyebrow={m.pc_eyebrow()} title={m.pc_title()} description={m.pc_description()} />
+	<PageHeader
+		help="your-creator-profile"
+		eyebrow={m.pc_eyebrow()}
+		title={m.pc_title()}
+		description={m.pc_description()}
+	/>
 
 	<!-- Offered before the form, not after it: a creator we imported who fills
 	     this in ends up with a second, empty page and no way back to the one

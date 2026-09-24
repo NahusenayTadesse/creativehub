@@ -113,7 +113,12 @@
 <svelte:head><title>{m.pf_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
-	<PageHeader eyebrow={m.dashc_eyebrow()} title={m.pf_title()} description={m.pf_description()}>
+	<PageHeader
+		help="your-creator-profile"
+		eyebrow={m.dashc_eyebrow()}
+		title={m.pf_title()}
+		description={m.pf_description()}
+	>
 		{#snippet actions()}
 			{#if creator.isPublished}
 				<a

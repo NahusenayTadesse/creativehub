@@ -30,7 +30,12 @@
 <svelte:head><title>{m.rv_meta_title()}</title></svelte:head>
 
 <div class="space-y-6">
-	<PageHeader eyebrow={m.rv_eyebrow()} title={m.rv_title()} description={m.rv_description()} />
+	<PageHeader
+		help="reviews-and-ratings"
+		eyebrow={m.rv_eyebrow()}
+		title={m.rv_title()}
+		description={m.rv_description()}
+	/>
 
 	{#if summary.received}
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">

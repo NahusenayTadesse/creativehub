@@ -31,7 +31,12 @@
 <svelte:head><title>{m.np_meta_title()}</title></svelte:head>
 
 <div class="mx-auto max-w-3xl space-y-6">
-	<PageHeader eyebrow={m.np_eyebrow()} title={m.np_title()} description={m.np_description()}>
+	<PageHeader
+		help="account-settings"
+		eyebrow={m.np_eyebrow()}
+		title={m.np_title()}
+		description={m.np_description()}
+	>
 		{#snippet actions()}
 			{#if data.unread}
 				<form method="POST" action="?/readAll" use:enhance>

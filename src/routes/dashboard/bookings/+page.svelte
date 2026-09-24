@@ -42,6 +42,7 @@
 
 <div class="space-y-6">
 	<PageHeader
+		help="the-deal-lifecycle"
 		eyebrow={data.role === 'admin' ? m.dash_platform_operations() : m.bl_eyebrow_deals()}
 		title={m.bl_title()}
 		description={m.bl_description()}

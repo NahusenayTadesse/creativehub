@@ -61,7 +61,12 @@
 <svelte:head><title>{m.payo_title()}</title></svelte:head>
 
 <div class="mx-auto max-w-3xl space-y-6">
-	<PageHeader eyebrow={m.sb_payouts()} title={m.payo_title()} description={m.payo_subtitle()} />
+	<PageHeader
+		help="getting-paid"
+		eyebrow={m.sb_payouts()}
+		title={m.payo_title()}
+		description={m.payo_subtitle()}
+	/>
 
 	<!-- What is owed but not yet sent -->
 	<div class="bento-card-mint flex flex-wrap items-center justify-between gap-3">
