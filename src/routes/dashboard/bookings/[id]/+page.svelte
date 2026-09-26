@@ -23,9 +23,9 @@
 		Gavel,
 		Undo2,
 		XCircle,
-		RefreshCw,
-		Play
+		RefreshCw
 	} from '@lucide/svelte';
+	import ManagedDeal from './managed-deal.svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import BookingStatusBadge from '$lib/components/booking-status-badge.svelte';
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
@@ -85,6 +85,8 @@
 	const canRespond = $derived(
 		openProposal !== null &&
 			!isOperator &&
+			/* A creator answers once they know who with — the NDA panel above. */
+			(!isCreator || data.canSeeBrand) &&
 			((isCreator && openProposal.proposedBy === 'organization') ||
 				(isBrand && openProposal.proposedBy === 'creator'))
 	);
@@ -685,7 +687,7 @@
 			</div>
 
 			<div class="flex shrink-0 flex-wrap items-center gap-2">
-				{#if negotiating && !isOperator}
+				{#if negotiating && !isOperator && (!isCreator || data.canSeeBrand)}
 					<button
 						type="button"
 						onclick={() => (counterOpen = true)}
@@ -695,7 +697,9 @@
 					</button>
 				{/if}
 
-				{#if booking.status === 'booked' && isBrand && data.canPayOnline}
+				<!-- The campaign funds are paid once the contract is signed, and
+				     production — the concept's approval — waits on them. -->
+				{#if ['booked', 'concept'].includes(booking.status) && isBrand && data.canPayOnline}
 					<!-- Ends in a redirect to Chapa, so this posts for real rather than
 					     through `enhance`: an enhanced submit would have to follow the
 					     303 itself, and a cross-origin one at that. -->
@@ -716,7 +720,7 @@
 				     the server refuses it from anyone else, and refuses it from
 				     everyone while the gateway is off, since a deal that completes
 				     without a deposit should not be collecting one. -->
-				{#if data.paymentsEnabled && booking.status === 'booked' && isOperator && booking.escrowStatus !== 'held'}
+				{#if data.paymentsEnabled && ['booked', 'concept'].includes(booking.status) && isOperator && booking.escrowStatus !== 'held'}
 					<form method="POST" action="?/fund" use:enhance={actionEnhance(m.bk_deposit_recorded())}>
 						<input type="hidden" name="bookingId" value={booking.id} />
 						<input type="hidden" name="paymentMethod" value="bank_transfer" />
@@ -726,27 +730,6 @@
 						>
 							<Wallet class="h-3.5 w-3.5" />
 							{m.bk_record_deposit_manual()}
-						</button>
-					</form>
-				{/if}
-
-				<!-- The step that was missing: a deal with no deposit to wait for used
-				     to reach `booked` and stop, because the only writers of
-				     `in_production` were the Chapa callback and the operator's manual
-				     deposit. The creator says when they have started instead. -->
-				{#if data.canStartWork && isCreator}
-					<form
-						method="POST"
-						action="?/startWork"
-						use:enhance={actionEnhance(m.bk_started_toast())}
-					>
-						<input type="hidden" name="bookingId" value={booking.id} />
-						<button
-							type="submit"
-							class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
-						>
-							<Play class="h-3.5 w-3.5" />
-							{m.bk_start_work()}
 						</button>
 					</form>
 				{/if}
@@ -838,19 +821,6 @@
 			</p>
 		{/if}
 
-		<!-- What "Start work" means, and what the other side is waiting on while it
-		     has not been pressed. Without this the brand sees a deal sitting at
-		     `booked` with no explanation of whose move it is. -->
-		{#if data.canStartWork}
-			<p class="text-[11px] font-medium text-ink-soft">
-				{#if isCreator}
-					{m.bk_start_work_hint()}
-				{:else}
-					{m.bk_awaiting_start({ creator: booking.creatorName })}
-				{/if}
-			</p>
-		{/if}
-
 		<!-- Stepper -->
 		{#if currentStep >= 0}
 			<div class="overflow-x-auto border-t-2 border-edge-soft py-6">
@@ -887,6 +857,9 @@
 
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 		<div class="space-y-6 lg:col-span-2">
+			<!-- ===== The managed deal: NDA, money, contract, concept, proof, documents ===== -->
+			<ManagedDeal {data} />
+
 			<!-- ===== Negotiation ===== -->
 			<div class="bento-card bento-card-static space-y-4">
 				<div class="flex items-center justify-between border-b-2 border-edge pb-3">
@@ -1003,6 +976,8 @@
 											</button>
 										</form>
 									</div>
+								{:else if prop.status === 'pending' && isCreator && !data.canSeeBrand && prop.proposedBy === 'organization'}
+									<p class="mt-2 text-[11px] font-bold text-warn-fg">{m.nda_required()}</p>
 								{:else if prop.status === 'pending' && !isOperator}
 									<p class="mt-2 text-[11px] font-bold text-ink-dim">
 										{m.bk_waiting_other_side()}

@@ -111,6 +111,12 @@
 				{ value: 'cancelled', name: m.cf_status_cancelled() }
 			]
 		},
+		{
+			name: 'confidential',
+			label: m.cf_confidential(),
+			type: 'checkboxSingle',
+			placeholder: m.cf_confidential_hint()
+		},
 		{ name: 'sortOrder', label: m.cf_sort_order(), type: 'number' }
 	]);
 
@@ -153,6 +159,7 @@
 		language: row.language,
 		tags: (row.tags ?? []).join('\n'),
 		status: row.status,
+		confidential: row.confidential,
 		isActive: row.isActive,
 		sortOrder: row.sortOrder
 	});

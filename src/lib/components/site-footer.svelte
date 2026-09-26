@@ -2,7 +2,9 @@
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages';
 	import { ShieldCheck, Heart, MapPin, Sparkles, CircleCheckBig } from '@lucide/svelte';
+	import { page } from '$app/state';
 	import SiteLogo from './site-logo.svelte';
+	import PlatformSocials from './platform-socials.svelte';
 	import { DEFAULT_LOGOS, type Logos } from '$lib/brand';
 
 	let {
@@ -148,9 +150,14 @@
 				<!-- `onSlab`, because this band is dark in both themes: the wordmark
 				     here must not follow the reader's theme the way the header's does. -->
 				<SiteLogo {logos} variant="wordmark" heightClass="h-12" onSlab />
-				<span class="text-slab-ink-dim">|</span>
-				<span class="text-slab-ink-dim">{m.footer_location()}</span>
+				<span class="flex flex-col gap-0.5">
+					<!-- The platform's full name, as the owner states it. -->
+					<span class="font-semibold text-slab-ink">{m.footer_byline()}</span>
+					<span class="text-slab-ink-dim">{m.footer_location()}</span>
+				</span>
 			</div>
+
+			<PlatformSocials socials={page.data.settings?.socials} variant="compact" />
 
 			<div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-slab-ink-dim">
 				<a href={resolve('/blog')} class="hover:text-slab-brand">{m.nav_blog()}</a>

@@ -64,6 +64,7 @@ const ENCODER_PAGES = [
 	'/dashboard/admin/platforms',
 	'/dashboard/admin/languages',
 	'/dashboard/admin/gallery',
+	'/dashboard/admin/hero',
 	'/dashboard/admin/creators',
 	'/dashboard/admin/organizations',
 	/* Confirming that a handle belongs to the creator claiming it. The same job

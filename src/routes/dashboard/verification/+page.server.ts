@@ -9,6 +9,11 @@ import { requireUser, getCreatorFor, getOrganizationFor, recordAudit } from '$li
 import { verificationSubmit, linesOf } from '$lib/schemas';
 import { saveUploadedFile } from '$lib/server/upload';
 import { uploadErrorText } from '$lib/server/crud';
+import { redirect } from '@sveltejs/kit';
+import { dev } from '$app/environment';
+import { FAYDA_COOKIE, faydaConfig } from '$lib/server/fayda-config';
+import { authorizeUrl, newAttempt } from '$lib/server/fayda';
+import { getLocale } from '$lib/paraglide/runtime';
 
 export const load: PageServerLoad = async ({ parent }) => {
 	const { creator, organization } = await parent();
@@ -35,10 +40,75 @@ export const load: PageServerLoad = async ({ parent }) => {
 				.orderBy(desc(t.verificationRequests.createdAt))
 		: [];
 
-	return { subject, requests, form: await superValidate(zod4(verificationSubmit)) };
+	/* The Fayda check, for creators: whether it can be offered at all, and the
+	   latest attempt. Only the outcome and the date — never an ID number,
+	   which is never stored. */
+	const identity = creator
+		? ((
+				await db
+					.select({
+						status: t.identityChecks.status,
+						verifiedAt: t.identityChecks.verifiedAt,
+						failureReason: t.identityChecks.failureReason,
+						createdAt: t.identityChecks.createdAt
+					})
+					.from(t.identityChecks)
+					.where(eq(t.identityChecks.creatorId, creator.id))
+					.orderBy(desc(t.identityChecks.createdAt))
+					.limit(1)
+			).at(0) ?? null)
+		: null;
+
+	return {
+		subject,
+		requests,
+		form: await superValidate(zod4(verificationSubmit)),
+		fayda: { available: Boolean(creator) && faydaConfig() !== null, latest: identity }
+	};
 };
 
 export const actions: Actions = {
+	/**
+	 * Sends a creator to Fayda to prove who they are with an OTP. What comes
+	 * back is handled by ./fayda/callback.
+	 */
+	fayda: async (event) => {
+		const user = requireUser(event);
+		const creator = await getCreatorFor(user.id);
+		if (!creator)
+			return message(
+				await superValidate(zod4(verificationSubmit)),
+				{ type: 'error', text: m.srv_create_profile_first() },
+				{ status: 403 }
+			);
+		const config = faydaConfig();
+		if (!config)
+			return message(
+				await superValidate(zod4(verificationSubmit)),
+				{ type: 'error', text: m.fayda_unavailable() },
+				{ status: 503 }
+			);
+
+		const attempt = newAttempt();
+		event.cookies.set(
+			FAYDA_COOKIE,
+			JSON.stringify({
+				state: attempt.state,
+				nonce: attempt.nonce,
+				verifier: attempt.codeVerifier
+			}),
+			{
+				path: '/dashboard/verification',
+				httpOnly: true,
+				secure: !dev,
+				/* Lax, because Fayda returns the reader with a top-level GET. */
+				sameSite: 'lax',
+				maxAge: 15 * 60
+			}
+		);
+		redirect(303, authorizeUrl(config, attempt, getLocale() === 'am' ? 'am' : 'en'));
+	},
+
 	default: async (event) => {
 		const user = requireUser(event);
 		const form = await superValidate(event.request, zod4(verificationSubmit));

@@ -1,7 +1,12 @@
 import * as m from '$lib/paraglide/messages';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { getBrandBySlug, listBrandBriefs, listProfilePosts } from '$lib/server/queries';
+import {
+	getBrandBySlug,
+	listBrandBriefs,
+	listBrandReviews,
+	listProfilePosts
+} from '$lib/server/queries';
 
 /**
  * A brand's public page.
@@ -19,10 +24,11 @@ export const load: PageServerLoad = async ({ params }) => {
 	const brand = await getBrandBySlug(params.slug);
 	if (!brand) error(404, m.br_not_found());
 
-	const [briefs, articles] = await Promise.all([
+	const [briefs, articles, reviews] = await Promise.all([
 		listBrandBriefs(brand.id),
-		listProfilePosts({ organizationId: brand.id })
+		listProfilePosts({ organizationId: brand.id }),
+		listBrandReviews(brand.id)
 	]);
 
-	return { brand, briefs, articles };
+	return { brand, briefs, articles, reviews };
 };

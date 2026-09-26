@@ -11,8 +11,21 @@
 	import { CircleAlert, LayoutTemplate, RotateCcw } from '@lucide/svelte';
 	import { resolve } from '$app/paths';
 	import { resolveLogos } from '$lib/brand';
+	import { page } from '$app/state';
 
 	let { data } = $props();
+
+	/* The market that leads every public listing, by ISO code; "none" switches
+	   the preference off without losing the rest of the continent. */
+	const homeMarketItems = $derived([
+		{ value: '', name: m.as_home_market_none() },
+		...(page.data.reference?.countries ?? []).map(
+			(country: { code: string; name: string; flag: string }) => ({
+				value: country.code,
+				name: `${country.flag} ${country.name}`
+			})
+		)
+	]);
 
 	const { form, errors, enhance, delayed, allErrors, message } = superForm(
 		untrack(() => data.form)
@@ -167,13 +180,15 @@
 			</div>
 
 			<div class="mt-6 grid grid-cols-1 gap-2 border-t-2 border-edge pt-5 sm:grid-cols-2">
-				<InputComp
-					{form}
-					{errors}
-					label={m.as_fee_percent()}
-					name="platformFeePercent"
-					type="number"
-				/>
+				<!-- The flat fee gave way to the tiered rate card, which has its own
+				     screen and calculator. -->
+				<a
+					href={resolve('/dashboard/admin/commission')}
+					class="flex flex-col justify-center rounded-2xl border-2 border-edge bg-surface p-3 text-xs shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-well"
+				>
+					<span class="font-black text-ink">{m.as_commission_link()}</span>
+					<span class="text-[11px] text-ink-dim">{m.as_commission_link_hint()}</span>
+				</a>
 				<InputComp
 					{form}
 					{errors}
@@ -183,6 +198,30 @@
 					min={0}
 					hint={m.as_dispute_window_hint()}
 				/>
+			</div>
+
+			<!-- Who the public sees, and in what order. -->
+			<div class="mt-2 space-y-2 border-t-2 border-edge pt-5">
+				<h2 class="text-sm font-black text-ink">{m.as_listing_heading()}</h2>
+				<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+					<InputComp
+						{form}
+						{errors}
+						label={m.as_home_market()}
+						name="homeMarketCode"
+						type="select"
+						items={homeMarketItems}
+						hint={m.as_home_market_hint()}
+					/>
+					<InputComp
+						{form}
+						{errors}
+						label={m.as_requires_price()}
+						name="publicRequiresPrice"
+						type="checkboxSingle"
+						placeholder={m.as_requires_price_hint()}
+					/>
+				</div>
 			</div>
 
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">

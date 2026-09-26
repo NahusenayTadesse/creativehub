@@ -1,5 +1,5 @@
 import * as m from '$lib/paraglide/messages';
-import { error, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { and, eq } from 'drizzle-orm';
@@ -11,10 +11,15 @@ import { getCampaignBySlug } from '$lib/server/queries';
 import { getCreatorFor, recordAudit } from '$lib/server/guards';
 import { applicationSchema } from '$lib/schemas';
 import { recalcCampaignApplications } from '$lib/server/db/rollups';
+import { acceptNda, maskCampaigns } from '$lib/server/nda';
+import { clientAddress } from '$lib/server/bot-defence';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
-	const campaign = await getCampaignBySlug(params.slug);
-	if (!campaign) error(404, m.srv_campaign_not_found());
+	const found = await getCampaignBySlug(params.slug);
+	if (!found) error(404, m.srv_campaign_not_found());
+	/* The brand's name, logo and link wait behind the NDA on a confidential
+	   brief; everything a creator needs to judge it is shown regardless. */
+	const [campaign] = await maskCampaigns(locals.user, [found]);
 
 	const isOperator = (locals.user as { role?: string })?.role === 'admin';
 	if (campaign.status !== 'published' && !isOperator) {
@@ -51,6 +56,22 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 };
 
 export const actions: Actions = {
+	/** A creator's one-click NDA on this brief: its brand is shown from here on. */
+	acceptNda: async (event) => {
+		if (!event.locals.user) redirect(303, `/login?next=${event.url.pathname}`);
+		const creator = await getCreatorFor(event.locals.user.id);
+		if (!creator) return fail(403, { message: m.nda_creators_only() });
+		const campaign = await getCampaignBySlug(event.params.slug);
+		if (!campaign) return fail(404, { message: m.srv_campaign_not_found() });
+		await acceptNda({
+			user: event.locals.user,
+			organizationId: campaign.organizationId,
+			subject: { type: 'campaign', id: campaign.id },
+			ip: clientAddress(event)
+		});
+		return { ndaAccepted: true };
+	},
+
 	apply: async (event) => {
 		if (!event.locals.user) redirect(303, `/login?next=${event.url.pathname}`);
 
@@ -92,6 +113,18 @@ export const actions: Actions = {
 				{ type: 'error', text: m.srv_campaign_no_applications() },
 				{ status: 400 }
 			);
+		}
+
+		/* A creator pitches knowing who to: on a confidential brief, the NDA first. */
+		const [seen] = await maskCampaigns(event.locals.user, [
+			{
+				id: campaign.id,
+				organizationId: campaign.organizationId,
+				confidential: campaign.confidential
+			}
+		]);
+		if (seen.brandHidden) {
+			return message(form, { type: 'error', text: m.nda_required_apply() }, { status: 403 });
 		}
 
 		/* One active application per creator per campaign (PRD INV-005). */

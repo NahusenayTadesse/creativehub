@@ -9,6 +9,7 @@
 	import { formatAmountWithCode } from '$lib/domain/money';
 	import { escrowLabel, statusLabel } from '$lib/domain/booking';
 	import { disputeResolutionLabel, resolutionAmounts, splitIsValid } from '$lib/domain/dispute';
+	import { quoteDeal } from '$lib/domain/commission';
 	import { Gavel, ExternalLink, Inbox, RefreshCw, TriangleAlert } from '@lucide/svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -104,7 +105,10 @@
 				{@const refundInput = Number(draft.refund || 0)}
 				{@const amounts = resolutionAmounts(
 					c.price ?? 0,
-					data.feePercent,
+					(amount: number) => {
+						const quote = quoteDeal(amount, data.commission);
+						return { platformFee: quote.commission, creatorPayout: quote.creatorPayout };
+					},
 					draft.resolution as 'released' | 'refunded' | 'split',
 					refundInput
 				)}

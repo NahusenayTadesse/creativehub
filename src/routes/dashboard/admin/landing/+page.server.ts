@@ -7,7 +7,12 @@ import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { requireRole, recordAudit } from '$lib/server/guards';
 import { landingSchema } from '$lib/schemas';
-import { getSettings, listGallerySlides } from '$lib/server/queries';
+import {
+	forgetSettings,
+	getSettings,
+	listGallerySlides,
+	listHeroSlides
+} from '$lib/server/queries';
 import { SECTION_VISIBILITY_FIELD, landingLayout } from '$lib/domain/landing';
 
 /**
@@ -20,7 +25,11 @@ import { SECTION_VISIBILITY_FIELD, landingLayout } from '$lib/domain/landing';
 
 export const load: PageServerLoad = async (event) => {
 	requireRole(event, 'admin');
-	const [settings, slides] = await Promise.all([getSettings(), listGallerySlides()]);
+	const [settings, slides, heroSlides] = await Promise.all([
+		getSettings(),
+		listGallerySlides(),
+		listHeroSlides()
+	]);
 	const layout = landingLayout(settings?.landingSections);
 
 	const form = await superValidate(zod4(landingSchema));
@@ -30,12 +39,21 @@ export const load: PageServerLoad = async (event) => {
 		heroTitleEnd: settings?.heroTitleEnd ?? '',
 		heroSubtitle: settings?.heroSubtitle ?? '',
 		galleryIntervalSeconds: settings?.galleryIntervalSeconds ?? 6,
+		heroIntervalSeconds: settings?.heroIntervalSeconds ?? 6,
+		socialInstagramUrl: settings?.socialInstagramUrl ?? '',
+		socialInstagramFollowers: settings?.socialInstagramFollowers ?? undefined,
+		socialTiktokUrl: settings?.socialTiktokUrl ?? '',
+		socialTiktokFollowers: settings?.socialTiktokFollowers ?? undefined,
+		socialFacebookUrl: settings?.socialFacebookUrl ?? '',
+		socialFacebookFollowers: settings?.socialFacebookFollowers ?? undefined,
+		socialYoutubeUrl: settings?.socialYoutubeUrl ?? '',
+		socialYoutubeFollowers: settings?.socialYoutubeFollowers ?? undefined,
 		sectionOrder: layout.map((section) => section.key),
 		...Object.fromEntries(
 			layout.map((section) => [SECTION_VISIBILITY_FIELD[section.key], section.visible])
 		)
 	});
-	return { form, slideCount: slides.length };
+	return { form, slideCount: slides.length, heroSlideCount: heroSlides.length };
 };
 
 export const actions: Actions = {
@@ -62,7 +80,18 @@ export const actions: Actions = {
 			/* Null rather than empty, so "use the translated subtitle" has one spelling. */
 			heroSubtitle: rest.heroSubtitle || null,
 			galleryIntervalSeconds: rest.galleryIntervalSeconds,
-			landingSections
+			heroIntervalSeconds: rest.heroIntervalSeconds,
+			landingSections,
+			/* A blank count is "not stated", which is null — never a zero shown
+			   under a platform the site plainly has followers on. */
+			socialInstagramUrl: rest.socialInstagramUrl,
+			socialInstagramFollowers: rest.socialInstagramFollowers ?? null,
+			socialTiktokUrl: rest.socialTiktokUrl,
+			socialTiktokFollowers: rest.socialTiktokFollowers ?? null,
+			socialFacebookUrl: rest.socialFacebookUrl,
+			socialFacebookFollowers: rest.socialFacebookFollowers ?? null,
+			socialYoutubeUrl: rest.socialYoutubeUrl,
+			socialYoutubeFollowers: rest.socialYoutubeFollowers ?? null
 		};
 
 		const existing = await getSettings();
@@ -74,6 +103,7 @@ export const actions: Actions = {
 		} else {
 			await db.insert(t.siteSettings).values({ ...row, createdBy: user.id });
 		}
+		forgetSettings();
 
 		const hidden = landingSections.filter((section) => !section.visible).map((s) => s.key);
 		await recordAudit({

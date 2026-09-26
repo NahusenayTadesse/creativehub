@@ -11,7 +11,9 @@
 		// booking lifecycle
 		proposed: 'bg-well text-ink border-edge-mid',
 		negotiating: 'bg-warn-soft text-warn-fg border-warn-edge',
+		contracting: 'bg-warn-soft text-warn-fg border-warn-edge',
 		booked: 'bg-info-soft text-info-fg border-info-edge',
+		concept: 'bg-tint-blue text-tint-blue-fg border-tint-blue-edge',
 		in_production: 'bg-info-soft text-info-fg border-info-edge',
 		submitted: 'bg-warn-soft text-warn-fg border-warn-edge',
 		revision: 'bg-tint-orange text-tint-orange-fg border-tint-orange-edge',

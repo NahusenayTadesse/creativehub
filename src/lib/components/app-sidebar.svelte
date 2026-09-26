@@ -21,6 +21,9 @@
 		Languages,
 		Settings,
 		GalleryHorizontal,
+		Images,
+		SquareKanban,
+		Percent,
 		LayoutTemplate,
 		Newspaper,
 		FileCheck,
@@ -147,14 +150,24 @@
 				title: m.sb_gallery(),
 				url: resolve('/dashboard/admin/gallery'),
 				icon: GalleryHorizontal
-			}
+			},
+			{ title: m.sb_hero_photos(), url: resolve('/dashboard/admin/hero'), icon: Images }
 		];
 
 		/* The two listings the catalogue is made of, shared for the same reason as
 		   the reference tables above: an encoder enters them, an operator also
 		   works them, and one list keeps the two sidebars saying the same thing. */
 		const catalogue = [
-			{ title: m.sb_creators(), url: resolve('/dashboard/admin/creators'), icon: Users },
+			{
+				title: m.sb_creators(),
+				url: resolve('/dashboard/admin/creators'),
+				icon: Users,
+				items: [
+					{ title: m.sb_all_creators(), url: resolve('/dashboard/admin/creators') },
+					/* Profiles the public listing rules keep out, with the reason. */
+					{ title: m.sb_hidden_creators(), url: resolve('/dashboard/admin/creators/hidden') }
+				]
+			},
 			{
 				title: m.sb_organisations(),
 				url: resolve('/dashboard/admin/organizations'),
@@ -258,6 +271,12 @@
 						counter: counts.statProofs
 					},
 					channelOwnership,
+					/* The deal board: every open deal, by the state it is in. */
+					{
+						title: m.sb_deal_board(),
+						url: resolve('/dashboard/admin/deals'),
+						icon: SquareKanban
+					},
 					{
 						title: m.sb_all_bookings(),
 						url: resolve('/dashboard/bookings'),
@@ -311,6 +330,11 @@
 						title: m.sb_partners(),
 						url: resolve('/dashboard/admin/partners'),
 						icon: Handshake
+					},
+					{
+						title: m.sb_commission(),
+						url: resolve('/dashboard/admin/commission'),
+						icon: Percent
 					},
 					{ title: m.sb_site_settings(), url: resolve('/dashboard/admin/settings'), icon: Settings }
 				]

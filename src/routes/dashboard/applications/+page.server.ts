@@ -7,24 +7,27 @@ import type { PageServerLoad, Actions } from './$types';
 import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { notify } from '$lib/server/notify';
-import { listApplications, applicationFacet, getSettings } from '$lib/server/queries';
+import { listApplications, applicationFacet } from '$lib/server/queries';
+import { maskApplications } from '$lib/server/nda';
 import { requireUser, getCreatorFor, getOrganizationFor, recordAudit } from '$lib/server/guards';
 import { applicationDecision } from '$lib/schemas';
-import { bookingReference, splitFee } from '$lib/domain/booking';
+import { bookingReference } from '$lib/domain/booking';
+import { priceDeal, quoteColumns } from '$lib/server/commission';
 import { recalcCampaignApplications } from '$lib/server/db/rollups';
 
-export const load: PageServerLoad = async ({ url, parent }) => {
+export const load: PageServerLoad = async ({ url, parent, locals }) => {
 	const { role, creator, organization } = await parent();
 
 	/* Whose applications these are comes from the session, not the query string. */
 	const scope = { role, creatorId: creator?.id, organizationId: organization?.id };
 
-	const [applications, statusCounts, decisionForm] = await Promise.all([
+	const [page, statusCounts, decisionForm] = await Promise.all([
 		listApplications(url, scope),
 		applicationFacet(url, 'status', scope),
 		superValidate(zod4(applicationDecision))
 	]);
 
+	const applications = { ...page, rows: await maskApplications(locals.user, page.rows) };
 	return { applications, statusCounts, decisionForm };
 };
 
@@ -115,9 +118,8 @@ export const actions: Actions = {
 
 		if (existing.length) redirect(303, `/dashboard/bookings/${existing[0].id}`);
 
-		const settings = await getSettings();
 		const price = row.campaign.compensationType === 'paid' ? row.application.proposedPrice : 0;
-		const { platformFee, creatorPayout } = splitFee(price, settings?.platformFeePercent ?? 15);
+		const fees = quoteColumns(await priceDeal(price, row.creator.id));
 
 		const result = await db.insert(t.bookings).values({
 			reference: bookingReference(),
@@ -133,8 +135,7 @@ export const actions: Actions = {
 			compensationType: row.campaign.compensationType,
 			price,
 			currencyCode: row.application.currencyCode,
-			platformFee,
-			creatorPayout,
+			...fees,
 			status: 'proposed',
 			escrowStatus: 'unfunded',
 			deadline: row.campaign.deadline,

@@ -60,7 +60,11 @@ const HEADER_BYTES = 16;
 
 /** A rejected upload. Callers turn this into a form message, not a 500. */
 export class UploadError extends Error {
-	constructor(readonly reason: 'too_large' | 'bad_type' | 'content_mismatch') {
+	constructor(
+		readonly reason: 'too_large' | 'bad_type' | 'content_mismatch' | 'unreachable',
+		/** For `unreachable`: the HTTP status the remote host answered, if it answered. */
+		readonly status?: number
+	) {
 		super(reason);
 		this.name = 'UploadError';
 	}
@@ -176,4 +180,100 @@ export async function deleteUploadedFile(stored?: string | null): Promise<void> 
 	} catch (err) {
 		console.error('Could not remove upload', stored, err);
 	}
+}
+
+/* ------------------------------------------------------------------ *
+ * Bringing a remote picture home
+ * ------------------------------------------------------------------ */
+
+/** A value that points at somebody else's server rather than ours. */
+export const isRemoteUrl = (value?: string | null): value is string =>
+	Boolean(value) && /^(https?:)?\/\//i.test(value!.trim());
+
+/**
+ * Hosts a fetch must never be pointed at: this machine and the private ranges.
+ *
+ * The URLs fetched here come from imports and operator-entered rows, not from
+ * the public, but a server that will fetch any address it is handed is a way
+ * into the network it sits on. A name that later resolves somewhere private is
+ * not caught; the literal addresses and the obvious names are.
+ */
+function isPrivateHost(hostname: string): boolean {
+	const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+	if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal'))
+		return true;
+	if (host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80')) {
+		return host.includes(':');
+	}
+	const octets = host.split('.').map(Number);
+	if (octets.length !== 4 || octets.some((n) => !Number.isInteger(n))) return false;
+	const [a, b] = octets;
+	return (
+		a === 0 ||
+		a === 10 ||
+		a === 127 ||
+		(a === 169 && b === 254) ||
+		(a === 172 && b >= 16 && b <= 31) ||
+		(a === 192 && b === 168) ||
+		(a === 100 && b >= 64 && b <= 127)
+	);
+}
+
+/** Which image type these bytes are, read from the bytes rather than a header. */
+function sniffImageType(bytes: Uint8Array): string | null {
+	const head = bytes.subarray(0, HEADER_BYTES);
+	for (const type of ['image/png', 'image/jpeg', 'image/webp', 'image/avif']) {
+		if (SIGNATURES[type](head)) return type;
+	}
+	return null;
+}
+
+/**
+ * Downloads a picture from another server and stores it as an upload.
+ *
+ * Returns the stored name, exactly as `saveUploadedFile` would for a file
+ * picked in a form — which is what it goes through, so the same size cap and
+ * content check apply. The type is taken from the bytes: CDNs routinely serve
+ * a WebP as `image/jpeg`, or an image as `application/octet-stream`.
+ *
+ * Throws `UploadError('unreachable', status)` when the host does not answer
+ * with a picture. The status is kept so a caller can tell "gone for good"
+ * (404) from "try again tomorrow" (429, 503).
+ */
+export async function mirrorRemoteImage(
+	url: string,
+	fetchImpl: typeof fetch = fetch
+): Promise<string> {
+	let parsed: URL;
+	try {
+		parsed = new URL(url.trim().startsWith('//') ? `https:${url.trim()}` : url.trim());
+	} catch {
+		throw new UploadError('unreachable');
+	}
+	if (!/^https?:$/.test(parsed.protocol) || isPrivateHost(parsed.hostname)) {
+		throw new UploadError('unreachable');
+	}
+
+	let response: Response;
+	try {
+		response = await fetchImpl(parsed, {
+			redirect: 'follow',
+			signal: AbortSignal.timeout(15_000),
+			headers: { Accept: 'image/avif,image/webp,image/png,image/jpeg;q=0.9,*/*;q=0.5' }
+		});
+	} catch {
+		throw new UploadError('unreachable');
+	}
+	if (!response.ok) throw new UploadError('unreachable', response.status);
+
+	const declared = Number(response.headers.get('content-length'));
+	if (Number.isFinite(declared) && declared > MAX_UPLOAD_BYTES) throw new UploadError('too_large');
+
+	const bytes = new Uint8Array(await response.arrayBuffer());
+	if (bytes.byteLength > MAX_UPLOAD_BYTES) throw new UploadError('too_large');
+
+	const type = sniffImageType(bytes);
+	if (!type) throw new UploadError('bad_type');
+
+	return saveUploadedFile(new File([bytes], 'mirrored', { type }));
 }

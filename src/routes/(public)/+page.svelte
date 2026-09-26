@@ -27,6 +27,7 @@
 	import GalleryCarousel from '$lib/components/gallery-carousel.svelte';
 	import BlogSlider from '$lib/components/blog-slider.svelte';
 	import LandingHero from '$lib/components/landing-hero.svelte';
+	import PlatformSocials from '$lib/components/platform-socials.svelte';
 	import DynamicIcon from '$lib/components/dynamic-icon.svelte';
 	import { TIER_FLOORS, type FollowerTier, type TrendingLaneKind } from '$lib/domain/trending';
 	import { heroHeadline, landingLayout } from '$lib/domain/landing';
@@ -230,8 +231,15 @@
 		subtitle={heroSubtitle}
 		creators={heroCreators}
 		partners={data.partners}
+		slides={data.heroSlides}
+		intervalSeconds={page.data.settings?.heroIntervalSeconds ?? 6}
 		stats={data.stats}
 	/>
+
+	<!-- ================= FOLLOW US =================
+	     Straight under the hero, where the brief put it. Not one of the
+	     arrangeable sections: it disappears on its own when no link is set. -->
+	<PlatformSocials socials={page.data.settings?.socials} />
 
 	<!-- ================= EVERYTHING BELOW THE HERO =================
 	     In the order an operator arranged, and only what they left shown. -->
@@ -240,6 +248,8 @@
 			{@render gallerySection()}
 		{:else if section.key === 'trending'}
 			{@render trendingSection()}
+		{:else if section.key === 'creators'}
+			{@render creatorsSection()}
 		{:else if section.key === 'categories'}
 			{@render categoriesSection()}
 		{:else if section.key === 'campaigns'}
@@ -261,6 +271,43 @@
 	{#if data.gallery.length}
 		<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 			<GalleryCarousel slides={data.gallery} interval={galleryInterval} />
+		</section>
+	{/if}
+{/snippet}
+
+{#snippet creatorsSection()}
+	<!-- ================= CREATORS =================
+	     A grid of bookable creators, home market first — the marketplace
+	     itself, rather than only who is trending this week. -->
+	{#if data.creators.length}
+		<section class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+			<div class="flex flex-wrap items-end justify-between gap-4">
+				<div>
+					<div
+						class="flex items-center gap-2 text-xs font-bold tracking-wider text-brand-fg uppercase"
+					>
+						<Users class="h-4 w-4" />
+						<span>{m.home_grid_eyebrow()}</span>
+					</div>
+					<h2 class="mt-1 text-xl font-extrabold text-ink sm:text-2xl">
+						{m.home_grid_title()}
+					</h2>
+					<p class="mt-1 max-w-xl text-sm font-medium text-ink-soft">{m.home_grid_body()}</p>
+				</div>
+				<a
+					href={resolve('/discover')}
+					class="flex items-center gap-1 text-xs font-bold text-brand-soft-fg hover:text-brand-soft-fg"
+				>
+					<span>{m.home_view_all({ count: data.stats.creators })}</span>
+					<ArrowRight class="h-3.5 w-3.5" />
+				</a>
+			</div>
+
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+				{#each data.creators as creator (creator.id)}
+					<CreatorCard {creator} />
+				{/each}
+			</div>
 		</section>
 	{/if}
 {/snippet}

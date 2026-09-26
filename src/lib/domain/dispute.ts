@@ -31,6 +31,7 @@ export type DisputeResolution = 'released' | 'refunded' | 'split';
  */
 export const DISPUTABLE_STATUSES: BookingStatus[] = [
 	'booked',
+	'concept',
 	'in_production',
 	'submitted',
 	'revision',
@@ -48,7 +49,13 @@ export const DISPUTABLE_STATUSES: BookingStatus[] = [
  * dispute is for, and an operator should see it rather than one side agreeing
  * to a refund of work they have already received.
  */
-export const CANCELLABLE_STATUSES: BookingStatus[] = ['booked', 'in_production', 'revision'];
+export const CANCELLABLE_STATUSES: BookingStatus[] = [
+	'contracting',
+	'booked',
+	'concept',
+	'in_production',
+	'revision'
+];
 
 export const disputeStatusLabel = (status: string): string =>
 	({
@@ -156,30 +163,38 @@ export type ResolutionAmounts = {
  * not earned one, and keeping a cut of a refunded booking is the kind of detail
  * that is invisible in code and extremely visible on a bank statement.
  *
- * A split charges the fee on what was *retained*, using the same `splitFee` the
+ * A split charges the fee on what was *retained*, using the same rule the
  * booking was priced with. Charging the original fee against a reduced deal
  * would quietly take the whole reduction out of the creator's share.
  */
 export function resolutionAmounts(
 	price: number,
-	feePercent: number,
+	fee: FeeRule,
 	resolution: DisputeResolution,
 	refundInput = 0
 ): ResolutionAmounts {
+	const split = typeof fee === 'number' ? (amount: number) => splitFee(amount, fee) : fee;
+
 	if (resolution === 'refunded') {
 		return { refund: price, platformFee: 0, payout: 0 };
 	}
 
 	if (resolution === 'released') {
-		const { platformFee, creatorPayout } = splitFee(price, feePercent);
+		const { platformFee, creatorPayout } = split(price);
 		return { refund: 0, platformFee, payout: creatorPayout };
 	}
 
 	const refund = Math.min(Math.max(Math.round(refundInput), 0), price);
 	const retained = price - refund;
-	const { platformFee, creatorPayout } = splitFee(retained, feePercent);
+	const { platformFee, creatorPayout } = split(retained);
 	return { refund, platformFee, payout: creatorPayout };
 }
+
+/**
+ * How the platform's cut of an amount is worked out: a flat percent, or the
+ * tiered rate card through `quoteDeal` in $lib/domain/commission.
+ */
+export type FeeRule = number | ((amount: number) => { platformFee: number; creatorPayout: number });
 
 /**
  * Whether an operator's split figure is a split at all.

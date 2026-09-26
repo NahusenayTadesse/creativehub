@@ -28,7 +28,9 @@ describe('canTransition', () => {
 	it('allows the happy path end to end', () => {
 		const path: BookingStatus[] = [
 			'proposed',
+			'contracting',
 			'booked',
+			'concept',
 			'in_production',
 			'submitted',
 			'approved',
@@ -38,6 +40,13 @@ describe('canTransition', () => {
 		for (let i = 0; i < path.length - 1; i++) {
 			expect(canTransition(path[i], path[i + 1]), `${path[i]} → ${path[i + 1]}`).toBe(true);
 		}
+	});
+
+	/* Terms cannot skip the contract, and production cannot skip the concept. */
+	it('keeps the contract and the concept on the path', () => {
+		expect(canTransition('negotiating', 'booked')).toBe(false);
+		expect(canTransition('booked', 'in_production')).toBe(false);
+		expect(canTransition('concept', 'booked')).toBe(true);
 	});
 
 	it('allows the revision loop to be re-entered', () => {
@@ -112,7 +121,9 @@ describe('stepIndex', () => {
 
 	it('never goes backwards along the happy path', () => {
 		const path: BookingStatus[] = [
+			'contracting',
 			'booked',
+			'concept',
 			'in_production',
 			'submitted',
 			'approved',

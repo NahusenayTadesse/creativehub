@@ -2,7 +2,7 @@
 	import AppImage from '$lib/components/app-image.svelte';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import type { CarouselAPI } from '$lib/components/ui/carousel/context.js';
-	import { assetUrl } from '$lib/assets';
+	import { hostedAssetUrl } from '$lib/assets';
 	import { ArrowRight, ChevronLeft, ChevronRight, Pause, Play } from '@lucide/svelte';
 	import * as m from '$lib/paraglide/messages';
 
@@ -117,7 +117,7 @@
 						>
 							<!-- The first slide sits near the top of the page, so it is not deferred. -->
 							<AppImage
-								src={assetUrl(slide.image)}
+								src={hostedAssetUrl(slide.image)}
 								alt={slide.title}
 								kind="cover"
 								seed={slide.title}

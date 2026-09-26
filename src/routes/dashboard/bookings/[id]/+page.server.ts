@@ -18,11 +18,22 @@ import { refreshCreatorCompletedBookings, refreshCreatorRating } from '$lib/serv
 import { dealVersion, markBookingRead, markNotificationsReadForLink } from '$lib/server/inbox';
 import {
 	awaitsDeposit,
-	canStartWork,
+	canApproveConcept,
 	canTransition,
-	splitFee,
 	type BookingStatus
 } from '$lib/domain/booking';
+import { projectSizeProblem } from '$lib/domain/commission';
+import { checkpointIsOpen, postedAtProblem, type Checkpoint } from '$lib/domain/proof';
+import { withholdingOn } from '$lib/domain/documents';
+import { getCommissionSettings, priceDeal, quoteColumns } from '$lib/server/commission';
+import * as contracts from '$lib/server/contracts';
+import * as documents from '$lib/server/documents';
+import { acceptNda, brandVisibility, maskRow } from '$lib/server/nda';
+import { faydaConfig } from '$lib/server/fayda-config';
+import { saveUploadedFile } from '$lib/server/upload';
+import { uploadErrorText } from '$lib/server/crud';
+import { clientAddress } from '$lib/server/bot-defence';
+import { recalcOrganizationRatings } from '$lib/server/db/rollups';
 import {
 	cancelAgreeProblem,
 	cancelRequestProblem,
@@ -45,7 +56,12 @@ import {
 	disputeRespond,
 	disputeWithdraw,
 	cancelRequest,
-	cancelDecision
+	cancelDecision,
+	contractSign,
+	conceptSubmit,
+	conceptReview,
+	proofSubmit,
+	metricsRecord
 } from '$lib/schemas';
 
 const toLines = (value: string) =>
@@ -70,16 +86,35 @@ export const load: PageServerLoad = async (event) => {
 	]);
 	if (!detail) error(404, m.srv_booking_not_found());
 
-	const [proposalForm, submitForm, reviewForm, messageForm, disputeForm, respondForm, cancelForm] =
-		await Promise.all([
-			superValidate(zod4(proposalSchema), { id: 'proposal' }),
-			superValidate(zod4(submissionSchema), { id: 'submission' }),
-			superValidate(zod4(reviewSchema), { id: 'review' }),
-			superValidate(zod4(messageSchema), { id: 'message' }),
-			superValidate(zod4(disputeRaise), { id: 'dispute' }),
-			superValidate(zod4(disputeRespond), { id: 'dispute-respond' }),
-			superValidate(zod4(cancelRequest), { id: 'cancel' })
-		]);
+	const [
+		proposalForm,
+		submitForm,
+		reviewForm,
+		messageForm,
+		disputeForm,
+		respondForm,
+		cancelForm,
+		signForm,
+		conceptForm,
+		proofForm,
+		metricsForm
+	] = await Promise.all([
+		superValidate(zod4(proposalSchema), { id: 'proposal' }),
+		superValidate(zod4(submissionSchema), { id: 'submission' }),
+		superValidate(zod4(reviewSchema), { id: 'review' }),
+		superValidate(zod4(messageSchema), { id: 'message' }),
+		superValidate(zod4(disputeRaise), { id: 'dispute' }),
+		superValidate(zod4(disputeRespond), { id: 'dispute-respond' }),
+		superValidate(zod4(cancelRequest), { id: 'cancel' }),
+		superValidate(zod4(contractSign), { id: 'sign', errors: false }),
+		superValidate(zod4(conceptSubmit), { id: 'concept', errors: false }),
+		superValidate(zod4(proofSubmit), { id: 'proof', errors: false }),
+		superValidate(zod4(metricsRecord), { id: 'metrics', errors: false })
+	]);
+	signForm.data.bookingId = id;
+	conceptForm.data.bookingId = id;
+	proofForm.data.bookingId = id;
+	metricsForm.data.bookingId = id;
 
 	/* Seed the counter-offer form from whatever is currently on the table. */
 	const latest = detail.proposals.at(-1);
@@ -119,17 +154,56 @@ export const load: PageServerLoad = async (event) => {
 	   page does not show `pending` for a deposit it just took. */
 	const current = payment?.state === 'funded' ? ((await getBookingDetail(id)) ?? detail) : detail;
 
-	const [settings, caseList, refundList] = await Promise.all([
+	const [settings, caseList, refundList, managed, commission] = await Promise.all([
 		getSettings(),
 		disputes.listForBooking(id),
-		refunds.listForBooking(id)
+		refunds.listForBooking(id),
+		managedDeal(id, side, row.creatorId),
+		getCommissionSettings()
 	]);
 	const windowDays = settings?.disputeWindowDays ?? 0;
 	const openCase = caseList.find((c) => c.status === 'open') ?? null;
 
+	/*
+	 * The brand's name, for a creator who has not accepted the NDA on this deal
+	 * (or on the brief it came from), is replaced before the row leaves the
+	 * server — and so are the brand staff's names on their messages.
+	 */
+	const canSeeBrand = (
+		await brandVisibility(user, [
+			{
+				organizationId: current.booking.organizationId,
+				campaignId: current.booking.campaignId,
+				bookingId: id
+			}
+		])
+	)({
+		organizationId: current.booking.organizationId,
+		campaignId: current.booking.campaignId,
+		bookingId: id
+	});
+	const booking = maskRow(current.booking, canSeeBrand);
+	const orgMemberIds = canSeeBrand
+		? new Set<string>()
+		: await organizationUserIds(booking.organizationId);
+	const threadMessages = current.messages.map((msg) =>
+		!canSeeBrand && orgMemberIds.has(msg.senderId)
+			? { ...msg, senderName: booking.organizationName }
+			: msg
+	);
+
 	return {
 		...current,
+		booking,
+		messages: threadMessages,
+		canSeeBrand,
 		side,
+		...managed,
+		minProjectSize: commission.minProjectSize,
+		signForm,
+		conceptForm,
+		proofForm,
+		metricsForm,
 		version,
 		proposalForm,
 		submitForm,
@@ -166,10 +240,98 @@ export const load: PageServerLoad = async (event) => {
 		paymentsEnabled: PAYMENT_GATEWAY_ENABLED,
 		/* Decided here rather than re-derived in the template, so the button and
 		   the action it posts to are asking the same question. */
-		canStartWork: canStartWork(current.booking),
+		canApproveConcept: canApproveConcept(current.booking),
 		awaitsDeposit: awaitsDeposit(current.booking)
 	};
 };
+
+/**
+ * Everything a managed deal carries beyond the negotiation: the contract, the
+ * concepts, the proof and its figures, and the documents issued on it.
+ */
+async function managedDeal(
+	bookingId: number,
+	side: 'admin' | 'organization' | 'creator',
+	creatorId: number
+) {
+	const [contract, conceptRows, proofRows, metricRows, documentRows, identity] = await Promise.all([
+		contracts.currentContract(bookingId),
+		db
+			.select()
+			.from(t.concepts)
+			.where(eq(t.concepts.bookingId, bookingId))
+			.orderBy(desc(t.concepts.createdAt)),
+		db.select().from(t.postProofs).where(eq(t.postProofs.bookingId, bookingId)).limit(1),
+		db
+			.select()
+			.from(t.proofMetrics)
+			.where(eq(t.proofMetrics.bookingId, bookingId))
+			.orderBy(t.proofMetrics.capturedAt),
+		documents.listDocumentsFor(bookingId, side),
+		side === 'creator' ? creatorIdentityVerified(creatorId) : Promise.resolve(true)
+	]);
+	return {
+		contract: contract
+			? {
+					id: contract.id,
+					reference: contract.reference,
+					version: contract.version,
+					status: contract.status,
+					body: contract.body,
+					bodyHash: contract.bodyHash,
+					brandSignerName: contract.brandSignerName,
+					brandSignedAt: contract.brandSignedAt,
+					creatorSignerName: contract.creatorSignerName,
+					creatorSignedAt: contract.creatorSignedAt,
+					signedAt: contract.signedAt
+				}
+			: null,
+		concepts: conceptRows,
+		proof: proofRows.at(0) ?? null,
+		metrics: metricRows,
+		documents: documentRows,
+		/* A creator signs only once Fayda has checked them, where Fayda is set up. */
+		identityRequired: side === 'creator' && faydaConfig() !== null && !identity
+	};
+}
+
+/** Whether a creator has passed a Fayda check. */
+async function creatorIdentityVerified(creatorId: number) {
+	const rows = await db
+		.select({ id: t.identityChecks.id })
+		.from(t.identityChecks)
+		.where(and(eq(t.identityChecks.creatorId, creatorId), eq(t.identityChecks.status, 'verified')))
+		.limit(1);
+	return rows.length > 0;
+}
+
+/** Every account on a brand's side, for masking their names on the thread. */
+async function organizationUserIds(organizationId: number) {
+	const [members, owner] = await Promise.all([
+		db
+			.select({ id: t.organizationMembers.userId })
+			.from(t.organizationMembers)
+			.where(eq(t.organizationMembers.organizationId, organizationId)),
+		db
+			.select({ id: t.organizations.ownerId })
+			.from(t.organizations)
+			.where(eq(t.organizations.id, organizationId))
+	]);
+	return new Set([...members, ...owner].map((row) => row.id));
+}
+
+/** Whether this creator may see the brand on this deal yet. */
+async function creatorCanSeeBrand(
+	user: { id: string; role?: string | null },
+	booking: { organizationId: number; campaignId: number | null; id: number }
+) {
+	const ref = {
+		organizationId: booking.organizationId,
+		campaignId: booking.campaignId,
+		bookingId: booking.id
+	};
+	return (await brandVisibility(user, [ref]))(ref);
+}
 
 /** Applies a state change only when the transition is legal, and records it. */
 async function transition(
@@ -211,7 +373,12 @@ async function transition(
  * the button are fixed here and the call sites say only what happened. Whether
  * it also becomes an email is `domain/notify.ts`'s decision, not this file's.
  */
-const notifyDeal = (userId: string | null | undefined, title: string, body: string, link: string) =>
+const notifyDeal = (
+	userId: string | null | undefined | (string | null | undefined)[],
+	title: string,
+	body: string,
+	link: string
+) =>
 	notify(userId, {
 		category: 'deals',
 		kind: 'booking',
@@ -309,6 +476,21 @@ export const actions: Actions = {
 		if (!['proposed', 'negotiating'].includes(booking.status)) {
 			return message(form, { type: 'error', text: m.srv_terms_already_agreed() }, { status: 409 });
 		}
+		/* A creator negotiates knowing who with: the NDA comes first. */
+		if (side === 'creator' && !(await creatorCanSeeBrand(event.locals.user!, booking))) {
+			return message(form, { type: 'error', text: m.nda_required() }, { status: 403 });
+		}
+		const commission = await getCommissionSettings();
+		if (projectSizeProblem(form.data.price, booking.compensationType, commission)) {
+			return message(
+				form,
+				{
+					type: 'error',
+					text: m.srv_below_min_project({ min: commission.minProjectSize.toLocaleString('en-US') })
+				},
+				{ status: 400 }
+			);
+		}
 
 		/* Any earlier open offer is superseded by this counter. */
 		await db
@@ -374,6 +556,9 @@ export const actions: Actions = {
 		if (proposedBySelf) {
 			return fail(403, { message: m.srv_no_self_accept() });
 		}
+		if (side === 'creator' && !(await creatorCanSeeBrand(event.locals.user!, booking))) {
+			return fail(403, { message: m.nda_required() });
+		}
 
 		if (form.data.decision === 'decline') {
 			await db
@@ -388,11 +573,9 @@ export const actions: Actions = {
 			return { declined: true };
 		}
 
-		const settings = await getSettings();
-		const { platformFee, creatorPayout } = splitFee(
-			proposal.price,
-			settings?.platformFeePercent ?? 15
-		);
+		/* Priced by the rate card in force now, and frozen with the terms. */
+		const quote = await priceDeal(proposal.price, booking.creatorId);
+		const fees = quoteColumns(quote);
 
 		const creatorRows = await db
 			.select({ userId: t.creators.userId, fullName: t.creators.fullName })
@@ -410,8 +593,12 @@ export const actions: Actions = {
 			deliverables: proposal.deliverables,
 			price: proposal.price,
 			currencyCode: proposal.currencyCode,
-			platformFee,
-			creatorPayout,
+			platformFee: fees.platformFee,
+			creatorPayout: fees.creatorPayout,
+			commissionPercent: fees.commissionPercent,
+			brandServiceFee: fees.brandServiceFee,
+			brandServiceFeeVat: fees.brandServiceFeeVat,
+			brandTotal: fees.brandTotal,
 			compensationType: booking.compensationType,
 			revisionsAllowed: proposal.revisionsAllowed,
 			deadline: proposal.deadline ? String(proposal.deadline) : null,
@@ -429,15 +616,14 @@ export const actions: Actions = {
 			event,
 			id,
 			booking.status as BookingStatus,
-			'booked',
+			'contracting',
 			{
 				price: proposal.price,
 				currencyCode: proposal.currencyCode,
 				deliverables: proposal.deliverables,
 				deadline: proposal.deadline,
 				revisionsAllowed: proposal.revisionsAllowed,
-				platformFee,
-				creatorPayout,
+				...fees,
 				termsSnapshot: snapshot,
 				termsFrozenAt: new Date()
 			},
@@ -445,10 +631,18 @@ export const actions: Actions = {
 		);
 		if (!result.ok) return fail(409, { message: result.text });
 
+		/* The contract is written from the snapshot just frozen, and goes to
+		   both sides for signature. */
+		const frozen = (await db.select().from(t.bookings).where(eq(t.bookings.id, id)).limit(1))[0];
+		await contracts.generateContract(frozen, {
+			id: event.locals.user?.id,
+			name: event.locals.user?.name
+		});
+
 		await notifyDeal(
-			side === 'creator' ? orgRows.at(0)?.ownerId : creatorRows.at(0)?.userId,
-			m.notif_terms_agreed_title(),
-			m.notif_terms_agreed_body({ title: booking.title }),
+			[orgRows.at(0)?.ownerId, creatorRows.at(0)?.userId],
+			m.notif_contract_ready_title(),
+			m.notif_contract_ready_body({ title: booking.title }),
 			`/dashboard/bookings/${id}`
 		);
 
@@ -552,10 +746,8 @@ export const actions: Actions = {
 			return fail(409, { message: m.srv_already_funded() });
 		}
 
-		if (booking.status === 'booked') {
-			await transition(event, id, 'booked', 'in_production', {}, 'Compensation recorded as held');
-		}
-
+		/* Holding the funds does not start the work by itself: approving the
+		   concept does, and that approval was waiting on exactly this. */
 		await recordAudit({
 			actorId: event.locals.user?.id,
 			actorLabel: event.locals.user?.name,
@@ -609,15 +801,29 @@ export const actions: Actions = {
 				? { escrowStatus: 'released' as const }
 				: {};
 
+		/* Tax withheld from the creator's payout is fixed now, at the rate in
+		   force, and certified on the documents issued below. */
+		const settingsNow = await getSettings();
+		const withholdingTax =
+			booking.compensationType === 'paid'
+				? withholdingOn(booking.creatorPayout, settingsNow?.withholdingPercent ?? 0)
+				: 0;
+
 		const result = await transition(
 			event,
 			id,
 			booking.status as BookingStatus,
 			'completed',
-			{ ...escrowPatch, completedAt: new Date() },
+			{ ...escrowPatch, completedAt: new Date(), withholdingTax },
 			'Compensation marked fulfilled'
 		);
 		if (!result.ok) return fail(409, { message: result.text });
+
+		const completed = (await db.select().from(t.bookings).where(eq(t.bookings.id, id)).limit(1))[0];
+		await documents.issueCreatorDocuments(completed);
+		/* A deal completed without its invoice — one agreed before invoicing
+		   existed — gets it now, so the brand's records are whole. */
+		await documents.issueBrandInvoice(completed);
 
 		await refreshCreatorCompletedBookings(booking.creatorId);
 
@@ -863,56 +1069,230 @@ export const actions: Actions = {
 
 	/* ---------------- delivery ---------------- */
 
+	/* ---------------- the NDA ---------------- */
+
 	/**
-	 * The creator says they have started.
-	 *
-	 * This is the only way out of `booked` for a deal that needs no deposit —
-	 * see `canStartWork`. It is deliberately the creator's press and nobody
-	 * else's: it is a statement about what they are doing, the brand has
-	 * nothing to add to it, and an operator asserting it for them would put a
-	 * date on the record that nobody stands behind.
-	 *
-	 * Where a deposit *is* expected the button is not drawn and this refuses,
-	 * because there the deposit arriving is what starts the work, and letting
-	 * the creator step past it would have them delivering against an escrow
-	 * that was never funded.
+	 * A creator's one-click NDA on this deal: the brand's name is shown from
+	 * here on, and negotiating becomes possible.
 	 */
-	startWork: async (event) => {
+	acceptNda: async (event) => {
 		const id = Number(event.params.id);
-		const { booking, side } = await requireBookingAccess(event, id);
-		const form = await superValidate(event.request, zod4(bookingIdSchema));
+		const { booking, side, user } = await requireBookingAccess(event, id);
+		if (side !== 'creator') return fail(403, { message: m.nda_creators_only() });
+		await acceptNda({
+			user,
+			organizationId: booking.organizationId,
+			subject: { type: 'booking', id },
+			ip: clientAddress(event)
+		});
+		return { ndaAccepted: true };
+	},
 
-		if (side !== 'creator') return fail(403, { message: m.srv_only_creator_starts() });
-		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
-		if (booking.status !== 'booked') {
-			return fail(409, { message: m.srv_not_open_for_start() });
+	/* ---------------- the contract ---------------- */
+
+	signContract: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side, user } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(contractSign), { id: 'sign' });
+
+		if (side === 'admin')
+			return message(form, { type: 'error', text: m.ct_parties_only() }, { status: 403 });
+		if (!form.valid)
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
+		if (booking.status !== 'contracting') {
+			return message(form, { type: 'error', text: m.ct_not_awaiting() }, { status: 409 });
 		}
-		if (awaitsDeposit(booking)) {
-			return fail(409, { message: m.srv_deposit_before_start() });
+		if (
+			side === 'creator' &&
+			faydaConfig() &&
+			!(await creatorIdentityVerified(booking.creatorId))
+		) {
+			return message(form, { type: 'error', text: m.ct_identity_first() }, { status: 403 });
 		}
 
-		/* No column records when work began; the audit entry this writes is the
-		   record, and it is dated. */
+		const contract = await contracts.currentContract(id);
+		if (!contract)
+			return message(form, { type: 'error', text: m.ct_not_awaiting() }, { status: 409 });
+
+		const signed = await contracts.signContract(contract, {
+			side,
+			user: { id: user.id, name: user.name },
+			typedName: form.data.typedName,
+			ip: clientAddress(event)
+		});
+		if (!signed.ok) {
+			const text = {
+				not_awaiting: m.ct_not_awaiting(),
+				already_signed: m.ct_already_signed(),
+				name_mismatch: m.ct_name_mismatch(),
+				tampered: m.ct_tampered()
+			}[signed.problem];
+			return message(form, { type: 'error', text }, { status: 409 });
+		}
+
+		const parties = await bookingParties(booking.organizationId, booking.creatorId);
+		if (!signed.complete) {
+			await notifyDeal(
+				side === 'creator' ? parties.organizationOwnerId : parties.creatorUserId,
+				m.notif_contract_signed_one_title(),
+				m.notif_contract_signed_one_body({ title: booking.title }),
+				`/dashboard/bookings/${id}`
+			);
+			return message(form, { type: 'success', text: m.ct_signed_toast() });
+		}
+
+		/* Both have signed: the deal is booked, and the brand is invoiced. */
 		const result = await transition(
 			event,
 			id,
+			'contracting',
 			'booked',
-			'in_production',
 			{},
-			'Creator started work'
+			`Contract ${contract.reference} signed by both sides`
 		);
-		if (!result.ok) return fail(409, { message: result.text });
+		if (!result.ok) return message(form, { type: 'error', text: result.text }, { status: 409 });
 
-		const { organizationOwnerId } = await bookingParties(booking.organizationId, booking.creatorId);
+		const fresh = (await db.select().from(t.bookings).where(eq(t.bookings.id, id)).limit(1))[0];
+		await documents.issueBrandInvoice(fresh);
 
 		await notifyDeal(
-			organizationOwnerId,
-			m.notif_work_started_title(),
-			m.notif_work_started_body({ title: booking.title }),
+			[parties.organizationOwnerId, parties.creatorUserId],
+			m.notif_contract_signed_title(),
+			m.notif_contract_signed_body({ title: booking.title }),
 			`/dashboard/bookings/${id}`
 		);
+		return message(form, { type: 'success', text: m.ct_signed_complete_toast() });
+	},
 
-		return { started: true };
+	/* ---------------- the concept ---------------- */
+
+	/**
+	 * The creator's plan for the content, sent to the brand before production.
+	 * A second concept after changes were asked for goes the same way.
+	 */
+	submitConcept: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side, user } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(conceptSubmit), { id: 'concept' });
+
+		if (side !== 'creator') {
+			return message(form, { type: 'error', text: m.cc_creator_only() }, { status: 403 });
+		}
+		if (!form.valid)
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
+		if (booking.status !== 'booked') {
+			return message(form, { type: 'error', text: m.cc_not_open() }, { status: 409 });
+		}
+
+		let attachment: string | null;
+		try {
+			const value = form.data.attachment;
+			attachment =
+				value instanceof File && value.size > 0
+					? await saveUploadedFile(value, { visibility: 'private' })
+					: typeof value === 'string' && value
+						? value
+						: null;
+		} catch (err) {
+			const text = uploadErrorText(err);
+			if (!text) throw err;
+			return message(form, { type: 'error', text }, { status: 400 });
+		}
+
+		await db.insert(t.concepts).values({
+			bookingId: id,
+			body: form.data.body,
+			attachment,
+			status: 'submitted',
+			createdBy: user.id
+		});
+		const result = await transition(event, id, 'booked', 'concept', {}, 'Concept submitted');
+		if (!result.ok) return message(form, { type: 'error', text: result.text }, { status: 409 });
+
+		const { organizationOwnerId } = await bookingParties(booking.organizationId, booking.creatorId);
+		await notifyDeal(
+			organizationOwnerId,
+			m.notif_concept_submitted_title(),
+			m.notif_concept_submitted_body({ title: booking.title }),
+			`/dashboard/bookings/${id}`
+		);
+		return message(form, { type: 'success', text: m.cc_submitted_toast() });
+	},
+
+	/**
+	 * The brand's answer to a concept. Approving starts production — once the
+	 * campaign funds are held, where a deposit is expected. Asking for changes
+	 * sends it back to the creator with the reason.
+	 */
+	reviewConcept: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side, user } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(conceptReview));
+
+		if (side === 'creator') return fail(403, { message: m.cc_brand_only() });
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
+
+		const concept = (
+			await db
+				.select()
+				.from(t.concepts)
+				.where(and(eq(t.concepts.id, form.data.conceptId), eq(t.concepts.bookingId, id)))
+				.limit(1)
+		).at(0);
+		if (!concept || concept.status !== 'submitted' || booking.status !== 'concept') {
+			return fail(409, { message: m.cc_already_reviewed() });
+		}
+
+		const { creatorUserId } = await bookingParties(booking.organizationId, booking.creatorId);
+
+		if (form.data.decision === 'approve') {
+			if (!canApproveConcept(booking)) return fail(409, { message: m.cc_funds_first() });
+			await db
+				.update(t.concepts)
+				.set({
+					status: 'approved',
+					reviewNote: form.data.reviewNote || null,
+					reviewedBy: user.id,
+					reviewedAt: new Date()
+				})
+				.where(eq(t.concepts.id, concept.id));
+			const result = await transition(
+				event,
+				id,
+				'concept',
+				'in_production',
+				{},
+				'Concept approved'
+			);
+			if (!result.ok) return fail(409, { message: result.text });
+			await notifyDeal(
+				creatorUserId,
+				m.notif_concept_approved_title(),
+				m.notif_concept_approved_body({ title: booking.title }),
+				`/dashboard/bookings/${id}`
+			);
+			return { conceptApproved: true };
+		}
+
+		if (!form.data.reviewNote?.trim()) return fail(400, { message: m.srv_revision_needs_reason() });
+		await db
+			.update(t.concepts)
+			.set({
+				status: 'changes_requested',
+				reviewNote: form.data.reviewNote,
+				reviewedBy: user.id,
+				reviewedAt: new Date()
+			})
+			.where(eq(t.concepts.id, concept.id));
+		const result = await transition(event, id, 'concept', 'booked', {}, form.data.reviewNote);
+		if (!result.ok) return fail(409, { message: result.text });
+		await notifyDeal(
+			creatorUserId,
+			m.notif_concept_changes_title(),
+			form.data.reviewNote,
+			`/dashboard/bookings/${id}`
+		);
+		return { conceptChanges: true };
 	},
 
 	submit: async (event) => {
@@ -1009,21 +1389,15 @@ export const actions: Actions = {
 			);
 			if (!result.ok) return fail(409, { message: result.text });
 
-			/*
-			 * `approved` is a transient step. Its result used to be discarded, and
-			 * a booking left stranded there cannot move again: `canTransition`
-			 * allows approved → awaiting_settlement only, and `settle` transitions
-			 * from whatever the current status is.
-			 */
-			const settled = await transition(
-				event,
-				id,
-				'approved',
-				'awaiting_settlement',
-				{},
-				'Awaiting compensation'
+			/* Approved content waits to go live. The creator's proof of the live
+			   post is what moves the deal on to settlement. */
+			const creatorAccount = await bookingParties(booking.organizationId, booking.creatorId);
+			await notifyDeal(
+				creatorAccount.creatorUserId,
+				m.notif_work_approved_title(),
+				m.notif_work_approved_body({ title: booking.title }),
+				`/dashboard/bookings/${id}`
 			);
-			if (!settled.ok) return fail(409, { message: settled.text });
 
 			return { approved: true };
 		}
@@ -1075,6 +1449,139 @@ export const actions: Actions = {
 		);
 
 		return { revisionRequested: true };
+	},
+
+	/* ---------------- proof it went live ---------------- */
+
+	/**
+	 * The creator's proof that the approved work is live: the link, a
+	 * screenshot of the post, and when it went up. That is what moves the deal
+	 * on to settlement; the figures at 24 hours, 7 days and 30 days follow.
+	 */
+	submitProof: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side, user } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(proofSubmit), { id: 'proof' });
+
+		if (side !== 'creator')
+			return message(form, { type: 'error', text: m.pr_creator_only() }, { status: 403 });
+		if (!form.valid)
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
+		if (booking.status !== 'approved') {
+			return message(form, { type: 'error', text: m.pr_not_open() }, { status: 409 });
+		}
+
+		const postedAt = new Date(form.data.postedAt);
+		if (Number.isNaN(postedAt.getTime())) {
+			return message(form, { type: 'error', text: m.val_posted_at() }, { status: 400 });
+		}
+		const timing = postedAtProblem(postedAt, booking.createdAt);
+		if (timing) {
+			return message(
+				form,
+				{
+					type: 'error',
+					text: timing === 'future' ? m.pr_posted_future() : m.pr_posted_before_deal()
+				},
+				{ status: 400 }
+			);
+		}
+
+		let screenshot: string;
+		try {
+			screenshot = await saveUploadedFile(form.data.screenshot, { visibility: 'private' });
+		} catch (err) {
+			const text = uploadErrorText(err);
+			if (!text) throw err;
+			return message(form, { type: 'error', text }, { status: 400 });
+		}
+
+		await db.insert(t.postProofs).values({
+			bookingId: id,
+			liveUrl: form.data.liveUrl,
+			screenshot,
+			postedAt,
+			notes: form.data.notes || null,
+			createdBy: user.id
+		});
+		const result = await transition(
+			event,
+			id,
+			'approved',
+			'awaiting_settlement',
+			{},
+			'Live post proof submitted'
+		);
+		if (!result.ok) return message(form, { type: 'error', text: result.text }, { status: 409 });
+
+		const { organizationOwnerId } = await bookingParties(booking.organizationId, booking.creatorId);
+		await notifyDeal(
+			organizationOwnerId,
+			m.notif_proof_submitted_title(),
+			m.notif_proof_submitted_body({ title: booking.title }),
+			`/dashboard/bookings/${id}`
+		);
+		return message(form, { type: 'success', text: m.pr_submitted_toast() });
+	},
+
+	/** A checkpoint's figures, with the analytics screenshot behind them. */
+	recordMetrics: async (event) => {
+		const id = Number(event.params.id);
+		const { side, user } = await requireBookingAccess(event, id);
+		const form = await superValidate(event.request, zod4(metricsRecord), { id: 'metrics' });
+
+		if (side === 'organization') {
+			return message(form, { type: 'error', text: m.pr_creator_only() }, { status: 403 });
+		}
+		if (!form.valid)
+			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
+
+		const proof = (
+			await db.select().from(t.postProofs).where(eq(t.postProofs.bookingId, id)).limit(1)
+		).at(0);
+		if (!proof) return message(form, { type: 'error', text: m.pr_no_proof() }, { status: 409 });
+		const checkpoint = form.data.checkpoint as Checkpoint;
+		if (!checkpointIsOpen(proof.postedAt, checkpoint)) {
+			return message(form, { type: 'error', text: m.pr_checkpoint_not_open() }, { status: 409 });
+		}
+
+		let screenshot: string;
+		try {
+			screenshot = await saveUploadedFile(form.data.screenshot, { visibility: 'private' });
+		} catch (err) {
+			const text = uploadErrorText(err);
+			if (!text) throw err;
+			return message(form, { type: 'error', text }, { status: 400 });
+		}
+
+		try {
+			await db.insert(t.proofMetrics).values({
+				proofId: proof.id,
+				bookingId: id,
+				checkpoint,
+				views: form.data.views ?? null,
+				likes: form.data.likes ?? null,
+				comments: form.data.comments ?? null,
+				shares: form.data.shares ?? null,
+				saves: form.data.saves ?? null,
+				reach: form.data.reach ?? null,
+				screenshot,
+				createdBy: user.id
+			});
+		} catch {
+			/* The unique index: this checkpoint was recorded a moment ago. */
+			return message(form, { type: 'error', text: m.pr_checkpoint_recorded() }, { status: 409 });
+		}
+
+		await recordAudit({
+			actorId: user.id,
+			actorLabel: user.name,
+			entity: 'booking',
+			entityId: id,
+			action: 'metrics_recorded',
+			reason: `${checkpoint}: ${form.data.views ?? '–'} views`
+		});
+		return message(form, { type: 'success', text: m.pr_metrics_toast() });
 	},
 
 	/* ---------------- reviews & messages ---------------- */
@@ -1132,6 +1639,8 @@ export const actions: Actions = {
 
 		if (direction === 'brand_to_creator') {
 			await refreshCreatorRating(booking.creatorId);
+		} else {
+			await recalcOrganizationRatings(db, booking.organizationId);
 		}
 
 		return message(form, { type: 'success', text: m.srv_review_published() });

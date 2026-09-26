@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { assetUrl } from '$lib/assets';
+	import { hostedAssetUrl } from '$lib/assets';
 	import { placeholderImage, type PlaceholderKind } from '$lib/domain/placeholder';
 
 	/**
@@ -7,9 +7,12 @@
 	 *
 	 * Three ways an image on this site fails, and this handles all three the
 	 * same way: the column is null or empty (an imported creator with no avatar),
-	 * the upload behind it is gone, or the host refuses — including the
-	 * Content-Security-Policy refusing every remote host, which is what happens
-	 * to a scraped avatar URL today.
+	 * the upload behind it is gone, or it points at somebody else's server.
+	 *
+	 * That last is refused on purpose rather than tried: every picture the site
+	 * shows is hosted here, because a CDN link scraped from Instagram or TikTok
+	 * carries an expiry and breaks within days. `mirror-images` downloads such a
+	 * picture and repoints the row; until it has, the placeholder is drawn.
 	 *
 	 * A null `src` never reaches the DOM: `src=""` makes the browser re-request
 	 * the page and draw *that* as a broken image. The placeholder is drawn
@@ -53,7 +56,7 @@
 	 * this component: a page that writes `src={creator.avatar}` cannot get it
 	 * wrong, and one that forgets is not left rendering a filename as a URL.
 	 */
-	const url = $derived(assetUrl(src));
+	const url = $derived(hostedAssetUrl(src));
 
 	/**
 	 * The `src` that failed, rather than a boolean: a card recycled onto a new

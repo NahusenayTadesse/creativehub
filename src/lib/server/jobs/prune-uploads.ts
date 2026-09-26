@@ -36,6 +36,7 @@ const GRACE_MS = 24 * 60 * 60 * 1000;
  */
 const FILE_COLUMNS: [table: string, column: string][] = [
 	['gallery_slides', 'image'],
+	['hero_slides', 'image'],
 	['categories', 'image'],
 	['partners', 'logo'],
 	['site_settings', 'hero_image'],

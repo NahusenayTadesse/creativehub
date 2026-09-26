@@ -228,6 +228,13 @@ export type RunOptions<TRow> = {
 	 * the page can be honest about it.
 	 */
 	rank?: { by: (row: TRow) => number; limit?: number };
+	/**
+	 * Ordered ahead of the chosen sort, highest first — "the home market's
+	 * creators before everyone else", say. Server-decided like `where`, never
+	 * read from the URL. Also orders the rows a `rank` is drawn from, so a
+	 * capped ranking still starts from the right end of the table.
+	 */
+	leadOrder?: SQL[];
 };
 
 /** `%` and `_` are wildcards, and `\` escapes them — none may come from a reader. */
@@ -432,9 +439,12 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 		return Number(rows[0]?.value ?? 0);
 	};
 
-	const orderFor = (sortKey: string, direction: SortDirection) => {
+	const orderFor = (sortKey: string, direction: SortDirection, lead: SQL[] = []) => {
 		const order = direction === 'asc' ? asc : desc;
-		const clauses = [order(sortColumn(sort[sortKey]) as any)];
+		const clauses = [
+			...lead.map((clause) => desc(clause)),
+			order(sortColumn(sort[sortKey]) as any)
+		];
 		if (tiebreaker) clauses.push(order(tiebreaker));
 		return clauses;
 	};
@@ -445,7 +455,7 @@ export function defineQuery<TColumns extends Record<string, unknown>, TRow = any
 
 		const scope = (options.where ?? []).filter(Boolean) as SQL[];
 		const where = and(...scope, ...searchConditions, ...filterConditions.values());
-		const order = orderFor(sortKey, direction);
+		const order = orderFor(sortKey, direction, options.leadOrder);
 
 		const perPage = clamp(
 			options.perPage ?? readInt(params.get(PARAM.perPage) ?? '') ?? definitionPerPage,

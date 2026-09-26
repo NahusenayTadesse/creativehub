@@ -4,15 +4,19 @@ import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { listCampaigns, campaignFacet, countCampaignsAcrossMarkets } from '$lib/server/queries';
 import { getCreatorFor } from '$lib/server/guards';
+import { maskCampaigns } from '$lib/server/nda';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
 	const scope = { publicOnly: true } as const;
 
-	const [campaigns, typeCounts, allMarketsTotal] = await Promise.all([
+	const [page, typeCounts, allMarketsTotal] = await Promise.all([
 		listCampaigns(url, scope),
 		campaignFacet(url, 'type', scope),
 		countCampaignsAcrossMarkets(url, scope)
 	]);
+	/* A confidential brief shows its industry, not its brand, until the
+	   reader has accepted its NDA. */
+	const campaigns = { ...page, rows: await maskCampaigns(locals.user, page.rows) };
 
 	/*
 	 * Which of the briefs on this page the signed-in creator has already

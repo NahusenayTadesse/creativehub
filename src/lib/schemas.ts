@@ -513,7 +513,9 @@ export const organizationCreate = z.object({
 export const organizationSelfEdit = organizationCreate.extend({
 	id: z.coerce.number(),
 	logo: optionalUrl,
-	monthlyBudgetCap: z.coerce.number().int().min(0).optional()
+	monthlyBudgetCap: z.coerce.number().int().min(0).optional(),
+	/* Shown to creators in the brand's place until they accept the NDA. */
+	industry: z.string().trim().max(120).optional().default('')
 });
 
 /* ------------------------------------------------------------------ *
@@ -561,6 +563,8 @@ const campaignShape = {
 	language: z.string().trim().max(80).default('Amharic & English'),
 	tags: lines,
 	status: z.enum(['draft', 'published', 'closed', 'cancelled', 'completed']).default('draft'),
+	/* Held back behind the NDA unless the brand chooses to name itself. */
+	confidential: z.coerce.boolean().default(true),
 	isActive: active,
 	sortOrder: sortOrderField
 };
@@ -726,6 +730,84 @@ export const reviewSubmission = z.object({
 });
 
 export const bookingIdSchema = z.object({ bookingId: refId });
+
+/* ------------------------------------------------------------------ *
+ * Managed deals: the contract, the concept, the proof
+ * ------------------------------------------------------------------ */
+
+/** A click-through signature: the signer's typed name and an explicit yes. */
+export const contractSign = z.object({
+	bookingId: refId,
+	typedName: z
+		.string()
+		.trim()
+		.min(3, { error: () => m.val_signature_name() })
+		.max(180),
+	agree: z
+		.boolean()
+		.default(false)
+		.refine((value) => value, { error: () => m.val_signature_agree() })
+});
+
+/** A picture or a document, uploaded here, or a link to one. */
+const attachment = z
+	.union([
+		z.instanceof(File),
+		z
+			.string()
+			.trim()
+			.max(500)
+			.refine((v) => !v || isHttpUrl(v), { error: () => m.val_full_url() })
+	])
+	.optional()
+	.default('');
+
+export const conceptSubmit = z.object({
+	bookingId: refId,
+	body: z
+		.string()
+		.trim()
+		.min(20, { error: () => m.val_concept_min() })
+		.max(5000),
+	attachment
+});
+
+export const conceptReview = z.object({
+	conceptId: refId,
+	decision: z.enum(['approve', 'changes']),
+	reviewNote: optionalText
+});
+
+/** A screenshot that must be uploaded, not linked: it is evidence. */
+const evidenceFile = z
+	.instanceof(File, { error: () => m.val_screenshot_required() })
+	.refine((file) => file.size > 0, { error: () => m.val_screenshot_required() });
+
+export const proofSubmit = z.object({
+	bookingId: refId,
+	liveUrl: httpUrl,
+	screenshot: evidenceFile,
+	/* From a `datetime-local` field: the reader's wall clock, no zone. */
+	postedAt: z
+		.string()
+		.trim()
+		.min(1, { error: () => m.val_posted_at() }),
+	notes: optionalText
+});
+
+const figure = z.coerce.number().int().min(0).optional();
+
+export const metricsRecord = z.object({
+	bookingId: refId,
+	checkpoint: z.enum(['24h', '7d', '30d']),
+	views: figure,
+	likes: figure,
+	comments: figure,
+	shares: figure,
+	saves: figure,
+	reach: figure,
+	screenshot: evidenceFile
+});
 
 export const reviewSchema = z.object({
 	bookingId: refId,
@@ -947,6 +1029,26 @@ export type LogoSlot = (typeof LOGO_SLOTS)[number];
     next save of the whole settings form. */
 export const logoResetSchema = z.object({ slot: z.enum(LOGO_SLOTS) });
 
+/**
+ * The commission rate card and the fees around it. Tiers arrive as parallel
+ * lists — one ceiling and one rate per row — and a blank ceiling is the
+ * open-ended top bracket.
+ */
+export const commissionSchema = z.object({
+	tierUpTo: z.array(z.string().trim().max(15)).default([]),
+	tierPercent: z.array(z.coerce.number().min(0).max(100)).default([]),
+	minCommission: z.coerce.number().int().min(0).default(1500),
+	minProjectSize: z.coerce.number().int().min(0).default(5000),
+	brandServiceFeePercent: z.coerce.number().min(0).max(50).default(5),
+	vatRegistered: z.coerce.boolean().default(true),
+	vatPercent: z.coerce.number().min(0).max(50).default(15),
+	withholdingPercent: z.coerce.number().min(0).max(50).default(0),
+	invoiceLegalName: z.string().trim().max(200).optional().default(''),
+	invoiceTin: z.string().trim().max(40).optional().default(''),
+	invoiceVatNumber: z.string().trim().max(40).optional().default(''),
+	invoiceAddress: optionalText
+});
+
 export const settingsSchema = z.object({
 	id: z.coerce.number().optional(),
 	siteName: name(180),
@@ -958,12 +1060,20 @@ export const settingsSchema = z.object({
 	logoWordmarkDark: uploadOrUrl,
 	logoMark: uploadOrUrl,
 	logoPartners: uploadOrUrl,
-	platformFeePercent: z.coerce.number().int().min(0).max(50).default(15),
 	/* Capped at a year: a window longer than that is not a dispute window, it is
 	   an unfinishable deal. Zero switches it off and makes completion final. */
 	disputeWindowDays: z.coerce.number().int().min(0).max(365).default(7),
 	supportEmail: z.string().trim().max(200).optional().default(''),
-	supportPhone: z.string().trim().max(60).optional().default('')
+	supportPhone: z.string().trim().max(60).optional().default(''),
+	/* An ISO code, or empty for "no market leads". */
+	homeMarketCode: z
+		.string()
+		.trim()
+		.toUpperCase()
+		.regex(/^([A-Z]{2})?$/)
+		.optional()
+		.default('ET'),
+	publicRequiresPrice: z.coerce.boolean().default(true)
 });
 
 /* ------------------------------------------------------------------ *
@@ -973,6 +1083,18 @@ export const settingsSchema = z.object({
 /** Shown unless unticked. `false` is what an unticked `checkboxSingle` posts. */
 const shown = z.coerce.boolean().default(true);
 
+/** A link to one of the platform's own channels: absolute, or nothing. */
+const socialUrl = z
+	.string()
+	.trim()
+	.max(300)
+	.optional()
+	.default('')
+	.refine((v) => !v || isHttpUrl(v), { error: () => m.val_full_url() });
+
+/** A typed follower count. Blank is "not stated" — stored as null, never zero. */
+const followerCount = z.coerce.number().int().min(0).optional();
+
 export const landingSchema = z.object({
 	/* Empty is the translated copy, so none of the three is required. */
 	heroTitle: z.string().trim().max(250).default(''),
@@ -981,16 +1103,30 @@ export const landingSchema = z.object({
 	heroSubtitle: optionalText,
 	/* A minute is already longer than anyone waits on a slide; 0 stops it. */
 	galleryIntervalSeconds: z.coerce.number().int().min(0).max(60).default(6),
+	/* The hero's photographs. The brief asks for five to six seconds; the range
+	   is wider so an operator can tune it, and 0 holds the first picture. */
+	heroIntervalSeconds: z.coerce.number().int().min(0).max(30).default(6),
 	/* Posted as one hidden field per section, top to bottom. */
 	sectionOrder: z.array(z.enum(LANDING_SECTIONS)).default([...LANDING_SECTIONS]),
 	showGallery: shown,
 	showTrending: shown,
+	showCreators: shown,
 	showCategories: shown,
 	showCampaigns: shown,
 	showBrands: shown,
 	showCompensation: shown,
 	showHowItWorks: shown,
-	showBlog: shown
+	showBlog: shown,
+	/* The platform's own channels. Empty hides one; a count left blank shows
+	   the link without a number. */
+	socialInstagramUrl: socialUrl,
+	socialInstagramFollowers: followerCount,
+	socialTiktokUrl: socialUrl,
+	socialTiktokFollowers: followerCount,
+	socialFacebookUrl: socialUrl,
+	socialFacebookFollowers: followerCount,
+	socialYoutubeUrl: socialUrl,
+	socialYoutubeFollowers: followerCount
 });
 
 /* ------------------------------------------------------------------ *
@@ -1038,6 +1174,42 @@ export const gallerySlideAdd = z
 		error: () => m.val_image_required()
 	});
 export const gallerySlideEdit = z.object({ ...gallerySlideFields, ...idSchema.shape });
+
+/* ------------------------------------------------------------------ *
+ * Hero photographs
+ * ------------------------------------------------------------------ */
+
+/**
+ * A picture that has to be stored here: a freshly picked file, or the bare
+ * name an earlier upload was stored under. No URL of any kind — the brief is
+ * that every image the site shows is hosted on its own server.
+ */
+const uploadOnly = z
+	.union([
+		z.instanceof(File),
+		z
+			.string()
+			.trim()
+			.max(500)
+			.refine((v) => !v || !v.includes(':'), { error: () => m.val_upload_not_link() })
+	])
+	.optional()
+	.default('');
+
+const heroSlideFields = {
+	image: uploadOnly,
+	alt: z.string().trim().max(250).optional().default(''),
+	isActive: active,
+	sortOrder: sortOrderField
+};
+
+export const heroSlideAdd = z
+	.object(heroSlideFields)
+	.refine((v) => (v.image instanceof File ? v.image.size > 0 : Boolean(v.image)), {
+		path: ['image'],
+		error: () => m.val_image_required()
+	});
+export const heroSlideEdit = z.object({ ...heroSlideFields, ...idSchema.shape });
 
 /* ------------------------------------------------------------------ *
  * Trending

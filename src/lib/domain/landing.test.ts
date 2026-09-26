@@ -18,9 +18,9 @@ describe('landingLayout', () => {
 			{ key: 'compensation', visible: false }
 		]);
 		/* Only the stored ones are asserted here, in the order they were saved.
-		   Anything shipped since follows them, which is the next test's subject —
+		   Where sections shipped since are placed is the next tests' subject —
 		   spelling the whole list out again would fail on every section added. */
-		expect(keys(layout).slice(0, stored.length)).toEqual(stored);
+		expect(keys(layout).filter((key) => stored.includes(key))).toEqual(stored);
 		expect(layout.filter((section) => !section.visible).map((s) => s.key)).toEqual([
 			'gallery',
 			'compensation'
@@ -33,7 +33,7 @@ describe('landingLayout', () => {
 	});
 
 	/* A section shipped after the operator last saved should appear, not vanish. */
-	it('adds a section the saved list never mentioned, shown, at the end', () => {
+	it('adds a section the saved list never mentioned, shown, after its shipped neighbour', () => {
 		const layout = landingLayout([{ key: 'trending', visible: false }]);
 		expect(keys(layout)).toEqual([
 			'trending',
@@ -42,17 +42,34 @@ describe('landingLayout', () => {
 		expect(layout.slice(1).every((section) => section.visible)).toBe(true);
 	});
 
+	it('puts a new section between the two it shipped between', () => {
+		const stored = LANDING_SECTIONS.filter((key) => key !== 'creators').map((key) => ({
+			key,
+			visible: true
+		}));
+		const layout = keys(landingLayout(stored.reverse()));
+		expect(layout.indexOf('creators')).toBe(layout.indexOf('trending') + 1);
+	});
+
+	it('appends a new section with no stored neighbour before it', () => {
+		const layout = keys(landingLayout([{ key: 'blog', visible: true }]));
+		expect(layout[0]).toBe('blog');
+		expect(layout).toHaveLength(LANDING_SECTIONS.length);
+		expect(new Set(layout).size).toBe(LANDING_SECTIONS.length);
+	});
+
 	it('drops unknown keys and repeats', () => {
 		const layout = landingLayout([
 			{ key: 'pricing', visible: true },
 			{ key: 'gallery', visible: false },
 			{ key: 'gallery', visible: true }
 		]);
-		expect(keys(layout)).toEqual([
-			'gallery',
-			...LANDING_SECTIONS.filter((key) => key !== 'gallery')
-		]);
-		expect(layout[0]).toEqual({ key: 'gallery', visible: false });
+		expect(keys(layout).filter((key) => key === 'gallery')).toHaveLength(1);
+		expect(keys(layout)).not.toContain('pricing');
+		expect(layout.find((section) => section.key === 'gallery')).toEqual({
+			key: 'gallery',
+			visible: false
+		});
 	});
 });
 

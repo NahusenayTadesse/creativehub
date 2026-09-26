@@ -8,12 +8,15 @@ import {
 	listLandingBrands,
 	listOpenBriefs,
 	listLatestPosts,
-	listPartners
+	listPartners,
+	listHeroSlides,
+	listLandingCreators
 } from '$lib/server/queries';
 import { maybeAutoRefresh } from '$lib/server/trending-service';
 import { landingLayout } from '$lib/domain/landing';
+import { maskCampaigns } from '$lib/server/nda';
 
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ parent, locals }) => {
 	/*
 	 * There is no job runner here, so the page that reads the trending board is
 	 * what notices it has gone stale. Deliberately not awaited: a visitor should
@@ -31,22 +34,49 @@ export const load: PageServerLoad = async ({ parent }) => {
 			.map((section) => section.key)
 	);
 
-	const [featured, trending, lanes, stats, gallery, briefs, brands, posts, partners] =
-		await Promise.all([
-			listFeaturedCreators(),
-			listTrendingCreators(),
-			/* The same board, cut by category, market and channel. Empty until a run
+	const [
+		featured,
+		trending,
+		lanes,
+		stats,
+		gallery,
+		briefs,
+		brands,
+		posts,
+		partners,
+		heroSlides,
+		creators
+	] = await Promise.all([
+		listFeaturedCreators(),
+		listTrendingCreators(),
+		/* The same board, cut by category, market and channel. Empty until a run
 			   has published lanes, which is what keeps the strip a single row on a
 			   fresh install rather than a row of chips with nothing behind them. */
-			shown.has('trending') ? listTrendingLanes() : [],
-			getPlatformStats(),
-			shown.has('gallery') ? listGallerySlides() : [],
-			shown.has('campaigns') ? listOpenBriefs() : [],
-			shown.has('brands') ? listLandingBrands() : [],
-			shown.has('blog') ? listLatestPosts() : [],
-			/* The hero is always shown, so its partner strip is always read. */
-			listPartners()
-		]);
+		shown.has('trending') ? listTrendingLanes() : [],
+		getPlatformStats(),
+		shown.has('gallery') ? listGallerySlides() : [],
+		shown.has('campaigns') ? listOpenBriefs() : [],
+		shown.has('brands') ? listLandingBrands() : [],
+		shown.has('blog') ? listLatestPosts() : [],
+		/* The hero is always shown, so its partner strip and photographs are
+		   always read. */
+		listPartners(),
+		listHeroSlides(),
+		shown.has('creators') ? listLandingCreators(12) : []
+	]);
 
-	return { featured, trending, lanes, stats, gallery, briefs, brands, posts, partners };
+	return {
+		featured,
+		trending,
+		lanes,
+		stats,
+		gallery,
+		/* A confidential brief names its industry, not its brand, here. */
+		briefs: await maskCampaigns(locals.user, briefs),
+		brands,
+		posts,
+		partners,
+		heroSlides,
+		creators
+	};
 };

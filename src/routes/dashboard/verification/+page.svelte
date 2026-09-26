@@ -7,7 +7,8 @@
 	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import Errors from '$lib/formComponents/Errors.svelte';
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
-	import { ShieldCheck, Clock } from '@lucide/svelte';
+	import { ShieldCheck, Clock, Fingerprint } from '@lucide/svelte';
+	import { page } from '$app/state';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
 
@@ -21,6 +22,18 @@
 		if (!$message) return;
 		if ($message.type === 'error') toast.error($message.text);
 		else toast.success($message.text);
+	});
+
+	/* What the Fayda callback came back with, said once as a toast. */
+	const faydaOutcome = $derived(page.url.searchParams.get('fayda'));
+	$effect(() => {
+		const outcome = faydaOutcome;
+		if (!outcome) return;
+		if (outcome === 'verified') toast.success(m.fayda_verified_toast());
+		else if (outcome === 'taken') toast.error(m.fayda_taken_toast());
+		else if (outcome === 'expired') toast.error(m.fayda_expired_toast());
+		else if (outcome === 'unavailable') toast.error(m.fayda_unavailable());
+		else toast.error(m.fayda_failed_toast());
 	});
 
 	const hasOpenCase = $derived(
@@ -73,6 +86,46 @@
 				{m.vf_badge_note()}
 			</p>
 		</div>
+
+		<!-- National ID, through Fayda -->
+		{#if data.subject.type === 'creator'}
+			<div class="bento-card bento-card-static space-y-3">
+				<div class="flex items-start gap-3">
+					<Fingerprint class="mt-0.5 h-5 w-5 shrink-0 text-brand-fg" />
+					<div class="space-y-1">
+						<h2 class="text-sm font-black text-ink">{m.fayda_title()}</h2>
+						<p class="text-[11px] leading-relaxed font-medium text-ink-soft">{m.fayda_body()}</p>
+					</div>
+				</div>
+
+				{#if data.fayda.latest?.status === 'verified'}
+					<p
+						class="inline-flex items-center gap-1.5 rounded-full border-2 border-brand-edge bg-brand-soft px-3 py-1 text-[11px] font-black text-brand-soft-fg"
+					>
+						<ShieldCheck class="h-3.5 w-3.5" />
+						{m.fayda_verified_on({
+							date: formatDate(data.fayda.latest.verifiedAt ?? data.fayda.latest.createdAt)
+						})}
+					</p>
+				{:else if data.fayda.available}
+					{#if data.fayda.latest?.status === 'failed'}
+						<p class="text-[11px] font-bold text-danger-fg">{m.fayda_last_failed()}</p>
+					{/if}
+					<form method="POST" action="?/fayda">
+						<button
+							type="submit"
+							class="inline-flex items-center gap-2 rounded-xl border-2 border-edge bg-brand px-4 py-2.5 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
+						>
+							<Fingerprint class="h-4 w-4" />
+							{m.fayda_start()}
+						</button>
+					</form>
+					<p class="text-[10px] font-medium text-ink-dim">{m.fayda_privacy()}</p>
+				{:else}
+					<p class="text-[11px] font-bold text-ink-dim">{m.fayda_unavailable()}</p>
+				{/if}
+			</div>
+		{/if}
 
 		<!-- History -->
 		{#if data.requests.length}

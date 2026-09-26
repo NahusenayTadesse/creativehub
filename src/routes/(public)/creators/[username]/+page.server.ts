@@ -7,10 +7,13 @@ import type { PageServerLoad, Actions } from './$types';
 import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { notify } from '$lib/server/notify';
-import { getCreatorByUsername, getSettings, listProfilePosts } from '$lib/server/queries';
+import { getCreatorByUsername, listProfilePosts } from '$lib/server/queries';
 import { getOrganizationFor, recordAudit } from '$lib/server/guards';
 import { bookingCreate } from '$lib/schemas';
-import { bookingReference, splitFee } from '$lib/domain/booking';
+import { bookingReference } from '$lib/domain/booking';
+import { projectSizeProblem } from '$lib/domain/commission';
+import { getCommissionSettings, priceDeal, quoteColumns } from '$lib/server/commission';
+import { maskedBrandName } from '$lib/server/nda';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const creator = await getCreatorByUsername(params.username);
@@ -151,11 +154,20 @@ export const actions: Actions = {
 		 */
 		const needsIntroduction = !creator.isClaimed && creator.userId === null;
 
-		const settings = await getSettings();
-		const { platformFee, creatorPayout } = splitFee(
-			form.data.price,
-			settings?.platformFeePercent ?? 15
-		);
+		/* The smallest paid deal the platform writes, and the rate card that
+		   prices it — re-priced again when the terms freeze. */
+		const commission = await getCommissionSettings();
+		if (projectSizeProblem(form.data.price, form.data.compensationType, commission)) {
+			return message(
+				form,
+				{
+					type: 'error',
+					text: m.srv_below_min_project({ min: commission.minProjectSize.toLocaleString('en-US') })
+				},
+				{ status: 400 }
+			);
+		}
+		const fees = quoteColumns(await priceDeal(form.data.price, creator.id));
 
 		const deliverables = form.data.deliverables
 			.split('\n')
@@ -174,8 +186,7 @@ export const actions: Actions = {
 				compensationType: form.data.compensationType,
 				price: form.data.price,
 				currencyCode: form.data.currencyCode,
-				platformFee,
-				creatorPayout,
+				...fees,
 				status: 'proposed',
 				escrowStatus: 'unfunded',
 				introductionStatus: needsIntroduction ? 'pending' : 'none',
@@ -205,7 +216,11 @@ export const actions: Actions = {
 			await notify(creator.userId, {
 				category: 'deals',
 				kind: 'booking',
-				title: m.notif_booking_request_title({ organisation: organization.name }),
+				/* The creator learns the brand's name through the NDA on the deal,
+				   so the notification — and its email — say only what it does. */
+				title: m.notif_booking_request_title({
+					organisation: maskedBrandName(organization.industry)
+				}),
 				body: form.data.title,
 				link: `/dashboard/bookings/${bookingId}`,
 				actionLabel: m.mail_open_booking(),

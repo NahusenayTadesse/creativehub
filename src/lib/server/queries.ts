@@ -139,7 +139,38 @@ export const listLanguages = () =>
 		.where(live(t.languages))
 		.orderBy(asc(t.languages.sortOrder));
 
-export const getSettings = async () => (await db.select().from(t.siteSettings).limit(1)).at(0);
+export const loadSettings = async () => (await db.select().from(t.siteSettings).limit(1)).at(0);
+
+/**
+ * The settings row, memoised per request like the reference data below.
+ *
+ * Every public listing now asks it who may be shown and which market leads,
+ * so a homepage with five strips would otherwise read it six times. A write
+ * made earlier in the same request (an admin saving settings) is not seen by a
+ * later read in that request — the settings actions do not read back.
+ */
+export function getSettings(): ReturnType<typeof loadSettings> {
+	let event: ReturnType<typeof getRequestEvent> | undefined;
+	try {
+		event = getRequestEvent();
+	} catch {
+		return loadSettings();
+	}
+	return (event.locals.siteSettings ??= loadSettings());
+}
+
+/**
+ * Forget the memoised row. Every action that writes `site_settings` calls
+ * this, because SvelteKit runs the page's loads in the same request after an
+ * action — and they would otherwise render the values from before the save.
+ */
+export function forgetSettings() {
+	try {
+		getRequestEvent().locals.siteSettings = undefined;
+	} catch {
+		/* Outside a request there is nothing memoised. */
+	}
+}
 
 /** The hero's partner logos, in the order an operator arranged them. */
 export const listPartners = () =>
@@ -172,6 +203,17 @@ export const listGallerySlides = () =>
 		.from(t.gallerySlides)
 		.where(live(t.gallerySlides))
 		.orderBy(asc(t.gallerySlides.sortOrder));
+
+/**
+ * The hero's photographs, in the order an operator arranged them. Empty means
+ * the component's shipped set, so a fresh install still has pictures.
+ */
+export const listHeroSlides = () =>
+	db
+		.select({ id: t.heroSlides.id, image: t.heroSlides.image, alt: t.heroSlides.alt })
+		.from(t.heroSlides)
+		.where(and(live(t.heroSlides), ne(t.heroSlides.image, '')))
+		.orderBy(asc(t.heroSlides.sortOrder), asc(t.heroSlides.id));
 
 async function loadReferenceData() {
 	const [countries, regions, categories, platforms, languages] = await Promise.all([
@@ -378,29 +420,111 @@ export const wantsUnverified = (url: URL): boolean =>
 	url.searchParams.get('verification') === 'unverified';
 
 /**
+ * Whether the reader is staff, who may look past the public listing rules.
+ *
+ * Operators and data encoders need to find the profiles the public cannot see
+ * — that is how they get fixed — so the "include unverified" control still
+ * works for them. For everyone else it is ignored: an unbookable profile does
+ * not belong in front of a brand, whatever the URL says.
+ */
+function readerIsStaff(): boolean {
+	try {
+		const role = (getRequestEvent().locals.user as { role?: string } | undefined)?.role;
+		return role === 'admin' || role === 'encoder';
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * The public listing rules an operator has set, and the market that leads.
+ *
+ * `homeMarketId` is resolved from the ISO code through the reference data the
+ * request has already loaded, so it costs nothing extra; null when the code is
+ * empty or names no country.
+ */
+export async function listingRules() {
+	const [settings, reference] = await Promise.all([getSettings(), getReferenceData()]);
+	const code = (settings?.homeMarketCode ?? 'ET').trim().toUpperCase();
+	const homeMarketId = code
+		? (reference.countries.find((country) => country.code.toUpperCase() === code)?.id ?? null)
+		: null;
+	return { homeMarketId, requirePrice: settings?.publicRequiresPrice ?? true };
+}
+
+type ListingRules = Awaited<ReturnType<typeof listingRules>>;
+
+/**
+ * What makes a published creator bookable enough to list publicly: somebody
+ * has confirmed a channel, and — unless an operator switched it off — there is
+ * a price to book against. A profile that fails either stays in the system and
+ * on the staff list at /dashboard/admin/creators/hidden, and nowhere public.
+ */
+const bookableCreators = (rules: ListingRules): SQL[] => [
+	verifiedCreators(),
+	...(rules.requirePrice ? [gt(t.creators.startingPrice, 0)] : [])
+];
+
+/** Home-market creators first, as an ORDER BY term. None when no market leads. */
+const homeMarketLead = (rules: ListingRules): SQL[] =>
+	rules.homeMarketId === null
+		? []
+		: [sql`coalesce(${t.creators.countryId} = ${rules.homeMarketId}, 0)`];
+
+/**
+ * The same preference for a ranking done in memory: a bonus no score can
+ * reach, so the home market is a block at the top and each block keeps its
+ * own order.
+ */
+const HOME_MARKET_BONUS = 1_000_000;
+const withHomeMarketFirst = <R extends { countryId: number | null }>(
+	rules: ListingRules,
+	by: (row: R) => number
+) =>
+	rules.homeMarketId === null
+		? by
+		: (row: R) => by(row) + (row.countryId === rules.homeMarketId ? HOME_MARKET_BONUS : 0);
+
+/** Rows per page in discovery. A marketplace grid, so larger than the default. */
+export const DISCOVERY_PER_PAGE = 36;
+
+/**
  * One page of published creators.
  *
  * `rank` orders by a campaign fit score, which is computed in the domain and
  * cannot be expressed in SQL — see `RunOptions.rank` for what that costs.
+ *
+ * `homeFirst` puts the home market's creators ahead of the rest. The caller
+ * decides it, because only the caller knows whether the reader has already
+ * chosen an order of their own.
  */
-export function listCreators(
+export async function listCreators(
 	url: URL,
 	options: {
 		where?: (SQL | undefined)[];
 		perPage?: number;
 		rank?: (row: CreatorCard) => number;
+		homeFirst?: boolean;
 	} = {}
 ): Promise<PageResult<CreatorCard>> {
+	const rules = await listingRules();
+	const lead = options.homeFirst ? homeMarketLead(rules) : [];
+	const rank =
+		options.rank && options.homeFirst ? withHomeMarketFirst(rules, options.rank) : options.rank;
+
 	return creatorsQuery.run(url, {
-		where: [
-			...publishedCreators(),
-			...(wantsUnverified(url) ? [] : [verifiedCreators()]),
-			...(options.where ?? [])
-		],
-		perPage: options.perPage,
-		...(options.rank ? { rank: { by: options.rank } } : {})
+		where: [...publicScope(url, rules), ...(options.where ?? [])],
+		perPage: options.perPage ?? DISCOVERY_PER_PAGE,
+		leadOrder: lead,
+		...(rank ? { rank: { by: rank } } : {})
 	});
 }
+
+/** The gate every public listing shares: published, and bookable unless staff asked. */
+const publicScope = (url: URL, rules: ListingRules): SQL[] => [
+	...(publishedCreators() as SQL[]),
+	...(readerIsStaff() && wantsUnverified(url) ? [] : bookableCreators(rules))
+];
 
 /**
  * Every published creator somebody has claimed, as cards.
@@ -421,11 +545,11 @@ export async function listClaimedCreatorCards() {
 }
 
 /** How many published creators sit in each market, for the discovery chips. */
-export const creatorFacet = (url: URL, key: string) =>
+export const creatorFacet = async (url: URL, key: string) =>
 	creatorsQuery.facet(url, key, {
 		/* The same gate the listing uses, or the country chips would count
 		   creators the page underneath them refuses to show. */
-		where: [...publishedCreators(), ...(wantsUnverified(url) ? [] : [verifiedCreators()])]
+		where: publicScope(url, await listingRules())
 	});
 
 /**
@@ -439,12 +563,82 @@ export const creatorFacet = (url: URL, key: string) =>
  * ruled out. The tick is kept either way — confirm the channel and they appear,
  * with no need to remember to re-feature them.
  */
-export async function listFeaturedCreators(limit = 6): Promise<CreatorCard[]> {
+export async function listFeaturedCreators(limit = 12): Promise<CreatorCard[]> {
+	const rules = await listingRules();
 	const page = await creatorsQuery.run(unfiltered(), {
-		where: [...publishedCreators(), verifiedCreators(), eq(t.creators.isFeatured, true)],
-		perPage: limit
+		where: [...publishedCreators(), ...bookableCreators(rules), eq(t.creators.isFeatured, true)],
+		perPage: limit,
+		leadOrder: homeMarketLead(rules)
 	});
 	return page.rows;
+}
+
+/**
+ * The homepage's creator grid: the best-scored bookable creators, home market
+ * first. The trending strip shows who is moving; this shows who is here, so a
+ * visitor sees a marketplace rather than a handful of faces.
+ */
+export async function listLandingCreators(limit = 12): Promise<CreatorCard[]> {
+	const rules = await listingRules();
+	const page = await creatorsQuery.run(unfiltered(), {
+		where: [...publishedCreators(), ...bookableCreators(rules)],
+		perPage: limit,
+		leadOrder: homeMarketLead(rules)
+	});
+	return page.rows;
+}
+
+/**
+ * Published profiles the public listing rules keep out, with the reasons.
+ *
+ * The staff-only list the homepage and discovery no longer show: unverified,
+ * unpriced, or both. Each row says which, so the fix is obvious from the list.
+ */
+export const hiddenCreatorsQuery = defineQuery({
+	table: t.creators,
+	columns: {
+		...creatorCardColumns,
+		isPublished: t.creators.isPublished,
+		userId: t.creators.userId
+	},
+	joins: creatorJoins,
+	search: [t.creators.fullName, t.creators.username, t.creators.city],
+	filters: {
+		country: { type: 'numbers', column: t.creators.countryId },
+		verification: {
+			type: 'enum',
+			column: t.creators.verificationLevel,
+			values: t.verificationLevelEnum
+		}
+	},
+	sort: {
+		reach: { column: t.creators.totalReach, direction: 'desc' },
+		name: { column: t.creators.fullName, direction: 'asc' },
+		newest: { column: t.creators.createdAt, direction: 'desc' }
+	},
+	defaultSort: 'reach',
+	tiebreaker: t.creators.id
+});
+
+export async function listHiddenCreators(url: URL) {
+	const rules = await listingRules();
+	const failsRules = rules.requirePrice
+		? or(eq(t.creators.verificationLevel, 'unverified'), lte(t.creators.startingPrice, 0))
+		: eq(t.creators.verificationLevel, 'unverified');
+	const page = await hiddenCreatorsQuery.run(url, {
+		where: [...publishedCreators(), failsRules],
+		leadOrder: homeMarketLead(rules)
+	});
+	return {
+		...page,
+		rows: page.rows.map((row) => ({
+			...row,
+			reasons: [
+				...(row.verificationLevel === 'unverified' ? (['unverified'] as const) : []),
+				...(rules.requirePrice && row.startingPrice <= 0 ? (['unpriced'] as const) : [])
+			]
+		}))
+	};
 }
 
 /**
@@ -457,7 +651,7 @@ export async function listFeaturedCreators(limit = 6): Promise<CreatorCard[]> {
  * A reader who is to see their own country only is served that market's board
  * instead, which the flag says nothing about — see `buildMarketBoards`.
  */
-export async function listTrendingCreators(limit = 8): Promise<CreatorCard[]> {
+export async function listTrendingCreators(limit = 24): Promise<CreatorCard[]> {
 	const market = await getViewerMarket();
 	if (market !== null) return listMarketTrendingCreators(market, limit);
 
@@ -486,19 +680,30 @@ export async function listTrendingCreators(limit = 8): Promise<CreatorCard[]> {
 		return rank === undefined ? row.score : positionScore(rank, board.length);
 	};
 
-	const rank = local
-		? { by: (row: any) => boardScore(row) + local(row) }
-		: /* Negated because ranking sorts high-to-low and rank 1 comes first. */
-			{ by: (row: any) => -(rankOf.get(row.id) ?? Infinity) };
+	const rules = await listingRules();
+	/* The home market's creators lead the national board as a block, each
+	   block in the order it earned. Only the national board: a reader served
+	   their own market's board below is already looking at one market. */
+	const rank = {
+		by: withHomeMarketFirst(
+			rules,
+			local
+				? (row: any) => boardScore(row) + local(row)
+				: /* Negated because ranking sorts high-to-low and rank 1 comes first.
+					   Finite, so the home bonus still separates unranked rows. */
+					(row: any) => -(rankOf.get(row.id) ?? board.length + 1)
+		)
+	};
 
 	const page = await creatorsQuery.run(unfiltered(), {
-		/* Unverified creators are refused here with no way to ask for them. The
-		   directory is a list somebody went looking through; this is the platform
-		   putting a creator forward, and it may only put forward creators it has
-		   actually stood behind. */
-		where: [...publishedCreators(), verifiedCreators(), eq(t.creators.isTrending, true)],
+		/* Unverified or unpriced creators are refused here with no way to ask
+		   for them. The directory is a list somebody went looking through; this
+		   is the platform putting a creator forward, and it may only put forward
+		   creators it has actually stood behind and who can be booked. */
+		where: [...publishedCreators(), ...bookableCreators(rules), eq(t.creators.isTrending, true)],
 		perPage: limit,
-		...(board.length || local ? { rank } : {})
+		leadOrder: homeMarketLead(rules),
+		rank
 	});
 
 	return page.rows;
@@ -514,9 +719,14 @@ async function listMarketTrendingCreators(countryId: number, limit: number) {
 	if (!board.length) return [];
 
 	const rankOf = new Map(board.map((entry) => [entry.creatorId, entry.rank]));
+	const rules = await listingRules();
 	const page = await creatorsQuery.run(unfiltered(), {
 		/* Same refusal as the national board above. */
-		where: [...publishedCreators(), verifiedCreators(), inArray(t.creators.id, [...rankOf.keys()])],
+		where: [
+			...publishedCreators(),
+			...bookableCreators(rules),
+			inArray(t.creators.id, [...rankOf.keys()])
+		],
 		perPage: limit,
 		/* Negated because ranking sorts high-to-low and rank 1 comes first. */
 		rank: { by: (row: any) => -(rankOf.get(row.id) ?? Infinity) }
@@ -582,7 +792,11 @@ export async function listTrendingLanes(): Promise<TrendingLane[]> {
 		   them, and the board is not rebuilt for it. Dropping them here is what
 		   keeps a withdrawn confirmation immediate rather than waiting on the
 		   next trending run. */
-		where: [...publishedCreators(), verifiedCreators(), inArray(t.creators.id, ids)],
+		where: [
+			...publishedCreators(),
+			...bookableCreators(await listingRules()),
+			inArray(t.creators.id, ids)
+		],
 		perPage: ids.length
 	});
 	const cardOf = new Map(page.rows.map((row) => [row.id, row]));
@@ -827,7 +1041,10 @@ const campaignColumns = {
 	/* The brand's own page, which a brief's header links its name to. */
 	organizationSlug: t.organizations.slug,
 	organizationLogo: t.organizations.logo,
-	orgType: t.organizations.orgType
+	orgType: t.organizations.orgType,
+	/* What a creator sees in the brand's place until they accept the NDA. */
+	organizationIndustry: t.organizations.industry,
+	confidential: t.campaigns.confidential
 };
 
 const campaignJoins = (qb: any) =>
@@ -858,7 +1075,10 @@ export const campaignsQuery = defineQuery({
 	search: [
 		t.campaigns.title,
 		t.campaigns.description,
-		t.organizations.name,
+		/* A confidential brief is not found by its brand's name: finding it
+		   that way would say which brand is behind it, which is exactly what
+		   the NDA holds back. */
+		sql`if(${t.campaigns.confidential}, '', ${t.organizations.name})` as unknown as typeof t.organizations.name,
 		t.categories.name,
 		t.countries.name
 	],
@@ -969,8 +1189,11 @@ export async function listOpenBriefs(limit = 3) {
 			budgetMax: t.campaigns.budgetMax,
 			currencyCode: t.campaigns.currencyCode,
 			applicationsCount: t.campaigns.applicationsCount,
+			organizationId: t.campaigns.organizationId,
 			organizationName: t.organizations.name,
-			organizationLogo: t.organizations.logo
+			organizationLogo: t.organizations.logo,
+			organizationIndustry: t.organizations.industry,
+			confidential: t.campaigns.confidential
 		})
 		.from(t.campaigns)
 		.innerJoin(t.organizations, eq(t.organizations.id, t.campaigns.organizationId))
@@ -1091,6 +1314,8 @@ export async function getBrandBySlug(slug: string) {
 			bio: t.organizations.bio,
 			city: t.organizations.city,
 			verificationLevel: t.organizations.verificationLevel,
+			averageRating: t.organizations.averageRating,
+			reviewsCount: t.organizations.reviewsCount,
 			updatedAt: t.organizations.updatedAt,
 			countryName: t.countries.name,
 			countryFlag: t.countries.flag
@@ -1104,6 +1329,38 @@ export async function getBrandBySlug(slug: string) {
 }
 
 export type Brand = NonNullable<Awaited<ReturnType<typeof getBrandBySlug>>>;
+
+/**
+ * What creators said about working with a brand — the creator's half of the
+ * two-way review, which used to be written and shown nowhere.
+ */
+export async function listBrandReviews(organizationId: number, limit = 6) {
+	return db
+		.select({
+			id: t.reviews.id,
+			rating: t.reviews.rating,
+			communication: t.reviews.communication,
+			professionalism: t.reviews.professionalism,
+			timeliness: t.reviews.timeliness,
+			body: t.reviews.body,
+			createdAt: t.reviews.createdAt,
+			creatorName: t.creators.fullName,
+			creatorUsername: t.creators.username,
+			creatorAvatar: t.creators.avatar
+		})
+		.from(t.reviews)
+		.innerJoin(t.creators, eq(t.creators.id, t.reviews.creatorId))
+		.where(
+			and(
+				eq(t.reviews.organizationId, organizationId),
+				eq(t.reviews.direction, 'creator_to_brand'),
+				eq(t.reviews.isActive, true),
+				isNull(t.reviews.deletedAt)
+			)
+		)
+		.orderBy(desc(t.reviews.createdAt))
+		.limit(limit);
+}
 
 /** The briefs a brand currently has out, for its own page. */
 export async function listBrandBriefs(organizationId: number, limit = 6) {
@@ -1123,7 +1380,15 @@ export async function listBrandBriefs(organizationId: number, limit = 6) {
 			})
 			.from(t.campaigns)
 			.leftJoin(t.categories, eq(t.categories.id, t.campaigns.categoryId))
-			.where(and(eq(t.campaigns.organizationId, organizationId), ...openBriefConditions()))
+			/* Only the briefs the brand has made public: listing a confidential one
+			   on the brand's own page would name the brand behind it. */
+			.where(
+				and(
+					eq(t.campaigns.organizationId, organizationId),
+					eq(t.campaigns.confidential, false),
+					...openBriefConditions()
+				)
+			)
 			/* Dated briefs lead, soonest first — the same order the homepage strip
 		   uses, and for the same reason: the ones closing are the ones to act on. */
 			.orderBy(
@@ -1149,6 +1414,11 @@ const bookingColumns = {
 	currencyCode: t.bookings.currencyCode,
 	platformFee: t.bookings.platformFee,
 	creatorPayout: t.bookings.creatorPayout,
+	commissionPercent: t.bookings.commissionPercent,
+	brandServiceFee: t.bookings.brandServiceFee,
+	brandServiceFeeVat: t.bookings.brandServiceFeeVat,
+	brandTotal: t.bookings.brandTotal,
+	withholdingTax: t.bookings.withholdingTax,
 	status: t.bookings.status,
 	escrowStatus: t.bookings.escrowStatus,
 	introductionStatus: t.bookings.introductionStatus,
@@ -1168,7 +1438,9 @@ const bookingColumns = {
 	creatorAvatar: t.creators.avatar,
 	organizationId: t.bookings.organizationId,
 	organizationName: t.organizations.name,
-	organizationLogo: t.organizations.logo
+	organizationLogo: t.organizations.logo,
+	/* Shown to a creator in place of the name until they accept the NDA. */
+	organizationIndustry: t.organizations.industry
 };
 
 const bookingJoins = (qb: any) =>
@@ -1183,7 +1455,16 @@ const bookingJoins = (qb: any) =>
 export const BOOKING_TABS = {
 	all: [],
 	negotiating: ['proposed', 'negotiating'],
-	active: ['booked', 'in_production', 'submitted', 'revision', 'approved', 'awaiting_settlement'],
+	active: [
+		'contracting',
+		'booked',
+		'concept',
+		'in_production',
+		'submitted',
+		'revision',
+		'approved',
+		'awaiting_settlement'
+	],
 	completed: ['completed'],
 	closed: ['cancelled', 'disputed']
 } as const;
@@ -1358,6 +1639,8 @@ const applicationColumns = {
 	compensationType: t.campaigns.compensationType,
 	organizationId: t.campaigns.organizationId,
 	organizationName: t.organizations.name,
+	organizationIndustry: t.organizations.industry,
+	confidential: t.campaigns.confidential,
 	creatorId: t.applications.creatorId,
 	creatorName: t.creators.fullName,
 	creatorUsername: t.creators.username,
@@ -2058,11 +2341,15 @@ export const auditQuery = defineQuery({
  * ------------------------------------------------------------------ */
 
 export async function getPlatformStats() {
+	/* Creators are counted by the same rule that lists them publicly: verified
+	   and bookable. A homepage figure that counted profiles the reader cannot
+	   find, or cannot book, would be the one number on the page that lies. */
+	const listable = and(...publishedCreators(), ...bookableCreators(await listingRules()));
 	const [creatorCount, campaignCount, bookingAgg, orgCount] = await Promise.all([
 		db
 			.select({ count: sql<number>`count(*)` })
 			.from(t.creators)
-			.where(and(live(t.creators), eq(t.creators.isPublished, true))),
+			.where(listable),
 		db
 			.select({ count: sql<number>`count(*)` })
 			.from(t.campaigns)
@@ -2086,7 +2373,7 @@ export async function getPlatformStats() {
 	const reach = await db
 		.select({ total: sql<number>`coalesce(sum(${t.creators.totalReach}), 0)` })
 		.from(t.creators)
-		.where(and(live(t.creators), eq(t.creators.isPublished, true)));
+		.where(listable);
 
 	return {
 		creators: Number(creatorCount[0]?.count ?? 0),

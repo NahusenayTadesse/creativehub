@@ -348,7 +348,7 @@ concurrent requests from starting several at once.
 
 ### 4.7 Contact masking — `domain/mask.ts`
 
-Deals stay on-platform because the escrow, the delivery record and the review
+Deals stay on-platform because the held campaign funds, the delivery record and the review
 only exist here. Masking is what keeps that true: email addresses, Ethiopian
 mobile formats (`+251…`, `09…`, `07…`), generic long digit runs and messenger
 handoffs (`t.me/…`, `wa.me/…`, Telegram and WhatsApp mentions) are rewritten
@@ -600,14 +600,14 @@ index, so unclaimed supply is unaffected.
 
 ### Transactions
 
-| Table            | Holds                                                                                                                                                                             |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bookings`       | The deal: reference, parties, price, **stored** platform fee and creator payout, status, escrow status, introduction status, revision counters, `termsSnapshot` and when it froze |
-| `term_proposals` | One negotiation round each; the chain of them is the timeline                                                                                                                     |
-| `payments`       | Every attempt, including abandoned ones — the difference between "never tried" and "tried twice and gave up" only ever matters once, in a support conversation                    |
-| `submissions`    | Delivery: submitted, approved, or revision requested                                                                                                                              |
-| `messages`       | Scoped to a deal — there is no global inbox — with `isMasked` set when the masker rewrote something                                                                               |
-| `reviews`        | Both directions, brand→creator and creator→brand                                                                                                                                  |
+| Table            | Holds                                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bookings`       | The deal: reference, parties, price, **stored** platform fee and creator payout, status, held funds status, introduction status, revision counters, `termsSnapshot` and when it froze |
+| `term_proposals` | One negotiation round each; the chain of them is the timeline                                                                                                                         |
+| `payments`       | Every attempt, including abandoned ones — the difference between "never tried" and "tried twice and gave up" only ever matters once, in a support conversation                        |
+| `submissions`    | Delivery: submitted, approved, or revision requested                                                                                                                                  |
+| `messages`       | Scoped to a deal — there is no global inbox — with `isMasked` set when the masker rewrote something                                                                                   |
+| `reviews`        | Both directions, brand→creator and creator→brand                                                                                                                                      |
 
 ### Trust and operations
 
@@ -749,7 +749,7 @@ operator last touched months ago.
 ### What is not connected
 
 **Payouts.** Money comes in through Chapa; it goes out by hand. `settle`
-releases escrow as a _record_, not a transfer, and the interface says so rather
+releases the held funds as a _record_, not a transfer, and the interface says so rather
 than implying a creator has been paid. Wiring the other direction needs Chapa
 Transfers, a funded balance, and bank details on creator profiles — none of
 which exist yet.
@@ -883,7 +883,7 @@ without anybody noticing.
 
 | Job              | Does                                                             | Suggested cadence |
 | ---------------- | ---------------------------------------------------------------- | ----------------- |
-| `verify-socials` | Re-checks handles the platforms may have deleted or renamed      | every 15 minutes  |
+| `verify-socials` | Re-checks handles the platforms may have deleted or renamed      | hourly            |
 | `prune-uploads`  | Removes files on disk that no row points at, after a day's grace | weekly            |
 | `refresh-geoip`  | Fetches the month's DB-IP country database and swaps it in       | monthly           |
 
@@ -893,6 +893,9 @@ Three properties make this safe to call as often as cron likes:
   the database oldest-first, so a run that stops early is not a run lost.
 - **Never overlapping.** A second call while one is running is answered `409`,
   not queued behind it.
+- **Cheap when idle.** An hourly `verify-socials` mostly finds nothing due and
+  returns in milliseconds; the 30-day staleness window is what decides how much
+  work exists, not the cadence.
 - **Recorded.** Every run writes a row to `job_runs` — what it examined, what
   it changed, whether it stopped on the budget, and the error if it failed.
   `GET /api/jobs/runs` reads them back. A job that has been failing for a
@@ -904,12 +907,19 @@ and LiteSpeed is refused whatever token it holds. Set it up on the box with:
 
 ```bash
 # once, as admin, with JOB_TOKEN already in ~/apps/creator-network/.env
+mkdir -p ~/bin ~/logs
 cat > ~/bin/job <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-source ~/apps/creator-network/.env
-curl -fsS -m 120 -X POST -H "Authorization: Bearer $JOB_TOKEN" \
+# Read the one variable rather than sourcing the file: `.env` is a systemd
+# EnvironmentFile, not a shell script, and it holds passwords with characters
+# bash would treat as syntax.
+token="$(sed -n 's/^JOB_TOKEN=//p' ~/apps/creator-network/.env | tr -d '"' | head -1)"
+[ -n "$token" ] || { echo "job: JOB_TOKEN is not set in .env" >&2; exit 1; }
+printf '%s  ' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+curl -fsS -m 180 -X POST -H "Authorization: Bearer $token" \
   "http://127.0.0.1:3000/api/jobs/$1"
+echo
 SH
 chmod 700 ~/bin/job
 
@@ -919,9 +929,18 @@ crontab -e
 ```cron
 # Maintenance. The app records every run in job_runs; this log is for the
 # failures that never reached it, so it is worth keeping.
-*/15 * * * * ~/bin/job verify-socials >> ~/logs/jobs.log 2>&1
-17 4 * * 0   ~/bin/job prune-uploads  >> ~/logs/jobs.log 2>&1
-23 3 3 * *   ~/bin/job refresh-geoip   >> ~/logs/jobs.log 2>&1
+# Absolute paths: cron's shell is not the one that expands `~` reliably.
+7 * * * *    /home/admin/bin/job verify-socials >> /home/admin/logs/jobs.log 2>&1
+17 4 * * 0   /home/admin/bin/job prune-uploads  >> /home/admin/logs/jobs.log 2>&1
+23 3 3 * *   /home/admin/bin/job refresh-geoip  >> /home/admin/logs/jobs.log 2>&1
+# Download pictures still linked from other sites (Instagram/TikTok CDNs) and
+# serve them from here; dead links are cleared.
+37 */6 * * * /home/admin/bin/job mirror-images  >> /home/admin/logs/jobs.log 2>&1
+# Ask creators for a live post's figures at 24 hours, 7 days and 30 days.
+47 * * * *   /home/admin/bin/job proof-reminders >> /home/admin/logs/jobs.log 2>&1
+# Keep the log from growing without bound.
+5 0 1 * *    tail -n 5000 /home/admin/logs/jobs.log > /home/admin/logs/jobs.tmp \
+             && mv /home/admin/logs/jobs.tmp /home/admin/logs/jobs.log
 ```
 
 ---
@@ -1150,7 +1169,7 @@ department.
 
 Pair it with **payouts** (§8, _What is not connected_): bank or mobile-money
 details on creator profiles, Chapa Transfers, and a batched release run. Until
-that exists, `settle` releases escrow as a record and the interface has to keep
+that exists, `settle` releases the held funds as a record and the interface has to keep
 saying so.
 
 #### B6 · Self-serve removal, without an account — **S**
@@ -1182,7 +1201,7 @@ something to say about what being listed means. It reuses
 
 `payments` holds every attempt and `bookings` holds the fee split, but a creator
 has no single page answering _what have I earned, what is owed, and when did it
-arrive_. One view over existing rows — settled, pending, in escrow, per deal,
+arrive_. One view over existing rows — settled, pending, held, per deal,
 with a downloadable statement — needs no new tables and is the page a creator
 will open most often after the deal list.
 
@@ -1325,7 +1344,7 @@ it on the deal is a contained change with a direct effect on transaction value.
 | **Booking**           | One deal between an organisation and a creator, with its own reference and lifecycle                                                                 |
 | **Brief / campaign**  | An organisation's published call, with exactly one compensation model                                                                                |
 | **Claim**             | A request by an account to take over a profile imported before they arrived. Grants nothing until approved                                           |
-| **Escrow**            | A recorded state on a booking — `unfunded`, `pending`, `held`, `released`, `refunded`. Money in is real; money out is still a record, not a transfer |
+| **Held funds**        | A recorded state on a booking — `unfunded`, `pending`, `held`, `released`, `refunded`. Money in is real; money out is still a record, not a transfer |
 | **Facet**             | The count of what one filter choice would return, with every _other_ filter applied                                                                  |
 | **Fit / match score** | Deterministic campaign↔creator score across five weighted factors                                                                                    |
 | **Introduction**      | A deal opened against a creator who has no account here. Badged everywhere, and queued for an operator                                               |

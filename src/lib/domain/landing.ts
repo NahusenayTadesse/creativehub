@@ -18,15 +18,18 @@ import * as m from '$lib/paraglide/messages';
  */
 export const LANDING_SECTIONS = [
 	'trending',
+	/* The wider grid of bookable creators, straight after who is trending, so
+	   the page reads as a marketplace before it reads as anything else. */
+	'creators',
 	'categories',
 	'campaigns',
 	'compensation',
 	'brands',
 	'gallery',
 	'howItWorks',
-	/* Added after the first installs saved a layout. `landingLayout` appends any
-	   section a stored list never mentioned, and it appends in this order — so
-	   last here is last on an existing site too, and the two agree. */
+	/* Added after the first installs saved a layout. `landingLayout` places any
+	   section a stored list never mentioned after its neighbour in this order,
+	   so where a section sits here is where it appears on an existing site. */
 	'blog'
 ] as const;
 
@@ -37,6 +40,7 @@ export type LandingSection = { key: LandingSectionKey; visible: boolean };
 export const SECTION_VISIBILITY_FIELD = {
 	gallery: 'showGallery',
 	trending: 'showTrending',
+	creators: 'showCreators',
 	categories: 'showCategories',
 	campaigns: 'showCampaigns',
 	brands: 'showBrands',
@@ -80,8 +84,18 @@ export function landingLayout(stored: unknown): LandingSection[] {
 		}
 	}
 
-	for (const key of LANDING_SECTIONS) {
-		if (!seen.has(key)) layout.push({ key, visible: true });
+	/* A section the stored list never mentioned goes in after the nearest
+	   section that precedes it in the shipped order, so a section shipped
+	   between two others lands between them on an existing site too. With no
+	   such neighbour stored, it goes at the end. */
+	for (const [index, key] of LANDING_SECTIONS.entries()) {
+		if (seen.has(key)) continue;
+		const before = LANDING_SECTIONS.slice(0, index)
+			.reverse()
+			.find((earlier) => seen.has(earlier));
+		const at = before ? layout.findIndex((section) => section.key === before) + 1 : layout.length;
+		layout.splice(at, 0, { key, visible: true });
+		seen.add(key);
 	}
 	return layout;
 }
@@ -114,6 +128,7 @@ export const landingSectionMeta = () =>
 	({
 		gallery: { label: m.lp_section_gallery(), help: m.lp_section_gallery_help() },
 		trending: { label: m.lp_section_trending(), help: m.lp_section_trending_help() },
+		creators: { label: m.lp_section_creators(), help: m.lp_section_creators_help() },
 		categories: { label: m.lp_section_categories(), help: m.lp_section_categories_help() },
 		campaigns: { label: m.lp_section_campaigns(), help: m.lp_section_campaigns_help() },
 		brands: { label: m.lp_section_brands(), help: m.lp_section_brands_help() },

@@ -18,7 +18,14 @@
 
 	/* The fee and the contact address are operator settings, so they are read
 	   rather than written into the copy — the same two the terms page reads. */
-	const fee = $derived(data.settings?.platformFeePercent ?? 15);
+	const fee = $derived(
+		data.settings?.commission
+			? data.settings.commission.low === data.settings.commission.high
+				? `${data.settings.commission.low}%`
+				: `${data.settings.commission.low}–${data.settings.commission.high}%`
+			: '8–15%'
+	);
+	const brandFee = $derived(`${data.settings?.commission?.brandServiceFeePercent ?? 5}%`);
 	const email = $derived(data.settings?.supportEmail ?? 'support@influencerethiopia.com');
 
 	/* Longer than the landing page's four steps: this is where a reader comes to
@@ -74,7 +81,7 @@
 	const faq = $derived([
 		{ q: m.hiw_faq_imported_q(), a: m.hiw_faq_imported_a() },
 		{ q: m.hiw_faq_unclaimed_q(), a: m.hiw_faq_unclaimed_a() },
-		{ q: m.hiw_faq_cost_q(), a: m.hiw_faq_cost_a({ fee }) },
+		{ q: m.hiw_faq_cost_q(), a: m.hiw_faq_cost_a({ fee, brandFee }) },
 		{ q: m.hiw_faq_dispute_q(), a: m.hiw_faq_dispute_a() },
 		{ q: m.hiw_faq_language_q(), a: m.hiw_faq_language_a() }
 	]);

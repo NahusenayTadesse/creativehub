@@ -32,6 +32,7 @@ export const uploadErrorText = (err: unknown): string | null => {
 	if (!(err instanceof UploadError)) return null;
 	if (err.reason === 'too_large') return m.srv_upload_too_large();
 	if (err.reason === 'content_mismatch') return m.srv_upload_content_mismatch();
+	if (err.reason === 'unreachable') return m.srv_upload_unreachable();
 	return m.srv_upload_bad_type();
 };
 

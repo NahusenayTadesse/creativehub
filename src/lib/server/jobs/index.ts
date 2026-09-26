@@ -5,6 +5,9 @@ import { FILES_DIR } from '$lib/server/serveFile';
 import { runVerifySocials } from './verify-socials';
 import { runPruneUploads } from './prune-uploads';
 import { runRefreshGeoip } from './refresh-geoip';
+import { runMirrorImages } from './mirror-images';
+import { runProofReminders } from './proof-reminders';
+import { mirrorRemoteImage } from '$lib/server/upload';
 import type { JobResult } from './types';
 
 /**
@@ -29,10 +32,17 @@ import type { JobResult } from './types';
  *    looks exactly like one that is working until somebody can see `job_runs`.
  */
 
-export type JobName = 'verify-socials' | 'prune-uploads' | 'refresh-geoip';
+export type JobName =
+	'verify-socials' | 'prune-uploads' | 'refresh-geoip' | 'mirror-images' | 'proof-reminders';
 
 /** What cron gets if it names a job that does not exist. */
-export const JOB_NAMES: JobName[] = ['verify-socials', 'prune-uploads', 'refresh-geoip'];
+export const JOB_NAMES: JobName[] = [
+	'verify-socials',
+	'prune-uploads',
+	'refresh-geoip',
+	'mirror-images',
+	'proof-reminders'
+];
 
 export const isJobName = (value: string): value is JobName =>
 	(JOB_NAMES as string[]).includes(value);
@@ -50,7 +60,10 @@ const BUDGET_MS = 50_000;
 const runners: Record<JobName, (write: boolean) => Promise<JobResult>> = {
 	'verify-socials': (write) => runVerifySocials(db, { write, staleDays: 30, budgetMs: BUDGET_MS }),
 	'prune-uploads': (write) => runPruneUploads(db, { root: FILES_DIR, write }),
-	'refresh-geoip': (write) => runRefreshGeoip({ write })
+	'refresh-geoip': (write) => runRefreshGeoip({ write }),
+	'mirror-images': (write) =>
+		runMirrorImages(db, { write, budgetMs: BUDGET_MS, mirror: (url) => mirrorRemoteImage(url) }),
+	'proof-reminders': (write) => runProofReminders({ write, budgetMs: BUDGET_MS })
 };
 
 /* Not in the module scope proper: in development Vite re-evaluates modules on

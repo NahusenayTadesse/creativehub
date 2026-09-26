@@ -64,6 +64,29 @@ export async function recalcCreatorRatings(db: Database, creatorId?: number) {
 	`);
 }
 
+/**
+ * The same for a brand, from creators' reviews of it: the other half of the
+ * two-way review, which used to be written and never counted anywhere.
+ */
+export async function recalcOrganizationRatings(db: Database, organizationId?: number) {
+	await db.execute(sql`
+		update ${t.organizations}
+		left join (
+			select ${t.reviews.organizationId} as organization_id,
+				count(*) as review_count,
+				avg(${t.reviews.rating}) as rating_avg
+			from ${t.reviews}
+			where ${t.reviews.direction} = 'creator_to_brand'
+				and ${t.reviews.isActive} = true
+				and ${t.reviews.deletedAt} is null
+			group by ${t.reviews.organizationId}
+		) agg on agg.organization_id = ${t.organizations.id}
+		set ${t.organizations.reviewsCount} = coalesce(agg.review_count, 0),
+			${t.organizations.averageRating} = round(coalesce(agg.rating_avg, 0), 2)
+		${organizationId ? sql`where ${t.organizations.id} = ${organizationId}` : sql``}
+	`);
+}
+
 /** Rewrites `completed_bookings` from the bookings table. */
 export async function recalcCreatorCompletedBookings(db: Database, creatorId?: number) {
 	await db.execute(sql`

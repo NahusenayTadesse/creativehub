@@ -1,3 +1,4 @@
+import { maskedBrandName } from '$lib/server/nda';
 import * as m from '$lib/paraglide/messages';
 import { and, count, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import { db, rowsAffected } from '$lib/server/db';
@@ -40,7 +41,9 @@ export async function notifyCampaignMatches(
 			followerMin: t.campaigns.followerMin,
 			followerMax: t.campaigns.followerMax,
 			compensationType: t.campaigns.compensationType,
-			organizationName: t.organizations.name
+			organizationName: t.organizations.name,
+			organizationIndustry: t.organizations.industry,
+			confidential: t.campaigns.confidential
 		})
 		.from(t.campaigns)
 		.innerJoin(t.organizations, eq(t.organizations.id, t.campaigns.organizationId))
@@ -118,7 +121,11 @@ export async function notifyCampaignMatches(
 			kind: 'campaign_match',
 			title: m.notif_campaign_match_title({ campaign: campaign.title }),
 			body: m.notif_campaign_match_body({
-				organization: campaign.organizationName,
+				/* The email goes to creators who have not accepted the brief's NDA,
+				   so a confidential brief names its industry, not its brand. */
+				organization: campaign.confidential
+					? maskedBrandName(campaign.organizationIndustry)
+					: campaign.organizationName,
 				tier: match.breakdown.tierLabel,
 				score: match.breakdown.total
 			}),

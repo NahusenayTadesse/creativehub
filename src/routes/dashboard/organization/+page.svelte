@@ -106,6 +106,16 @@
 				<InputComp {form} {errors} label={m.og_logo_url()} name="logo" type="text" />
 			</div>
 
+			<InputComp
+				{form}
+				{errors}
+				label={m.og_industry()}
+				name="industry"
+				type="text"
+				placeholder={m.og_industry_placeholder()}
+				hint={m.og_industry_hint()}
+			/>
+
 			<InputComp {form} {errors} label={m.og_about()} name="bio" type="textarea" rows={4} />
 
 			<InputComp

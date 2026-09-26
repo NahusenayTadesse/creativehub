@@ -31,7 +31,7 @@
 	import StatSourceNote from '$lib/components/stat-source-note.svelte';
 	import PageMeta from '$lib/components/page-meta.svelte';
 	import { page } from '$app/state';
-	import { assetUrl } from '$lib/assets';
+	import { hostedAssetUrl } from '$lib/assets';
 	import { formatPostDate } from '$lib/blog';
 
 	let { data } = $props();
@@ -47,7 +47,7 @@
 
 	const profilePath = $derived(`/creators/${creator.username}`);
 	const absolute = (value: string | null | undefined) => {
-		const url = assetUrl(value);
+		const url = hostedAssetUrl(value);
 		if (!url) return null;
 		return /^https?:\/\//.test(url) ? url : new URL(url, page.url.origin).href;
 	};

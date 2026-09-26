@@ -131,7 +131,8 @@
 		cn_verified: m.discover_verif_cn(),
 		identity_verified: m.discover_verif_identity(),
 		social_verified: m.discover_verif_social(),
-		unverified: m.discover_verif_unverified()
+		/* Offered to staff only: the public listing never includes them. */
+		...(data.canSeeHidden ? { unverified: m.discover_verif_unverified() } : {})
 	});
 
 	/* Filter options. Each carries an "all" entry, because clearing a filter is
@@ -264,26 +265,28 @@
 		reader asks to see the rest — profiles whose channels nobody has confirmed
 		yet — rather than being quietly shown them.
 	-->
-	<div class="border-t-2 border-edge pt-3">
-		<InputComp
-			name="unverified"
-			id="{scope}-unverified"
-			type="checkboxSingle"
-			align="between"
-			label={m.discover_include_unverified()}
-			labelHidden
-			placeholder={m.discover_include_unverified()}
-			value={includeUnverified}
-			onChange={(next) =>
-				go({
-					unverified: next ? '1' : null,
-					/* Unticking has to clear the level select too when it is the
+	{#if data.canSeeHidden}
+		<div class="border-t-2 border-edge pt-3">
+			<InputComp
+				name="unverified"
+				id="{scope}-unverified"
+				type="checkboxSingle"
+				align="between"
+				label={m.discover_include_unverified()}
+				labelHidden
+				placeholder={m.discover_include_unverified()}
+				value={includeUnverified}
+				onChange={(next) =>
+					go({
+						unverified: next ? '1' : null,
+						/* Unticking has to clear the level select too when it is the
 					   thing asking for them, or the box springs straight back. */
-					...(next || verification !== 'unverified' ? {} : { verification: null })
-				})}
-		/>
-		<p class="mt-1 text-[11px] font-medium text-ink-dim">{m.discover_unverified_hint()}</p>
-	</div>
+						...(next || verification !== 'unverified' ? {} : { verification: null })
+					})}
+			/>
+			<p class="mt-1 text-[11px] font-medium text-ink-dim">{m.discover_unverified_hint()}</p>
+		</div>
+	{/if}
 {/snippet}
 
 <!-- Canonical on the unfiltered directory, for the reason the blog index gives. -->

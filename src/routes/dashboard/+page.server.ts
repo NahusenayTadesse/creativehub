@@ -14,6 +14,7 @@ import {
 	unfiltered
 } from '$lib/server/queries';
 import { ENCODER_HOME } from '$lib/server/guards';
+import { maskApplications, maskBookings } from '$lib/server/nda';
 
 /** The overview shows a handful of the newest rows, not a browsable list. */
 const RECENT = 6;
@@ -25,7 +26,7 @@ const RECENT = 6;
  * arrays — which made the cost of opening a dashboard grow with the size of
  * the marketplace.
  */
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ parent, locals }) => {
 	/* The strips below are a fixed handful, not a list the reader is paging
 	   through, so they deliberately ignore the URL's list state. */
 	const url = unfiltered();
@@ -87,10 +88,11 @@ export const load: PageServerLoad = async ({ parent }) => {
 			getCreatorTotals(creator.id)
 		]);
 
+		/* A creator sees a brand's name only once they have accepted its NDA. */
 		return {
 			view: 'creator' as const,
-			bookings: bookings.rows,
-			applications: applications.rows,
+			bookings: await maskBookings(locals.user, bookings.rows),
+			applications: await maskApplications(locals.user, applications.rows),
 			totals
 		};
 	}

@@ -27,14 +27,14 @@ Tagline: "Connecting Ethiopia's digital influence."
 The alternative is an informal deal over DMs, where follower counts can't be checked and terms aren't written down. Four things set Influencer Ethiopia apart, and all four are confirmed:
 
 1. **Real, sourced reach.** Every follower and engagement figure records where it came from: a platform refresh, an uploaded proof, a bio code, an import, or the creator's own report. A figure with no evidence counts for nothing.
-2. **Recorded terms and escrow.** Terms are frozen once both sides accept. The brand's deposit is held until the work is done, and every state change goes into an audit log.
+2. **Recorded terms and held campaign funds.** Terms are frozen once both sides accept. The brand's deposit is held until the work is done, and every state change goes into an audit log.
 3. **Managed by an operator.** Staff verify identities, handle introductions to creators who haven't claimed their profile, and settle disputes. It is a *managed* creator marketplace.
 4. **Local fit.** Ethiopia comes first: Amharic, ETB, Chapa, telebirr, and Telegram as a primary creator platform.
 
 ## Operating Context
 
 - **Deal lifecycle:** proposed → negotiating → booked → in production → submitted ⇄ revision → approved → awaiting settlement → completed. Any open deal can also end as cancelled or declined. Messages between the two sides are masked, and both sides review each other.
-- **Payments:** the brand pays its deposit through Chapa's hosted checkout, in ETB only. Operators record bank-transfer and telebirr deposits by hand with a `MANUAL-` reference. Escrow can be unfunded, pending, held, released or refunded. Releasing escrow only records it: creators are still paid by hand. The platform fee is an operator setting, and the fee split is fixed on the booking when it is created.
+- **Payments:** the brand pays its deposit through Chapa's hosted checkout, in ETB only. Operators record bank-transfer and telebirr deposits by hand with a `MANUAL-` reference. Held funds can be unfunded, pending, held, released or refunded. Releasing held funds only records it: creators are still paid by hand. The platform fee is an operator setting, and the fee split is fixed on the booking when it is created.
 - **Trust signals:** verification levels are unverified, social verified, identity verified and CN verified, and each shows as a badge. Channel ownership is proved with a bio code. Profiles are claimed through an exact-match queue. The creator score runs from 0 to 100. Campaign fit and trending lanes are ranked separately.
 - **Platform data:** a scheduled job refreshes YouTube and Telegram figures. TikTok uses the creator's own OAuth grant. Instagram relies on proofs.
 - **Brand workflows:** campaigns (briefs with three ways to pay creators), a shortlist and bookings.

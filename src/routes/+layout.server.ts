@@ -1,5 +1,6 @@
 import type { LayoutServerLoad } from './$types';
 import { getReferenceData, getSettings } from '$lib/server/queries';
+import { normaliseTiers } from '$lib/domain/commission';
 
 /**
  * Reference data and the signed-in user, loaded once for every page. The filter
@@ -36,6 +37,21 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 					heroTitleEnd: settings.heroTitleEnd,
 					heroSubtitle: settings.heroSubtitle,
 					galleryIntervalSeconds: settings.galleryIntervalSeconds,
+					heroIntervalSeconds: settings.heroIntervalSeconds,
+					/* The platform's own channels: the strip under the hero and the
+					   footer on every page both read them. */
+					socials: {
+						instagram: {
+							url: settings.socialInstagramUrl,
+							followers: settings.socialInstagramFollowers
+						},
+						tiktok: { url: settings.socialTiktokUrl, followers: settings.socialTiktokFollowers },
+						facebook: {
+							url: settings.socialFacebookUrl,
+							followers: settings.socialFacebookFollowers
+						},
+						youtube: { url: settings.socialYoutubeUrl, followers: settings.socialYoutubeFollowers }
+					},
 					landingSections: settings.landingSections,
 					/* The four brand slots, forwarded raw. `resolveLogos` turns them
 					   into URLs at the point of use, so a page that draws no logo
@@ -44,7 +60,17 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 					logoWordmarkDark: settings.logoWordmarkDark,
 					logoMark: settings.logoMark,
 					logoPartners: settings.logoPartners,
-					platformFeePercent: settings.platformFeePercent,
+					/* The rate card in brief, for the public pages that explain
+					   what the platform charges. */
+					commission: (() => {
+						const rates = normaliseTiers(settings.commissionTiers).map((tier) => tier.percent);
+						return {
+							low: Math.min(...rates),
+							high: Math.max(...rates),
+							minCommission: settings.minCommission,
+							brandServiceFeePercent: settings.brandServiceFeePercent
+						};
+					})(),
 					supportEmail: settings.supportEmail,
 					supportPhone: settings.supportPhone
 				}

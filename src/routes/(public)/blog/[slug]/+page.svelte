@@ -8,7 +8,7 @@
 	import PageMeta from '$lib/components/page-meta.svelte';
 	import { accentTile, formatPostDate } from '$lib/blog';
 	import { authorProfile } from '$lib/domain/blog-post';
-	import { assetUrl } from '$lib/assets';
+	import { hostedAssetUrl } from '$lib/assets';
 	import { withParams, type ParamValue } from '$lib/query';
 	import { ArrowLeft, Clock, Eye, Tag } from '@lucide/svelte';
 
@@ -35,7 +35,7 @@
 	const socialImage = $derived.by(() => {
 		const stored = post.ogImage || post.featuredImage;
 		if (!stored) return '';
-		const url = assetUrl(stored);
+		const url = hostedAssetUrl(stored);
 		return url.startsWith('http') ? url : new URL(url, page.url.origin).href;
 	});
 

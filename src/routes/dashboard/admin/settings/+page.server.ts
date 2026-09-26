@@ -8,7 +8,7 @@ import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { requireRole, recordAudit } from '$lib/server/guards';
 import { settingsSchema, logoResetSchema, LOGO_SLOTS, type LogoSlot } from '$lib/schemas';
-import { getSettings } from '$lib/server/queries';
+import { forgetSettings, getSettings } from '$lib/server/queries';
 import { saveUploadedFile, UploadError } from '$lib/server/upload';
 
 export const load: PageServerLoad = async () => {
@@ -20,10 +20,11 @@ export const load: PageServerLoad = async () => {
 			id: settings.id,
 			siteName: settings.siteName,
 			tagline: settings.tagline,
-			platformFeePercent: settings.platformFeePercent,
 			disputeWindowDays: settings.disputeWindowDays,
 			supportEmail: settings.supportEmail ?? '',
-			supportPhone: settings.supportPhone ?? ''
+			supportPhone: settings.supportPhone ?? '',
+			homeMarketCode: settings.homeMarketCode,
+			publicRequiresPrice: settings.publicRequiresPrice
 		});
 	}
 
@@ -51,7 +52,7 @@ async function uploadedLogos(
 	picked: Partial<Record<LogoSlot, string | File>>
 ): Promise<
 	| { ok: true; logos: Partial<Record<LogoSlot, string>> }
-	| { ok: false; error: 'too_large' | 'bad_type' | 'content_mismatch' }
+	| { ok: false; error: UploadError['reason'] }
 > {
 	const logos: Partial<Record<LogoSlot, string>> = {};
 
@@ -113,15 +114,22 @@ export const actions: Actions = {
 		} else {
 			await db.insert(t.siteSettings).values({ ...row, createdBy: user.id });
 		}
+		forgetSettings();
 
 		await recordAudit({
 			actorId: user.id,
 			actorLabel: user.name,
 			entity: 'settings',
 			action: 'updated',
-			reason: Object.keys(logos).length
-				? `Fee set to ${values.platformFeePercent}%; replaced ${Object.keys(logos).join(', ')}`
-				: `Fee set to ${values.platformFeePercent}%`
+			reason: [
+				`home market ${values.homeMarketCode || 'none'}`,
+				values.publicRequiresPrice
+					? 'public listing needs a price'
+					: 'public listing ignores price',
+				Object.keys(logos).length ? `replaced ${Object.keys(logos).join(', ')}` : null
+			]
+				.filter(Boolean)
+				.join('; ')
 		});
 
 		return message(form, { type: 'success', text: m.srv_settings_saved() });
@@ -151,6 +159,7 @@ export const actions: Actions = {
 			.update(t.siteSettings)
 			.set({ [form.data.slot]: '', updatedBy: user.id })
 			.where(eq(t.siteSettings.id, existing.id));
+		forgetSettings();
 
 		await recordAudit({
 			actorId: user.id,

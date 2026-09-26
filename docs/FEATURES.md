@@ -22,7 +22,7 @@
 | 4   | [The creator workspace](#4-the-creator-workspace)                           | Profile, channels, packages, portfolio, applications |
 | 5   | [The brand workspace](#5-the-brand-workspace)                               | Organisation, briefs, shortlist, spend               |
 | 6   | [The deal engine](#6-the-deal-engine)                                       | Lifecycle, terms, messaging, delivery, reviews       |
-| 7   | [Payments and money](#7-payments-and-money)                                 | Chapa checkout, escrow states, fee split, currency   |
+| 7   | [Payments and money](#7-payments-and-money)                                 | Chapa checkout, held-funds states, fee split, currency   |
 | 8   | [Trust, identity and verification](#8-trust-identity-and-verification)      | The ladder, claims, introductions, badges            |
 | 9   | [Ranking and curation](#9-ranking-and-curation)                             | The creator score, the match score, trending, lanes  |
 | 10  | [Editorial](#10-editorial)                                                  | The blog, its editor, its feed, its states           |
@@ -72,7 +72,7 @@ Three conventions run through it:
 | **Creator workspace** | Profile editor and publish toggle, first-run creation, profile claiming, social channels, priced packages, portfolio, brief applications, verification submission, reviews, earnings dashboard | `creator`       |
 | **Brand workspace**   | Organisation profile and creation, campaign briefs with three compensation models, application triage, shortlist, spend dashboard, reviews written                                             | `brand`         |
 | **Deals**             | Nine-state lifecycle, counter-proposals, frozen terms snapshot, masked messaging, submissions, reasoned revisions, two-way reviews, per-transition audit                                       | Both sides      |
-| **Money**             | Chapa hosted checkout, verified settlement, escrow states, stored fee split, manual deposit recording, per-country currency conversion                                                         | Brand, operator |
+| **Money**             | Chapa hosted checkout, verified settlement, held-funds states, stored fee split, manual deposit recording, per-country currency conversion                                                         | Brand, operator |
 | **Trust**             | Four-level verification ladder with evidence review, profile claims queue, introduction queue for unclaimed profiles, representation badges                                                    | Operator        |
 | **Ranking**           | Derived 0–100 creator score, five-factor campaign fit score, ten-signal trending policy, six kinds of trending lane, reader-location ranking                                                   | Automatic       |
 | **Editorial**         | Rich-text article editor, sanitised HTML storage, sections, tags, galleries, scheduling, RSS, SEO metadata                                                                                     | `admin`         |
@@ -330,7 +330,7 @@ requests an action; it never asserts a state.
 | Terms              | Title, brief, deliverables, deadline, revision allowance, compensation model                                     |
 | Price              | Amount and currency, plus the platform fee and creator payout, split and stored at creation                      |
 | Terms snapshot     | Frozen on mutual acceptance, once — editing a profile, package or brief afterwards cannot reach into a live deal |
-| Escrow state       | `unfunded`, `pending`, `held`, `released`, `refunded`                                                            |
+| Funds state       | `unfunded`, `pending`, `held`, `released`, `refunded`                                                            |
 | Introduction state | Whether anyone has yet reached the creator behind an unclaimed profile (§8.3)                                    |
 
 ### 6.3 Actions on a deal
@@ -343,7 +343,7 @@ requests an action; it never asserts a state.
 | `fund`       | Operator        | Record a deposit that moved outside the platform                    |
 | `submit`     | Creator         | Hand over the work, with a link, files and a note                   |
 | `review`     | Brand           | Approve the submission, or request a revision with a reason         |
-| `settle`     | Operator        | Release escrow as a record and complete the deal                    |
+| `settle`     | Operator        | Release the held funds as a record and complete the deal                    |
 | `rate`       | Both            | Leave a review once the deal is complete                            |
 | `message`    | Both            | Post to the deal conversation                                       |
 
@@ -358,7 +358,7 @@ requests an action; it never asserts a state.
 
 ### 6.5 Messaging, with contact masking
 
-Deals stay on-platform because the escrow, the delivery record and the review
+Deals stay on-platform because the held campaign funds, the delivery record and the review
 only exist here. Masking is what keeps that true. Before a message is stored,
 the following are rewritten:
 
@@ -422,7 +422,7 @@ alongside its code, so a listing shows what the creator actually asks.
 ### 7.5 What is not connected
 
 **Payouts.** Money comes in through Chapa; it goes out by hand. Settlement
-releases escrow as a record, not a transfer, and the interface says so rather
+releases the held funds as a record, not a transfer, and the interface says so rather
 than implying a creator has been paid. Wiring the other direction needs Chapa
 Transfers, a funded balance and bank details on creator profiles — none of which
 exist yet.

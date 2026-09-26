@@ -75,7 +75,17 @@ export const load: LayoutServerLoad = async (event) => {
 					and(
 						eq(t.bookings.creatorId, creator.id),
 						isNull(t.bookings.deletedAt),
-						inArray(t.bookings.status, ['proposed', 'negotiating', 'in_production', 'revision'])
+						/* Everything waiting on the creator: an offer, a signature, a
+						   concept, the work itself, a revision, or proof it went live. */
+						inArray(t.bookings.status, [
+							'proposed',
+							'negotiating',
+							'contracting',
+							'booked',
+							'in_production',
+							'revision',
+							'approved'
+						])
 					)
 				),
 			db

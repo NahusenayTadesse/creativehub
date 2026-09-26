@@ -14,6 +14,7 @@
 		ExternalLink,
 		GalleryHorizontal,
 		Handshake,
+		Images,
 		Tags
 	} from '@lucide/svelte';
 	import {
@@ -57,6 +58,14 @@
 	}
 
 	const isShown = (key: LandingSectionKey) => Boolean($form[SECTION_VISIBILITY_FIELD[key]]);
+
+	/* The platform's own channels, one URL and one count each. */
+	const socials = $derived([
+		{ label: 'Instagram', url: 'socialInstagramUrl', followers: 'socialInstagramFollowers' },
+		{ label: 'TikTok', url: 'socialTiktokUrl', followers: 'socialTiktokFollowers' },
+		{ label: 'Facebook', url: 'socialFacebookUrl', followers: 'socialFacebookFollowers' },
+		{ label: 'YouTube', url: 'socialYoutubeUrl', followers: 'socialYoutubeFollowers' }
+	] as const);
 
 	const moveButton =
 		'grid size-8 place-items-center rounded-xl border-2 border-edge bg-surface text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-brand-soft disabled:pointer-events-none disabled:opacity-30 disabled:shadow-none';
@@ -147,6 +156,78 @@
 					{headline.end}
 				</p>
 			</div>
+		</div>
+
+		<!-- ---------------- Hero photographs ---------------- -->
+		<div class="bento-card bento-card-static space-y-4">
+			<div>
+				<h2 class="text-sm font-black text-ink">{m.lp_hero_photos_heading()}</h2>
+				<p class="mt-1 text-[11px] leading-relaxed font-medium text-ink-dim">
+					{m.lp_hero_photos_note()}
+				</p>
+			</div>
+
+			<InputComp
+				{form}
+				{errors}
+				label={m.lp_hero_interval()}
+				name="heroIntervalSeconds"
+				type="range"
+				min={0}
+				max={30}
+				step={1}
+				hint={m.lp_hero_interval_hint()}
+				formatValue={(seconds) =>
+					seconds ? m.lp_gallery_interval_value({ seconds }) : m.lp_gallery_interval_off()}
+				className="h-2 appearance-none rounded-full border-2 border-edge bg-well"
+			/>
+
+			<a
+				href={resolve('/dashboard/admin/hero')}
+				class="flex items-center gap-3 rounded-2xl border-2 border-edge bg-surface p-3 shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-colors hover:bg-well"
+			>
+				<Images class="h-5 w-5 shrink-0 text-brand-fg" />
+				<span class="min-w-0">
+					<span class="block text-xs font-black text-ink">{m.lp_manage_hero_photos()}</span>
+					<span class="block text-[11px] text-ink-dim">
+						{data.heroSlideCount
+							? m.lp_hero_photo_count({ count: data.heroSlideCount })
+							: m.lp_hero_photo_default()}
+					</span>
+				</span>
+			</a>
+		</div>
+
+		<!-- ---------------- The platform's own channels ---------------- -->
+		<div class="bento-card bento-card-static space-y-4">
+			<div>
+				<h2 class="text-sm font-black text-ink">{m.lp_social_heading()}</h2>
+				<p class="mt-1 text-[11px] leading-relaxed font-medium text-ink-dim">
+					{m.lp_social_note()}
+				</p>
+			</div>
+
+			{#each socials as social (social.url)}
+				<div class="grid gap-3 sm:grid-cols-[1fr_10rem]">
+					<InputComp
+						{form}
+						{errors}
+						label={m.lp_social_url({ platform: social.label })}
+						name={social.url}
+						type="url"
+						placeholder="https://"
+					/>
+					<InputComp
+						{form}
+						{errors}
+						label={m.lp_social_followers()}
+						name={social.followers}
+						type="number"
+						min={0}
+						hint={m.lp_social_followers_hint()}
+					/>
+				</div>
+			{/each}
 		</div>
 
 		<!-- ---------------- Sections ---------------- -->

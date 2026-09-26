@@ -9,7 +9,9 @@ import { PAYMENT_GATEWAY_ENABLED } from '$lib/payment-gateway';
 export type BookingStatus =
 	| 'proposed'
 	| 'negotiating'
+	| 'contracting'
 	| 'booked'
+	| 'concept'
 	| 'in_production'
 	| 'submitted'
 	| 'revision'
@@ -22,10 +24,26 @@ export type BookingStatus =
 export type EscrowStatus = 'unfunded' | 'pending' | 'held' | 'released' | 'refunded';
 
 /** Which states may follow which. Anything absent is rejected server-side. */
+/*
+ * The managed deal, end to end:
+ *
+ *   proposed → negotiating → contracting → booked → concept → in_production
+ *     → submitted ⇄ revision → approved → awaiting_settlement → completed
+ *
+ * `contracting` is agreed terms waiting on both signatures. `booked` is a
+ * signed contract waiting on the creator's concept; `concept` is that concept
+ * with the brand, and approving it is what starts production. `approved` is
+ * content the brand has accepted, waiting to go live — the creator's proof of
+ * the live post moves it to settlement. The admin deal board is drawn from
+ * exactly these states.
+ */
 const TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
-	proposed: ['negotiating', 'booked', 'cancelled'],
-	negotiating: ['negotiating', 'booked', 'cancelled'],
-	booked: ['in_production', 'cancelled', 'disputed'],
+	proposed: ['negotiating', 'contracting', 'cancelled'],
+	negotiating: ['negotiating', 'contracting', 'cancelled'],
+	contracting: ['booked', 'cancelled'],
+	booked: ['concept', 'cancelled', 'disputed'],
+	/* Changes requested send it back to `booked` for the next concept. */
+	concept: ['booked', 'in_production', 'cancelled', 'disputed'],
 	in_production: ['submitted', 'cancelled', 'disputed'],
 	submitted: ['revision', 'approved', 'disputed'],
 	revision: ['submitted', 'cancelled', 'disputed'],
@@ -71,22 +89,14 @@ export const awaitsDeposit = (booking: Deal) =>
 	PAYMENT_GATEWAY_ENABLED && booking.compensationType === 'paid' && booking.escrowStatus !== 'held';
 
 /**
- * Whether the creator may pick the deal up and start.
+ * Whether the brand may approve the concept, and so start production.
  *
- * `booked → in_production` used to be written in exactly two places, both of
- * them about money: the Chapa callback and the operator's manual deposit. So
- * every deal that needs no deposit — every barter deal and every event pass,
- * and with the gateway off every paid deal too — reached `booked` and stopped
- * there. The creator's submit button is drawn from `in_production`, so the work
- * could never be handed in, the brand could never approve it, and the booking
- * could never complete.
- *
- * This is the step that was missing: where there is no deposit to wait for, the
- * creator says when they have started, and the deal moves on the strength of
- * that rather than on the strength of a payment nobody can make.
+ * Money first: where a deposit is expected, production waits on it being held,
+ * so the creator never makes the content against funds that never arrived.
+ * With the gateway off there is no deposit to wait for.
  */
-export const canStartWork = (booking: Deal) =>
-	booking.status === 'booked' && !awaitsDeposit(booking);
+export const canApproveConcept = (booking: Deal) =>
+	booking.status === 'concept' && !awaitsDeposit(booking);
 
 /**
  * Where an introduction stands.
@@ -121,13 +131,14 @@ export const canIntroduce = (from: IntroductionStatus, to: IntroductionStatus) =
 export const introductionIsOpen = (status: IntroductionStatus) =>
 	status === 'pending' || status === 'contacted';
 
-/** The five steps the pipeline stepper draws, and where a status sits on it. */
+/** The steps the pipeline stepper draws, and where a status sits on it. */
 export const pipelineSteps = () =>
 	[
-		{ status: 'booked', label: m.pipeline_order_placed() },
+		{ status: 'contracting', label: m.pipeline_contract() },
+		{ status: 'booked', label: m.pipeline_concept() },
 		{ status: 'in_production', label: m.pipeline_in_production() },
 		{ status: 'submitted', label: m.pipeline_submitted() },
-		{ status: 'approved', label: m.pipeline_approved() },
+		{ status: 'approved', label: m.pipeline_live() },
 		{ status: 'completed', label: m.pipeline_completed() }
 	] as const;
 
@@ -136,18 +147,21 @@ export function stepIndex(status: BookingStatus): number {
 		case 'proposed':
 		case 'negotiating':
 			return -1;
-		case 'booked':
+		case 'contracting':
 			return 0;
-		case 'in_production':
+		case 'booked':
+		case 'concept':
 			return 1;
+		case 'in_production':
+			return 2;
 		case 'submitted':
 		case 'revision':
-			return 2;
+			return 3;
 		case 'approved':
 		case 'awaiting_settlement':
-			return 3;
-		case 'completed':
 			return 4;
+		case 'completed':
+			return 5;
 		default:
 			return 0;
 	}
@@ -158,7 +172,9 @@ export const statusLabel = (status: string): string =>
 	({
 		proposed: m.status_proposed(),
 		negotiating: m.status_negotiating(),
+		contracting: m.status_contracting(),
 		booked: m.status_booked(),
+		concept: m.status_concept(),
 		in_production: m.status_in_production(),
 		submitted: m.status_submitted(),
 		revision: m.status_revision(),

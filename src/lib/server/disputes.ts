@@ -8,6 +8,7 @@ import * as refunds from '$lib/server/refunds';
 import {
 	disputeResolutionLabel,
 	resolutionAmounts,
+	type FeeRule,
 	resolutionOutcome,
 	splitIsValid,
 	type DisputeResolution,
@@ -218,7 +219,7 @@ export async function resolve(
 		resolution: DisputeResolution;
 		refundInput: number;
 		note: string;
-		feePercent: number;
+		fee: FeeRule;
 		actor: { id: string; name?: string | null };
 	}
 ): Promise<ResolveOutcome> {
@@ -226,12 +227,7 @@ export async function resolve(
 		return { ok: false, error: m.srv_dispute_bad_split() };
 	}
 
-	const amounts = resolutionAmounts(
-		booking.price,
-		input.feePercent,
-		input.resolution,
-		input.refundInput
-	);
+	const amounts = resolutionAmounts(booking.price, input.fee, input.resolution, input.refundInput);
 	const outcome = resolutionOutcome(input.resolution);
 
 	/*
@@ -291,7 +287,10 @@ export async function resolve(
 
 	if (amounts.refund > 0) {
 		const sent = await refunds.send(booking, {
-			amount: amounts.refund,
+			/* A full refund returns the whole payment — the service fee and its
+			   VAT included, since a deal that did not happen earned neither. A
+			   split returns part of the price and keeps the fee on the rest. */
+			amount: input.resolution === 'refunded' ? undefined : amounts.refund,
 			reason: `Dispute ${dispute.id} resolved`,
 			disputeId: dispute.id,
 			actor: input.actor

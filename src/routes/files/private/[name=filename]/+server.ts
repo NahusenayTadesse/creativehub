@@ -22,8 +22,40 @@ export const GET: RequestHandler = async ({ params, request, locals }) => {
 	/* The stored column holds the path relative to the upload root. */
 	const stored = `private/${params.name}`;
 
-	/* Whichever row names this file says whose it is. */
-	const [verification, proof] = await Promise.all([
+	/* Whichever row names this file says whose it is. A deal's concept,
+	   live-post screenshot and analytics screenshots belong to both of its
+	   parties: the brand is who they are evidence for. */
+	const dealFile = async () => {
+		const bookingOf = async (bookingId: number | undefined) => {
+			if (!bookingId) return undefined;
+			const rows = await db
+				.select({ creatorId: t.bookings.creatorId, organizationId: t.bookings.organizationId })
+				.from(t.bookings)
+				.where(eq(t.bookings.id, bookingId))
+				.limit(1);
+			return rows.at(0);
+		};
+		const [concept, post, figures] = await Promise.all([
+			db
+				.select({ bookingId: t.concepts.bookingId })
+				.from(t.concepts)
+				.where(eq(t.concepts.attachment, stored))
+				.limit(1),
+			db
+				.select({ bookingId: t.postProofs.bookingId })
+				.from(t.postProofs)
+				.where(eq(t.postProofs.screenshot, stored))
+				.limit(1),
+			db
+				.select({ bookingId: t.proofMetrics.bookingId })
+				.from(t.proofMetrics)
+				.where(eq(t.proofMetrics.screenshot, stored))
+				.limit(1)
+		]);
+		return bookingOf((concept.at(0) ?? post.at(0) ?? figures.at(0))?.bookingId);
+	};
+
+	const [verification, proof, deal] = await Promise.all([
 		db
 			.select({
 				creatorId: t.verificationRequests.creatorId,
@@ -36,12 +68,14 @@ export const GET: RequestHandler = async ({ params, request, locals }) => {
 			.select({ creatorId: t.statProofs.creatorId })
 			.from(t.statProofs)
 			.where(eq(t.statProofs.screenshot, stored))
-			.limit(1)
+			.limit(1),
+		dealFile()
 	]);
 
 	const owner =
 		verification.at(0) ??
-		(proof.at(0) ? { creatorId: proof[0].creatorId, organizationId: null } : undefined);
+		(proof.at(0) ? { creatorId: proof[0].creatorId, organizationId: null } : undefined) ??
+		deal;
 	if (!owner) return new Response('not found', { status: 404 });
 
 	if (!isAdmin(user)) {

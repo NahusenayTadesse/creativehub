@@ -7,7 +7,17 @@
 
 	/* The fee and the contact address are the two facts in here that are set in
 	   the admin settings, so they are read rather than written into the prose. */
-	const fee = $derived(data.settings?.platformFeePercent ?? 15);
+	const fee = $derived(
+		data.settings?.commission
+			? data.settings.commission.low === data.settings.commission.high
+				? `${data.settings.commission.low}%`
+				: `${data.settings.commission.low}–${data.settings.commission.high}%`
+			: '8–15%'
+	);
+	const brandFee = $derived(`${data.settings?.commission?.brandServiceFeePercent ?? 5}%`);
+	const minCommission = $derived(
+		(data.settings?.commission?.minCommission ?? 1500).toLocaleString('en-US')
+	);
 	const email = $derived(data.settings?.supportEmail ?? 'support@influencerethiopia.com');
 
 	const UPDATED = '25 August 2026';
@@ -28,7 +38,9 @@
 	</Section>
 
 	<Section heading={m.tos_deals_h()}><p>{m.tos_deals_b()}</p></Section>
-	<Section heading={m.tos_fees_h()}><p>{m.tos_fees_b({ fee })}</p></Section>
+	<Section heading={m.tos_fees_h()}
+		><p>{m.tos_fees_b({ fee, brandFee, min: minCommission })}</p></Section
+	>
 	<Section heading={m.tos_payment_h()}><p>{m.tos_payment_b()}</p></Section>
 	<Section heading={m.tos_offplatform_h()}><p>{m.tos_offplatform_b()}</p></Section>
 	<Section heading={m.tos_content_h()}><p>{m.tos_content_b()}</p></Section>

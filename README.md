@@ -828,7 +828,7 @@ page is the only place it is rendered whole.
 
 Until recently a booking past `booked` had exactly one exit: `completed`. A
 creator who vanished, work that was never acceptable, plans that changed — all
-of them left a deposit frozen in escrow with nothing in the product able to move
+of them left a deposit frozen as held funds with nothing in the product able to move
 it. There are now two exits, and they are deliberately different things.
 
 **Cancelling** is for a deal that is simply not going ahead. One side asks, the
@@ -842,7 +842,7 @@ over and calling that off is a question about the work.
 
 **Disputing** is for a deal that is going wrong. Either side raises one with a
 written reason and an optional link; the booking moves to `disputed`, which is
-what actually freezes it — the payout queue pays only against released escrow
+what actually freezes it — the payout queue pays only against released funds
 and the delivery actions only accept live statuses, so a disputed booking is
 inert everywhere without any of those places knowing disputes exist. The other
 side files one written answer. Both statements live on the case rather than in
@@ -851,7 +851,7 @@ keeps growing, while these are what each side wants the operator to read, fixed
 at the moment they said it.
 
 A completed deal can still be disputed, for `dispute_window_days` after it
-finished (seven by default, zero to switch it off). Escrow releases the moment a
+finished (seven by default, zero to switch it off). Held funds are released the moment a
 deal completes, so without a window the product's answer to "the video came down
 the next morning" is nothing at all. If the creator has already been paid, the
 case is flagged: a refund still works, because it draws on the merchant balance
@@ -864,7 +864,7 @@ the rest follows: the fee is charged on what was _retained_, not on the original
 price, because charging the full fee against a reduced deal would take the whole
 reduction out of the creator's share. A full refund returns the fee too; a deal
 that did not happen has not earned one. A split completes rather than cancels,
-which is load-bearing — the payout queue pays only against released escrow, so a
+which is load-bearing — the payout queue pays only against released funds, so a
 split that cancelled would agree the creator was owed something and never pay
 it. The arithmetic is in `domain/dispute.ts` with no database and no network,
 and the three parts are tested to always add back up to the price.

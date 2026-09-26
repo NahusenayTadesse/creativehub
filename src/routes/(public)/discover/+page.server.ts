@@ -94,7 +94,13 @@ export const load: PageServerLoad = async ({ url, locals, parent }) => {
 			? (creator: CreatorCard) => creator.score + local(creator)
 			: undefined;
 
-	const creators = await listCreators(url, rank ? { rank } : {});
+	/* The home market leads the same default view, for the same reason: the
+	   reader has not said otherwise. Ahead of the reader's own location, which
+	   only reorders within each block. */
+	const creators = await listCreators(url, {
+		...(rank ? { rank } : {}),
+		homeFirst: !readerChoseOrder
+	});
 
 	/* Scores for the cards on this page. Cheap: the page is already in hand. */
 	const matchScores: Record<number, number> = {};
@@ -112,6 +118,11 @@ export const load: PageServerLoad = async ({ url, locals, parent }) => {
 
 	return {
 		creators,
+		/* Only staff may widen the listing to profiles the public cannot see,
+		   so only staff are offered the control that does it. */
+		canSeeHidden: ['admin', 'encoder'].includes(
+			(locals.user as { role?: string } | undefined)?.role ?? ''
+		),
 		campaigns,
 		matchScores,
 		matchCampaignId: selected?.id ?? null,

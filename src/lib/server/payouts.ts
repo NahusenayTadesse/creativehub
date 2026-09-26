@@ -135,7 +135,9 @@ export async function send(
 	if (!account) return { ok: false, problem: 'no_account' };
 
 	const reference = payoutReference(booking.reference);
-	const amount = booking.creatorPayout;
+	/* Net of any tax withheld at completion — that part is certified to the
+	   creator and paid to the tax authority, not to them. */
+	const amount = booking.creatorPayout - (booking.withholdingTax ?? 0);
 
 	const inserted = await db.insert(t.payouts).values({
 		bookingId: booking.id,

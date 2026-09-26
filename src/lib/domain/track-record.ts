@@ -138,7 +138,7 @@ export function measureResponsiveness(asks: Ask[], now: Date): Responsiveness {
  * ------------------------------------------------------------------ */
 
 /** Statuses in which the work is agreed and not yet handed in. */
-const AWAITING_DELIVERY = new Set(['booked', 'in_production']);
+const AWAITING_DELIVERY = new Set(['contracting', 'booked', 'concept', 'in_production']);
 
 export type Deadline = {
 	/** `YYYY-MM-DD`, as `bookings.deadline` stores it. */

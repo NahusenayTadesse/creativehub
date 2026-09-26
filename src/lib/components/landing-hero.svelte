@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -10,6 +9,7 @@
 	import PlatformGlyph from '$lib/components/platform-glyph.svelte';
 	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import { formatReach } from '$lib/domain/money';
+	import { hostedAssetUrl } from '$lib/assets';
 	import * as m from '$lib/paraglide/messages';
 
 	/**
@@ -47,6 +47,8 @@
 		subtitle,
 		creators = [],
 		partners = [],
+		slides = [],
+		intervalSeconds = 6,
 		stats
 	}: {
 		headline: { title: string; accent: string; end: string };
@@ -55,6 +57,10 @@
 		creators?: Creator[];
 		/** Operator-managed logos, from /dashboard/admin/partners. None, no tile. */
 		partners?: { id: number; name: string; logo: string; websiteUrl: string | null }[];
+		/** Operator-managed photographs, from /dashboard/admin/hero. None, the shipped set. */
+		slides?: { id: number; image: string; alt: string }[];
+		/** Seconds per photograph. 0 holds the first. */
+		intervalSeconds?: number;
 		stats: { creators: number; totalReach: number; campaigns: number };
 	} = $props();
 
@@ -68,56 +74,80 @@
 		`${resolve('/discover')}${query ? `?q=${encodeURIComponent(query)}` : ''}` as ResolvedPathname
 	);
 
-	/* ---------------- The collage ---------------- */
-
-	/* ---------------- The gallery ---------------- */
+	/* ---------------- The photographs ---------------- */
 
 	/*
-	 * Shipped pictures, shown whole: they mix portrait, square and landscape and
-	 * each carries the brand along its foot, so cropping any of them to fill the
-	 * tile would cut the part that matters. Built from the originals in
+	 * An operator's own photographs from /dashboard/admin/hero when there are
+	 * any, and the shipped set when there are none — shown whole, since they mix
+	 * portrait, square and landscape. Built from the originals in
 	 * assets-src/landing/hero-gallery.
 	 */
-	const GALLERY = [1, 2, 3, 4, 5, 6].map((n) => `/hero/gallery-${n}.webp`);
-	const ADVANCE_MS = 4500;
+	const SHIPPED = [1, 2, 3, 4, 5, 6].map((n) => ({
+		src: `/hero/gallery-${n}.webp`,
+		alt: ''
+	}));
+	const pictures = $derived(
+		slides.length
+			? slides.map((slide) => ({ src: hostedAssetUrl(slide.image), alt: slide.alt }))
+			: SHIPPED
+	);
+
+	/* A cross-fade, not a cut: long enough to read as calm, short enough that
+	   two pictures are never half-visible for long. */
+	const FADE_MS = 900;
 
 	let current = $state(0);
-	let paused = $state(false);
+	let hovered = $state(false);
+	let focused = $state(false);
+	let hidden = $state(false);
 	let reducedMotion = $state(false);
 	let touchStartX = 0;
 	let touchStartY = 0;
 
 	/*
-	 * Where each picture comes from and leaves to — offset, tilt — so no two
-	 * changes look alike. The same idea as the hero gallery in tmax, tightened
-	 * for photographs: shorter distances and durations, since a whole picture
-	 * flying far reads as slow where a product cut-out reads as playful.
+	 * Held while a pointer rests on it or focus is inside it, while the tab is
+	 * in the background, and always for a reader who asked for less motion —
+	 * they still get every picture, through the dots and a swipe.
 	 */
-	const motions = [
-		{ inX: -120, inY: 60, outX: 120, outY: -70, inRotate: -14, outRotate: 12 },
-		{ inX: 130, inY: -50, outX: -110, outY: 80, inRotate: 13, outRotate: -12 },
-		{ inX: 0, inY: 130, outX: 0, outY: -130, inRotate: 9, outRotate: -9 },
-		{ inX: -90, inY: -100, outX: 110, outY: 110, inRotate: -16, outRotate: 14 },
-		{ inX: 100, inY: 100, outX: -110, outY: -90, inRotate: 15, outRotate: -14 },
-		{ inX: -130, inY: -30, outX: 130, outY: 40, inRotate: -10, outRotate: 10 }
-	];
+	const paused = $derived(
+		hovered || focused || hidden || reducedMotion || intervalSeconds <= 0 || pictures.length < 2
+	);
 
-	const go = (index: number) => (current = (index + GALLERY.length) % GALLERY.length);
+	const go = (index: number) => (current = (index + pictures.length) % pictures.length);
 
-	/* One timer per picture, restarted by every change however it happened, and
-	   held while the reader's pointer or focus is on the gallery. */
+	/* Clamped, for a list an operator shortened while a reader was on a later picture. */
+	const active = $derived(current < pictures.length ? current : 0);
+
+	/* One timer per picture, restarted by every change however it happened. */
 	$effect(() => {
 		if (paused) return;
-		void current;
-		const timer = setTimeout(() => go(current + 1), ADVANCE_MS);
+		void active;
+		const timer = setTimeout(() => go(active + 1), intervalSeconds * 1000);
 		return () => clearTimeout(timer);
 	});
 
 	onMount(() => {
-		reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-		/* The pictures after the first are fetched now, so a change never shows a
-		   half-loaded image mid-flight. */
-		for (const src of GALLERY.slice(1)) new Image().src = src;
+		const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+		reducedMotion = motion.matches;
+		const onMotion = () => (reducedMotion = motion.matches);
+		motion.addEventListener('change', onMotion);
+
+		const onVisibility = () => (hidden = document.visibilityState === 'hidden');
+		document.addEventListener('visibilitychange', onVisibility);
+
+		/* The pictures after the first are fetched now, idle, so a change never
+		   fades into a half-loaded image. */
+		const preload = () => {
+			for (const picture of pictures.slice(1)) new Image().src = picture.src;
+		};
+		const idle = 'requestIdleCallback' in window ? window.requestIdleCallback(preload) : null;
+		if (idle === null) setTimeout(preload, 1500);
+
+		return () => {
+			motion.removeEventListener('change', onMotion);
+			document.removeEventListener('visibilitychange', onVisibility);
+			if (idle !== null) window.cancelIdleCallback(idle);
+		};
 	});
 
 	function onTouchStart(event: TouchEvent) {
@@ -128,35 +158,7 @@
 	function onTouchEnd(event: TouchEvent) {
 		const dx = event.changedTouches[0].clientX - touchStartX;
 		const dy = event.changedTouches[0].clientY - touchStartY;
-		if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) go(current + (dx < 0 ? 1 : -1));
-	}
-
-	type Motion = (typeof motions)[number];
-
-	function pictureIn(_: Element, { motion }: { motion: Motion }) {
-		if (reducedMotion) return { duration: 250, css: (t: number) => `opacity: ${t}` };
-		return {
-			duration: 650,
-			easing: cubicOut,
-			css: (t: number, u: number) => `
-				opacity: ${t};
-				transform: translate3d(${motion.inX * u}px, ${motion.inY * u}px, 0) rotate(${motion.inRotate * u}deg) scale(${0.8 + t * 0.2});
-				filter: blur(${u * 10}px);
-			`
-		};
-	}
-
-	function pictureOut(_: Element, { motion }: { motion: Motion }) {
-		if (reducedMotion) return { duration: 200, css: (t: number) => `opacity: ${t}` };
-		return {
-			duration: 420,
-			easing: cubicOut,
-			css: (t: number, u: number) => `
-				opacity: ${t};
-				transform: translate3d(${motion.outX * u}px, ${motion.outY * u}px, 0) rotate(${motion.outRotate * u}deg) scale(${0.88 + t * 0.12});
-				filter: blur(${u * 8}px);
-			`
-		};
+		if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) go(active + (dx < 0 ? 1 : -1));
 	}
 
 	/* ---------------- The creators, floating ---------------- */
@@ -307,10 +309,10 @@
 				role="region"
 				aria-roledescription="carousel"
 				aria-label={m.home_hero_gallery_label()}
-				onpointerenter={() => (paused = true)}
-				onpointerleave={() => (paused = false)}
-				onfocusin={() => (paused = true)}
-				onfocusout={() => (paused = false)}
+				onpointerenter={() => (hovered = true)}
+				onpointerleave={() => (hovered = false)}
+				onfocusin={() => (focused = true)}
+				onfocusout={() => (focused = false)}
 			>
 				<!-- The tile: the brand's ocean-to-emerald ground, a light vignette and two
 				     soft glows, behind whichever picture is up. -->
@@ -332,32 +334,41 @@
 						class="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_50%_25%,transparent,rgba(2,12,25,0.35))]"
 					></div>
 
-					{#key current}
+					<!--
+						Every picture is in the page at once, stacked, and only the current
+						one is opaque: the change is a cross-fade in CSS, which the browser
+						runs off the main thread, rather than one element leaving as the next
+						arrives. Only the first is fetched eagerly; the rest wait on idle.
+					-->
+					{#each pictures as picture, index (picture.src)}
 						<div
-							in:pictureIn={{ motion: motions[current] }}
-							out:pictureOut={{ motion: motions[current] }}
-							class="absolute inset-0 z-[5] flex items-center justify-center px-5 pt-12 pb-12 sm:px-7 sm:pt-14 sm:pb-14"
+							class="hero-slide absolute inset-0 z-[5] flex items-center justify-center px-5 pt-12 pb-12 sm:px-7 sm:pt-14 sm:pb-14"
+							class:is-current={index === active}
+							style:--fade-ms="{FADE_MS}ms"
+							aria-hidden={index !== active}
 						>
 							<img
-								src={GALLERY[current]}
-								alt={m.home_hero_gallery_alt({ index: current + 1, total: GALLERY.length })}
+								src={picture.src}
+								alt={picture.alt ||
+									m.home_hero_gallery_alt({ index: index + 1, total: pictures.length })}
 								class="hero-picture max-h-full max-w-full rounded-2xl border-2 border-edge object-contain"
 								draggable="false"
 								decoding="async"
-								fetchpriority={current === 0 ? 'high' : 'auto'}
+								loading={index === 0 ? 'eager' : 'lazy'}
+								fetchpriority={index === 0 ? 'high' : 'low'}
 							/>
 						</div>
-					{/key}
+					{/each}
 
 					<div class="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-2">
-						{#each GALLERY as src, index (src)}
+						{#each pictures as picture, index (picture.src)}
 							<button
 								type="button"
 								aria-label={m.home_gallery_go_to({ index: index + 1 })}
-								aria-current={index === current}
+								aria-current={index === active}
 								onclick={() => go(index)}
 								class="h-2 rounded-full border border-edge transition-all duration-500 {index ===
-								current
+								active
 									? 'w-8 bg-white'
 									: 'w-2 bg-white/50 hover:bg-white/80'}"
 							></button>
@@ -480,6 +491,16 @@
 		background: linear-gradient(145deg, #0157a8 0%, #017f8c 55%, #10b88a 100%);
 	}
 
+	/* Stacked pictures, one opaque at a time: the cross-fade. */
+	.hero-slide {
+		opacity: 0;
+		transition: opacity var(--fade-ms, 900ms) ease-in-out;
+	}
+	.hero-slide.is-current {
+		opacity: 1;
+		z-index: 6;
+	}
+
 	/* The picture on show, drifting like the device in tmax's hero. */
 	.hero-picture {
 		animation: picture-float 5s ease-in-out infinite;
@@ -520,6 +541,9 @@
 		.hero-picture,
 		.hero-bubble {
 			animation: none;
+		}
+		.hero-slide {
+			transition-duration: 1ms;
 		}
 	}
 </style>

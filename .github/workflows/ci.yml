@@ -80,13 +80,13 @@ jobs:
         image: mariadb:11
         env:
           MARIADB_ROOT_PASSWORD: ci
-          MARIADB_DATABASE: creator_network
+          MARIADB_DATABASE: influencer_ethiopia
         ports: ['3306:3306']
         options: >-
           --health-cmd="healthcheck.sh --connect --innodb_initialized"
           --health-interval=5s --health-timeout=5s --health-retries=20
     env:
-      DATABASE_URL: mysql://root:ci@127.0.0.1:3306/creator_network
+      DATABASE_URL: mysql://root:ci@127.0.0.1:3306/influencer_ethiopia
       ORIGIN: http://localhost:4173
       BETTER_AUTH_SECRET: ci-secret-not-used-for-anything-real-0000
       FILES_DIR: ${{ github.workspace }}/.ci-files

@@ -6,7 +6,8 @@ import { eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
-import { getSettings } from '$lib/server/queries';
+import { getCommissionSettings, creatorDiscountPoints } from '$lib/server/commission';
+import { quoteDeal } from '$lib/domain/commission';
 import { requireRole } from '$lib/server/guards';
 import * as disputes from '$lib/server/disputes';
 import * as refunds from '$lib/server/refunds';
@@ -29,9 +30,9 @@ export const load: PageServerLoad = async (event) => {
 
 	const openOnly = event.url.searchParams.get('view') !== 'all';
 
-	const [cases, settings, form] = await Promise.all([
+	const [cases, commission, form] = await Promise.all([
 		disputes.listCases(openOnly),
-		getSettings(),
+		getCommissionSettings(),
 		superValidate(zod4(disputeResolve))
 	]);
 
@@ -51,7 +52,9 @@ export const load: PageServerLoad = async (event) => {
 		cases,
 		refundsByBooking,
 		openOnly,
-		feePercent: settings?.platformFeePercent ?? 15,
+		/* The rate card, so the split preview prices a retained amount the same
+		   way the resolution will. */
+		commission,
 		form
 	};
 };
@@ -75,13 +78,23 @@ export const actions: Actions = {
 		const booking = bookingRows.at(0);
 		if (!booking) return fail(404, { message: m.srv_booking_not_found() });
 
-		const settings = await getSettings();
+		/* What was agreed stands for the full amount; a retained part of it is
+		   priced by the rate card, as the booking itself was. */
+		const commission = await getCommissionSettings();
+		const discount = await creatorDiscountPoints(booking.creatorId);
+		const fee = (amount: number) => {
+			if (amount === booking.price && booking.termsFrozenAt) {
+				return { platformFee: booking.platformFee, creatorPayout: booking.creatorPayout };
+			}
+			const quote = quoteDeal(amount, commission, { discountPoints: discount });
+			return { platformFee: quote.commission, creatorPayout: quote.creatorPayout };
+		};
 
 		const result = await disputes.resolve(booking, dispute, {
 			resolution: form.data.resolution,
 			refundInput: form.data.refundAmount,
 			note: form.data.note,
-			feePercent: settings?.platformFeePercent ?? 15,
+			fee,
 			actor: { id: user.id, name: user.name }
 		});
 

@@ -8,7 +8,15 @@
 	import VerificationBadge from '$lib/components/verification-badge.svelte';
 	import CompensationBadge from '$lib/components/compensation-badge.svelte';
 	import { formatPostDate } from '$lib/blog';
-	import { ArrowLeft, Calendar, ExternalLink, Globe, MapPin, Newspaper } from '@lucide/svelte';
+	import {
+		ArrowLeft,
+		Calendar,
+		ExternalLink,
+		Globe,
+		MapPin,
+		Newspaper,
+		Star
+	} from '@lucide/svelte';
 
 	let { data } = $props();
 
@@ -71,6 +79,17 @@
 				<div class="flex flex-wrap items-center gap-2">
 					<h1 class="text-2xl font-black text-ink sm:text-3xl">{brand.name}</h1>
 					<VerificationBadge level={brand.verificationLevel} />
+					{#if brand.reviewsCount}
+						<span
+							class="inline-flex items-center gap-1 rounded-full border border-edge bg-warn-soft px-2 py-0.5 text-[11px] font-black text-warn-fg"
+						>
+							<Star class="h-3 w-3 fill-current" />
+							{brand.averageRating.toFixed(1)}
+							<span class="font-bold text-ink-dim">
+								· {m.br_review_count({ count: brand.reviewsCount })}
+							</span>
+						</span>
+					{/if}
 				</div>
 
 				<div class="flex flex-wrap items-center gap-2 text-[11px] font-bold text-ink-dim">
@@ -106,6 +125,49 @@
 			<p class="text-sm leading-relaxed whitespace-pre-line text-ink-soft">{brand.bio}</p>
 		{/if}
 	</div>
+
+	<!-- What creators said about working with them: the creators' half of
+	     the two-way review, written after a completed deal. -->
+	{#if data.reviews.length}
+		<section class="space-y-3">
+			<h2 class="text-base font-black tracking-wider text-ink uppercase">{m.br_reviews()}</h2>
+			<ul class="grid gap-3 sm:grid-cols-2">
+				{#each data.reviews as review (review.id)}
+					<li class="bento-card bento-card-static space-y-2">
+						<div class="flex items-center justify-between gap-2">
+							<a
+								href={resolve(`/creators/${review.creatorUsername}`)}
+								class="flex min-w-0 items-center gap-2"
+							>
+								<AppImage
+									src={review.creatorAvatar}
+									alt={review.creatorName}
+									kind="avatar"
+									seed={review.creatorUsername}
+									class="size-8 shrink-0 rounded-full border-2 border-edge object-cover"
+									width="32"
+									height="32"
+									loading="lazy"
+								/>
+								<span class="truncate text-xs font-black text-ink">{review.creatorName}</span>
+							</a>
+							<span
+								class="inline-flex shrink-0 items-center gap-0.5 text-xs font-black text-warn-fg"
+								aria-label={m.br_review_rating({ rating: review.rating })}
+							>
+								<Star class="h-3.5 w-3.5 fill-current" />
+								{review.rating}
+							</span>
+						</div>
+						{#if review.body}
+							<p class="text-xs leading-relaxed text-ink-soft">{review.body}</p>
+						{/if}
+						<p class="text-[10px] font-bold text-ink-faint">{formatPostDate(review.createdAt)}</p>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
 
 	<!-- What they are hiring for. A brand page with open work on it is a page
 	     worth landing on; one without is still a byline's destination. -->

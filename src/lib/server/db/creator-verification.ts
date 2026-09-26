@@ -14,6 +14,7 @@
  * exactly one boundary of them:
  *
  *   unverified  ←→  social_verified     this function
+ *   social_verified → identity_verified this function, once Fayda has checked them
  *   identity_verified, cn_verified      the verification queue, from documents
  *
  * A creator sitting at `identity_verified` or `cn_verified` has had a person
@@ -64,7 +65,31 @@ export async function recalcCreatorVerification(db: Database, creatorId: number)
 		)
 		.limit(1);
 
-	const next = confirmed.length ? 'social_verified' : 'unverified';
+	/*
+	 * A Fayda check lifts a creator with a confirmed channel to the identity
+	 * rung: their reach is real and so are they. Without a confirmed channel
+	 * the check is kept and waits — identity alone says nothing about reach,
+	 * and the public listing is about reach.
+	 */
+	const identity = confirmed.length
+		? await db
+				.select({ id: t.identityChecks.id })
+				.from(t.identityChecks)
+				.where(
+					and(
+						eq(t.identityChecks.creatorId, creatorId),
+						eq(t.identityChecks.status, 'verified'),
+						isNull(t.identityChecks.deletedAt)
+					)
+				)
+				.limit(1)
+		: [];
+
+	const next = confirmed.length
+		? identity.length
+			? 'identity_verified'
+			: 'social_verified'
+		: 'unverified';
 	if (next === current.level) return;
 
 	await db.update(t.creators).set({ verificationLevel: next }).where(eq(t.creators.id, creatorId));

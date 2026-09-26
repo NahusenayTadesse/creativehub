@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
-	import { assetUrl } from '$lib/assets';
+	import { hostedAssetUrl } from '$lib/assets';
 	import { jsonLdScript, metaSummary } from '$lib/seo';
 
 	/**
@@ -51,7 +51,7 @@
 	const canonical = $derived(new URL(path, page.url.origin).href);
 
 	const socialImage = $derived.by(() => {
-		const url = assetUrl(image);
+		const url = hostedAssetUrl(image);
 		if (!url) return '';
 		return /^https?:\/\//.test(url) ? url : new URL(url, page.url.origin).href;
 	});

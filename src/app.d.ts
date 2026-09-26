@@ -35,6 +35,14 @@ declare global {
 			 * $lib/server/trending-service.ts.
 			 */
 			trendingMarket?: Promise<number | null>;
+			/**
+			 * The site settings row, read at most once per request. Listings ask
+			 * it who may be shown publicly and which market leads, so without
+			 * this every strip on the homepage would read it again.
+			 */
+			siteSettings?: Promise<
+				Awaited<ReturnType<typeof import('$lib/server/queries').loadSettings>>
+			>;
 		}
 
 		// interface Error {}

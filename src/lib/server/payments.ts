@@ -4,7 +4,6 @@ import * as t from '$lib/server/db/schema';
 import { absoluteUrl } from '$lib/server/urls';
 import * as chapa from '$lib/server/chapa';
 import { recordAudit } from '$lib/server/guards';
-import { canTransition } from '$lib/domain/booking';
 
 /**
  * What a payment means for a booking.
@@ -67,7 +66,7 @@ export async function start(
 		txRef,
 		provider: 'chapa',
 		status: 'pending',
-		amount: booking.price,
+		amount: booking.brandTotal || booking.price,
 		currencyCode: booking.currencyCode,
 		createdBy: payer.id
 	});
@@ -79,7 +78,7 @@ export async function start(
 	const lastName = rest.join(' ') || firstName || 'Customer';
 
 	const result = await chapa.initialize({
-		amount: booking.price,
+		amount: booking.brandTotal || booking.price,
 		currency: booking.currencyCode,
 		email: payer.email,
 		firstName: firstName || 'Customer',
@@ -238,36 +237,10 @@ export async function settle(txRef: string): Promise<SettleOutcome> {
 	});
 
 	/*
-	 * Paying for the work is what starts it.
-	 *
-	 * The operator's manual deposit does this too, and it is not cosmetic: a
-	 * booking left at `booked` cannot be delivered, because `submit` only
-	 * accepts `in_production` or `revision`. A deposit that funded the deal but
-	 * left the creator unable to hand anything over would be a dead end that
-	 * looked like success from both sides.
-	 *
-	 * `booked` is re-tested in the WHERE clause rather than trusted from the row
-	 * read at the top: this runs from a webhook that can arrive at any moment,
-	 * including after the deal has moved on by some other route, and only the
-	 * declared transition is allowed to happen here.
+	 * Paying no longer starts the work by itself. Production begins when the
+	 * brand approves the creator's concept, and that approval waits on this
+	 * deposit — see `canApproveConcept`. So a deposit only records that the
+	 * campaign funds are held, and the deal stays where it was.
 	 */
-	if (canTransition('booked', 'in_production')) {
-		const started = await db
-			.update(t.bookings)
-			.set({ status: 'in_production' })
-			.where(and(eq(t.bookings.id, payment.bookingId), eq(t.bookings.status, 'booked')));
-
-		if (rowsAffected(started) > 0) {
-			await recordAudit({
-				entity: 'booking',
-				entityId: payment.bookingId,
-				action: 'status_change',
-				fromState: 'booked',
-				toState: 'in_production',
-				reason: 'Deposit paid'
-			});
-		}
-	}
-
 	return { state: 'funded', bookingId: payment.bookingId };
 }

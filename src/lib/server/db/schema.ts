@@ -170,6 +170,14 @@ export const organizations = mysqlTable(
 			.notNull(),
 		/** Guardrail from the PRD: spend ceiling an operator can set per month. */
 		monthlyBudgetCap: int('monthly_budget_cap'),
+		/**
+		 * What the organisation does, in a few words. Shown to a creator in place
+		 * of the brand's name until they accept the NDA on a brief or a deal.
+		 */
+		industry: varchar('industry', { length: 120 }),
+		/** Creators' reviews of this brand, rolled up like a creator's. */
+		averageRating: double('average_rating').default(0).notNull(),
+		reviewsCount: int('reviews_count').default(0).notNull(),
 		...publishable(),
 		...audit()
 	},
@@ -611,6 +619,12 @@ export const campaigns = mysqlTable(
 		 */
 		matchNotifiedAt: timestamp('match_notified_at', { fsp: 3 }),
 		applicationsCount: int('applications_count').default(0).notNull(),
+		/**
+		 * Whether the brand's name is held back until a creator accepts the NDA.
+		 * Industry, budget, deliverables and deadline are always shown; only the
+		 * name, logo and link wait. On by default — see `$lib/server/nda.ts`.
+		 */
+		confidential: boolean('confidential').default(true).notNull(),
 		...publishable(),
 		...audit()
 	},
@@ -670,7 +684,11 @@ export const partySideEnum = ['creator', 'organization'] as const;
 export const bookingStatusEnum = [
 	'proposed',
 	'negotiating',
+	/* Terms agreed and frozen; the contract is out for signature. */
+	'contracting',
 	'booked',
+	/* The creator's concept is with the brand, before production begins. */
+	'concept',
 	'in_production',
 	'submitted',
 	'revision',
@@ -725,6 +743,11 @@ export type TermsSnapshot = {
 	currencyCode: string;
 	platformFee: number;
 	creatorPayout: number;
+	/** Absent from snapshots frozen before the tiered rate card. */
+	commissionPercent?: number;
+	brandServiceFee?: number;
+	brandServiceFeeVat?: number;
+	brandTotal?: number;
 	compensationType: (typeof compensationTypeEnum)[number];
 	revisionsAllowed: number;
 	deadline: string | null;
@@ -759,9 +782,26 @@ export const bookings = mysqlTable(
 			.notNull(),
 		price: int('price').default(0).notNull(),
 		currencyCode: varchar('currency_code', { length: 8 }).default('ETB').notNull(),
-		/** 15% marketplace take rate, stored so historical fees never drift. */
+		/**
+		 * The platform's commission out of the price, from the tiered rate card
+		 * in `$lib/domain/commission`. Stored so historical fees never drift.
+		 */
 		platformFee: int('platform_fee').default(0).notNull(),
 		creatorPayout: int('creator_payout').default(0).notNull(),
+		/** The rate `platformFee` was charged at, after any level discount. */
+		commissionPercent: double('commission_percent').default(0).notNull(),
+		/** What the brand pays on top of the price for the managed service. */
+		brandServiceFee: int('brand_service_fee').default(0).notNull(),
+		/** VAT on that service fee, when the platform charges it. */
+		brandServiceFeeVat: int('brand_service_fee_vat').default(0).notNull(),
+		/** Everything the brand pays: price, service fee and its VAT. */
+		brandTotal: int('brand_total').default(0).notNull(),
+		/**
+		 * Tax withheld from the creator's payout, at the operator's rate, fixed
+		 * when the deal completes and certified on the withholding certificate.
+		 * The payout sends `creatorPayout − withholdingTax`.
+		 */
+		withholdingTax: int('withholding_tax').default(0).notNull(),
 		status: mysqlEnum('status', bookingStatusEnum).default('proposed').notNull(),
 		escrowStatus: mysqlEnum('escrow_status', escrowStatusEnum).default('unfunded').notNull(),
 		/*
@@ -1587,8 +1627,29 @@ export const siteSettings = mysqlTable('site_settings', {
 	logoMark: varchar('logo_mark', { length: 500 }).default('').notNull(),
 	/** The co-branded lockup, footer only. */
 	logoPartners: varchar('logo_partners', { length: 500 }).default('').notNull(),
-	/** Take rate in percent. Used when a booking is created. */
+	/**
+	 * The flat take rate from before the tiered rate card. No longer read when
+	 * a deal is priced — `commissionTiers` is — and kept so the column's history
+	 * survives.
+	 */
 	platformFeePercent: int('platform_fee_percent').default(15).notNull(),
+	/*
+	 * The commission rate card and the fees around it, all read by
+	 * `quoteDeal` in $lib/domain/commission. Edited at /dashboard/admin/settings.
+	 */
+	commissionTiers: json('commission_tiers').$type<{ upTo: number | null; percent: number }[]>(),
+	minCommission: int('min_commission').default(1500).notNull(),
+	minProjectSize: int('min_project_size').default(5000).notNull(),
+	brandServiceFeePercent: double('brand_service_fee_percent').default(5).notNull(),
+	vatRegistered: boolean('vat_registered').default(true).notNull(),
+	vatPercent: double('vat_percent').default(15).notNull(),
+	/** Withheld from a creator's payout and certified to them. 0 withholds nothing. */
+	withholdingPercent: double('withholding_percent').default(0).notNull(),
+	/* Who the invoices and certificates are issued by. */
+	invoiceLegalName: varchar('invoice_legal_name', { length: 200 }).default('').notNull(),
+	invoiceTin: varchar('invoice_tin', { length: 40 }).default('').notNull(),
+	invoiceVatNumber: varchar('invoice_vat_number', { length: 40 }).default('').notNull(),
+	invoiceAddress: text('invoice_address'),
 	/**
 	 * How long after a booking completes a brand may still dispute it.
 	 *
@@ -1599,6 +1660,54 @@ export const siteSettings = mysqlTable('site_settings', {
 	disputeWindowDays: int('dispute_window_days').default(7).notNull(),
 	supportEmail: varchar('support_email', { length: 200 }),
 	supportPhone: varchar('support_phone', { length: 60 }),
+	/**
+	 * The market that leads discovery, trending and the homepage, by ISO code.
+	 *
+	 * Creators from here are listed before everyone else wherever the reader
+	 * has not chosen an order of their own. Empty turns the preference off; the
+	 * rest of the continent stays in the system either way.
+	 */
+	homeMarketCode: varchar('home_market_code', { length: 2 }).default('ET').notNull(),
+	/**
+	 * Whether a creator needs a starting price to be listed publicly.
+	 *
+	 * A profile with no price cannot be booked with any confidence, so by
+	 * default it stays out of discovery, the homepage and the public figures,
+	 * and waits on the staff list at /dashboard/admin/creators/hidden.
+	 */
+	publicRequiresPrice: boolean('public_requires_price').default(true).notNull(),
+	/** How long each hero photograph stays up. 0 never advances. */
+	heroIntervalSeconds: int('hero_interval_seconds').default(6).notNull(),
+	/*
+	 * The platform's own channels, shown under the hero and in the footer.
+	 * An empty URL hides that platform. A follower count is typed by an
+	 * operator; null shows the link without a number rather than a zero.
+	 */
+	socialInstagramUrl: varchar('social_instagram_url', { length: 300 }).default('').notNull(),
+	socialInstagramFollowers: int('social_instagram_followers'),
+	socialTiktokUrl: varchar('social_tiktok_url', { length: 300 }).default('').notNull(),
+	socialTiktokFollowers: int('social_tiktok_followers'),
+	socialFacebookUrl: varchar('social_facebook_url', { length: 300 }).default('').notNull(),
+	socialFacebookFollowers: int('social_facebook_followers'),
+	socialYoutubeUrl: varchar('social_youtube_url', { length: 300 }).default('').notNull(),
+	socialYoutubeFollowers: int('social_youtube_followers'),
+	...audit()
+});
+
+/**
+ * The photographs that rotate beside the hero headline, in the order an
+ * operator arranged them. None active means the shipped set in
+ * `static/hero/` is shown instead, so a fresh install is never blank.
+ *
+ * `image` is an uploaded file name that `/files/[name]` serves. Unlike the
+ * gallery it takes no absolute URL: every picture on the site is hosted here.
+ */
+export const heroSlides = mysqlTable('hero_slides', {
+	id: id(),
+	image: varchar('image', { length: 500 }).default('').notNull(),
+	/** What the picture shows, for a reader who cannot see it. */
+	alt: varchar('alt', { length: 250 }).default('').notNull(),
+	...publishable(),
 	...audit()
 });
 
@@ -2519,6 +2628,244 @@ export const staffInvitesRelations = relations(staffInvites, ({ one }) => ({
 	invitedByUser: one(user, { fields: [staffInvites.invitedBy], references: [user.id] }),
 	acceptedUser: one(user, { fields: [staffInvites.acceptedUserId], references: [user.id] })
 }));
+
+/* ================================================================== *
+ * MANAGED DEALS
+ *
+ * What turns an agreed set of terms into a managed engagement: the contract
+ * both sides sign, the concept the brand approves before production, the
+ * proof the work went live and how it performed, the documents the platform
+ * issues, the NDA a creator accepts to see who the brand is, and the national
+ * ID check that makes a creator bookable and payable.
+ * ================================================================== */
+
+export const contractStatusEnum = ['awaiting_signatures', 'signed', 'void'] as const;
+
+/**
+ * The agreement generated from a deal's frozen terms.
+ *
+ * `body` is the full text as it was generated and `bodyHash` its SHA-256: a
+ * signature is a statement about exactly these words, and the hash is what
+ * shows later that the words signed are the words on file. A contract is
+ * never edited. Terms that change void it and generate the next version.
+ *
+ * A signature is a typed full name, a tick, a time and an address, recorded
+ * against the account that pressed the button — a click-through e-signature.
+ * The platform is a party too, and signs when it generates.
+ */
+export const contracts = mysqlTable(
+	'contracts',
+	{
+		id: id(),
+		bookingId: int('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		/** Human-facing number, e.g. IE-C-2609-00012. */
+		reference: varchar('reference', { length: 40 }).notNull(),
+		version: int('version').default(1).notNull(),
+		body: mediumtext('body').notNull(),
+		bodyHash: varchar('body_hash', { length: 64 }).notNull(),
+		status: mysqlEnum('status', contractStatusEnum).default('awaiting_signatures').notNull(),
+		brandSignerId: userRef('brand_signer_id').references(() => user.id, { onDelete: 'set null' }),
+		brandSignerName: varchar('brand_signer_name', { length: 180 }),
+		brandSignedAt: timestamp('brand_signed_at', { fsp: 3 }),
+		brandSignerIp: varchar('brand_signer_ip', { length: 64 }),
+		creatorSignerId: userRef('creator_signer_id').references(() => user.id, {
+			onDelete: 'set null'
+		}),
+		creatorSignerName: varchar('creator_signer_name', { length: 180 }),
+		creatorSignedAt: timestamp('creator_signed_at', { fsp: 3 }),
+		creatorSignerIp: varchar('creator_signer_ip', { length: 64 }),
+		signedAt: timestamp('signed_at', { fsp: 3 }),
+		voidedAt: timestamp('voided_at', { fsp: 3 }),
+		...audit()
+	},
+	(t) => [
+		uniqueIndex('contracts_reference_idx').on(t.reference),
+		index('contracts_booking_idx').on(t.bookingId)
+	]
+);
+
+export const conceptStatusEnum = ['submitted', 'approved', 'changes_requested'] as const;
+
+/** The creator's plan for the content, approved by the brand before production. */
+export const concepts = mysqlTable(
+	'concepts',
+	{
+		id: id(),
+		bookingId: int('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		body: text('body').notNull(),
+		/** A storyboard, script or moodboard: an upload's file name or a link. */
+		attachment: varchar('attachment', { length: 500 }),
+		status: mysqlEnum('status', conceptStatusEnum).default('submitted').notNull(),
+		reviewNote: text('review_note'),
+		reviewedBy: userRef('reviewed_by').references(() => user.id, { onDelete: 'set null' }),
+		reviewedAt: timestamp('reviewed_at', { fsp: 3 }),
+		...audit()
+	},
+	(t) => [index('concepts_booking_idx').on(t.bookingId)]
+);
+
+/** The approved work, live on the creator's channel. One per deal. */
+export const postProofs = mysqlTable(
+	'post_proofs',
+	{
+		id: id(),
+		bookingId: int('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		liveUrl: varchar('live_url', { length: 500 }).notNull(),
+		/** An uploaded screenshot of the post as published. */
+		screenshot: varchar('screenshot', { length: 500 }).notNull(),
+		/** When the post went live, as the creator states it. Checkpoints count from here. */
+		postedAt: timestamp('posted_at', { fsp: 3 }).notNull(),
+		notes: text('notes'),
+		/** Checkpoints the creator has been reminded of, so each is asked for once. */
+		remindedCheckpoints: json('reminded_checkpoints').$type<string[]>().default([]).notNull(),
+		...audit()
+	},
+	(t) => [uniqueIndex('post_proofs_booking_idx').on(t.bookingId)]
+);
+
+export const metricCheckpointEnum = ['24h', '7d', '30d'] as const;
+
+/** How a live post performed at 24 hours, 7 days and 30 days. */
+export const proofMetrics = mysqlTable(
+	'proof_metrics',
+	{
+		id: id(),
+		proofId: int('proof_id')
+			.notNull()
+			.references(() => postProofs.id, { onDelete: 'cascade' }),
+		bookingId: int('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		checkpoint: mysqlEnum('checkpoint', metricCheckpointEnum).notNull(),
+		views: int('views'),
+		likes: int('likes'),
+		comments: int('comments'),
+		shares: int('shares'),
+		saves: int('saves'),
+		reach: int('reach'),
+		/** The platform's own analytics screen, as evidence for the figures. */
+		screenshot: varchar('screenshot', { length: 500 }).notNull(),
+		capturedAt: timestamp('captured_at', { fsp: 3 }).defaultNow().notNull(),
+		...audit()
+	},
+	(t) => [
+		uniqueIndex('proof_metrics_checkpoint_idx').on(t.proofId, t.checkpoint),
+		index('proof_metrics_booking_idx').on(t.bookingId)
+	]
+);
+
+export const documentKindEnum = [
+	/** To the brand: the deal, the service fee and its VAT — one invoice. */
+	'brand_invoice',
+	/** To the creator: what they earned, what the platform kept, what was withheld. */
+	'creator_statement',
+	/** To the creator: tax withheld from their payout, certified. */
+	'withholding_certificate'
+] as const;
+
+/**
+ * An invoice or certificate the platform issued.
+ *
+ * `data` is everything printed on it, captured at issue: parties, lines,
+ * rates and totals. The document is rendered from that snapshot and nothing
+ * else, so a later change to a rate, a name or an address never rewrites a
+ * document already issued. Numbers run in one sequence per kind per year.
+ */
+export const documents = mysqlTable(
+	'documents',
+	{
+		id: id(),
+		bookingId: int('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		kind: mysqlEnum('kind', documentKindEnum).notNull(),
+		number: varchar('number', { length: 40 }).notNull(),
+		year: int('year').notNull(),
+		sequence: int('sequence').notNull(),
+		organizationId: int('organization_id').references(() => organizations.id, {
+			onDelete: 'set null'
+		}),
+		creatorId: int('creator_id').references(() => creators.id, { onDelete: 'set null' }),
+		data: json('data').$type<Record<string, unknown>>().notNull(),
+		total: int('total').default(0).notNull(),
+		currencyCode: varchar('currency_code', { length: 8 }).default('ETB').notNull(),
+		issuedAt: timestamp('issued_at', { fsp: 3 }).defaultNow().notNull(),
+		...audit()
+	},
+	(t) => [
+		uniqueIndex('documents_number_idx').on(t.number),
+		uniqueIndex('documents_sequence_idx').on(t.kind, t.year, t.sequence),
+		uniqueIndex('documents_booking_kind_idx').on(t.bookingId, t.kind),
+		index('documents_org_idx').on(t.organizationId),
+		index('documents_creator_idx').on(t.creatorId)
+	]
+);
+
+export const ndaSubjectEnum = ['campaign', 'booking'] as const;
+
+/**
+ * A creator's one-click NDA, accepted to see which brand is behind a brief or
+ * a deal. The platform's protection is the non-circumvention clause in the
+ * contract; this is the lighter promise to keep the brand's plans private.
+ */
+export const ndaAcceptances = mysqlTable(
+	'nda_acceptances',
+	{
+		id: id(),
+		userId: userRef('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		organizationId: int('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		subjectType: mysqlEnum('subject_type', ndaSubjectEnum).notNull(),
+		subjectId: int('subject_id').notNull(),
+		/** Which wording was accepted, so a later revision does not rewrite the past. */
+		ndaVersion: varchar('nda_version', { length: 20 }).notNull(),
+		ip: varchar('ip', { length: 64 }),
+		acceptedAt: timestamp('accepted_at', { fsp: 3 }).defaultNow().notNull()
+	},
+	(t) => [uniqueIndex('nda_subject_idx').on(t.userId, t.subjectType, t.subjectId)]
+);
+
+export const identityCheckStatusEnum = ['pending', 'verified', 'failed'] as const;
+
+/**
+ * A national ID check through Fayda (Ethiopia's digital ID), with OTP.
+ *
+ * The raw ID number is never stored — not here, not in a log, not in the
+ * audit trail. What is kept is `reference`: the pseudonymous subject
+ * identifier Fayda returns for this relying party, which proves a check took
+ * place and lets a repeat check be matched to the first without the number
+ * behind it. The name is kept to compare against the profile.
+ */
+export const identityChecks = mysqlTable(
+	'identity_checks',
+	{
+		id: id(),
+		userId: userRef('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		creatorId: int('creator_id').references(() => creators.id, { onDelete: 'set null' }),
+		provider: varchar('provider', { length: 20 }).default('fayda').notNull(),
+		status: mysqlEnum('status', identityCheckStatusEnum).default('pending').notNull(),
+		reference: varchar('reference', { length: 255 }),
+		verifiedName: varchar('verified_name', { length: 180 }),
+		failureReason: varchar('failure_reason', { length: 250 }),
+		verifiedAt: timestamp('verified_at', { fsp: 3 }),
+		...audit()
+	},
+	(t) => [
+		index('identity_checks_user_idx').on(t.userId),
+		index('identity_checks_reference_idx').on(t.reference)
+	]
+);
 
 /* ================================================================== *
  * SCHEDULED JOBS

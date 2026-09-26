@@ -4,10 +4,12 @@
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { superForm } from 'sveltekit-superforms';
+	import { enhance as formEnhance } from '$app/forms';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { toast } from 'svelte-sonner';
 	import {
+		EyeOff,
 		ArrowLeft,
 		Calendar,
 		Users,
@@ -110,6 +112,34 @@
 		{m.campaign_all_campaigns()}
 	</a>
 
+	<!-- The NDA: on a confidential brief the brand's name waits behind it. -->
+	{#if campaign.brandHidden}
+		<div class="bento-card bento-card-static space-y-3">
+			<h2 class="flex items-center gap-1.5 text-sm font-black text-ink">
+				<EyeOff class="h-4 w-4 text-warn-fg" />
+				{m.nda_title()}
+			</h2>
+			<p class="text-xs leading-relaxed font-medium text-ink-soft">{m.nda_body()}</p>
+			{#if data.creator}
+				<ul class="list-disc space-y-1 ps-5 text-[11px] font-medium text-ink-soft">
+					<li>{m.nda_point_private()}</li>
+					<li>{m.nda_point_no_share()}</li>
+					<li>{m.nda_point_platform()}</li>
+				</ul>
+				<form method="POST" action="?/acceptNda" use:formEnhance>
+					<button
+						type="submit"
+						class="rounded-xl border-2 border-edge bg-brand px-4 py-2 text-xs font-black text-brand-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong"
+					>
+						{m.nda_accept()}
+					</button>
+				</form>
+			{:else}
+				<p class="text-[11px] font-bold text-ink-dim">{m.nda_creators_sign_in()}</p>
+			{/if}
+		</div>
+	{/if}
+
 	<!-- Header -->
 	<div class="bento-card bento-card-static space-y-4">
 		<div class="flex flex-wrap items-start justify-between gap-4">
@@ -129,12 +159,19 @@
 					<div class="flex items-center gap-2">
 						<!-- The brand has a page of its own: who they are, what else they
 						     are hiring for, and what they have written. -->
-						<a
-							href={resolve(`/brands/${campaign.organizationSlug}`)}
-							class="text-sm font-black text-ink hover:text-brand-fg hover:underline"
-						>
-							{campaign.organizationName}
-						</a>
+						{#if campaign.brandHidden}
+							<span class="flex items-center gap-1 text-sm font-black text-ink">
+								<EyeOff class="h-3.5 w-3.5 text-ink-dim" />
+								{campaign.organizationName}
+							</span>
+						{:else}
+							<a
+								href={resolve(`/brands/${campaign.organizationSlug}`)}
+								class="text-sm font-black text-ink hover:text-brand-fg hover:underline"
+							>
+								{campaign.organizationName}
+							</a>
+						{/if}
 						<span
 							class="rounded-full border border-edge bg-well px-2 py-0.5 text-[9px] font-black tracking-wider text-ink uppercase"
 						>

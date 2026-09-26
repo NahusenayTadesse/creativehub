@@ -59,11 +59,16 @@
 
 		isProcessing = true;
 
+		/* Re-encoded as WebP before it leaves the device: most readers are on a
+		   phone with metered data, and a WebP is typically a third the size of
+		   the JPEG or PNG it came from, transparency included. The server takes
+		   what arrives; this is where the saving is made. */
 		const options = {
 			maxSizeMB: 1,
 			maxWidthOrHeight: 1920,
 			useWebWorker: true,
-			initialQuality: 0.8
+			initialQuality: 0.8,
+			fileType: 'image/webp'
 		};
 
 		try {
@@ -72,8 +77,10 @@
 					if (f.type === 'application/pdf') return f;
 					try {
 						const compressed = await imageCompression(f, options);
-						// ✅ Convert Blob → File, preserving the original filename
-						return new File([compressed], f.name, { type: compressed.type });
+						// Convert Blob → File, renamed to the type it now is.
+						const name =
+							compressed.type === 'image/webp' ? f.name.replace(/\.[^.]+$/, '') + '.webp' : f.name;
+						return new File([compressed], name, { type: compressed.type });
 					} catch (err) {
 						console.error('Compression error:', err);
 						return f;
