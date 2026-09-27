@@ -37,7 +37,8 @@ export const load: PageServerLoad = async (event) => {
 		bio: organization.bio ?? '',
 		logo: organization.logo ?? '',
 		monthlyBudgetCap: organization.monthlyBudgetCap ?? undefined,
-		industry: organization.industry ?? ''
+		industry: organization.industry ?? '',
+		tin: organization.tin ?? ''
 	});
 
 	return { organization, members, reference, form };
@@ -62,7 +63,8 @@ export const actions: Actions = {
 				bio: form.data.bio || null,
 				logo: form.data.logo || null,
 				monthlyBudgetCap: form.data.monthlyBudgetCap ?? null,
-				industry: form.data.industry || null,
+				industry: form.data.industry,
+				tin: form.data.tin || null,
 				updatedBy: user.id
 			})
 			// Scoped to the organisation this user actually acts for.

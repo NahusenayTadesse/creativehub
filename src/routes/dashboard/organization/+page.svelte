@@ -114,7 +114,10 @@
 				type="text"
 				placeholder={m.og_industry_placeholder()}
 				hint={m.og_industry_hint()}
+				required
 			/>
+
+			<InputComp {form} {errors} label={m.og_tin()} name="tin" type="text" hint={m.og_tin_hint()} />
 
 			<InputComp {form} {errors} label={m.og_about()} name="bio" type="textarea" rows={4} />
 

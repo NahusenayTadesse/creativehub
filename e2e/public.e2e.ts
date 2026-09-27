@@ -71,9 +71,7 @@ test.describe('briefs', () => {
  * to someone with no session.
  */
 test.describe('the blog', () => {
-	/* The index also links the feed at `/blog/rss.xml`, which is not an article
-	   and answers with XML rather than a page. */
-	const articleLink = 'a[href^="/blog/"]:not([href$=".xml"])';
+	const articleLink = 'a[href^="/blog/"]';
 
 	test('lists articles and puts its state in the URL', async ({ page }) => {
 		await page.goto('/blog');

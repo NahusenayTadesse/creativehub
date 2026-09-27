@@ -124,6 +124,34 @@ export const actions: Actions = {
 		}
 
 		/*
+		 * A creator's identity is checked through Fayda and nowhere else, and the
+		 * platform keeps only Fayda's reference — never a copy of the ID card,
+		 * which carries the number the roadmap says must not be stored. So a
+		 * creator's request here is about channels alone, and a file is refused
+		 * rather than quietly kept. A brand still uploads its trade licence or
+		 * registration certificate, which is a company document, not a person's.
+		 */
+		if (creator) {
+			if (form.data.requestedLevel !== 'social_verified') {
+				return message(
+					form,
+					{ type: 'error', text: m.srv_identity_through_fayda() },
+					{ status: 400 }
+				);
+			}
+			if (
+				form.data.documentUrl instanceof File
+					? form.data.documentUrl.size > 0
+					: form.data.documentUrl
+			) {
+				return message(form, { type: 'error', text: m.srv_no_id_documents() }, { status: 400 });
+			}
+			if (!linesOf(form.data.socialProofs).length) {
+				return message(form, { type: 'error', text: m.srv_attach_evidence() }, { status: 400 });
+			}
+		}
+
+		/*
 		 * One open case at a time keeps the operator queue meaningful.
 		 *
 		 * Both halves of this used to be wrong: the subject's requests were capped
@@ -168,7 +196,7 @@ export const actions: Actions = {
 			throw err;
 		}
 
-		if (!documentUrl) {
+		if (!documentUrl && !creator) {
 			return message(form, { type: 'error', text: m.srv_attach_evidence() }, { status: 400 });
 		}
 
@@ -177,7 +205,7 @@ export const actions: Actions = {
 			creatorId: creator?.id ?? null,
 			organizationId: organization?.id ?? null,
 			requestedLevel: form.data.requestedLevel,
-			documentUrl,
+			documentUrl: documentUrl || null,
 			socialProofs: linesOf(form.data.socialProofs),
 			status: 'pending',
 			createdBy: user.id

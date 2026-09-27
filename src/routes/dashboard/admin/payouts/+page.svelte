@@ -4,10 +4,11 @@
 	import { page } from '$app/state';
 	import { toast } from 'svelte-sonner';
 	import AppImage from '$lib/components/app-image.svelte';
+	import InputComp from '$lib/formComponents/InputComp.svelte';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import PaginationBar from '$lib/components/pagination-bar.svelte';
 	import SearchInput from '$lib/components/search-input.svelte';
-	import { assetUrl } from '$lib/assets';
+	import { hostedAssetUrl } from '$lib/assets';
 	import { withParams } from '$lib/query';
 	import { formatAmountWithCode } from '$lib/domain/money';
 	import { Banknote, Info, RefreshCw, ShieldCheck, TriangleAlert, Inbox } from '@lucide/svelte';
@@ -59,7 +60,7 @@
 	const blockedBy = (row: (typeof data.owed)[number]) => {
 		if (!row.accountId) return payoutProblemLabel('no_account');
 		if (!row.accountVerified) return payoutProblemLabel('account_unverified');
-		if (!data.supportedCurrencies.includes(row.currencyCode)) {
+		if (!data.manualPayouts && !data.supportedCurrencies.includes(row.currencyCode)) {
 			return payoutProblemLabel('currency');
 		}
 		if (row.accountCurrency !== row.currencyCode) return payoutProblemLabel('currency_mismatch');
@@ -76,12 +77,14 @@
 		description={m.payo_admin_subtitle()}
 	/>
 
-	{#if !data.chapaEnabled}
+	{#if data.manualPayouts}
+		<!-- No provider to send through: the operator pays from the platform's
+		     bank account, then records it here with the bank's reference. -->
 		<p
-			class="flex items-start gap-2 rounded-2xl border-2 border-danger-edge bg-danger-soft p-3 text-xs font-bold text-danger-fg"
+			class="flex items-start gap-2 rounded-2xl border-2 border-warn-edge bg-warn-soft p-3 text-xs font-bold text-warn-fg"
 		>
 			<TriangleAlert class="mt-0.5 h-4 w-4 shrink-0" />
-			{m.srv_payouts_unavailable()}
+			{m.payo_manual_hint()}
 		</p>
 	{/if}
 
@@ -94,12 +97,14 @@
 		"Sent to bank" for an hour would read as a bug rather than as something
 		waiting on a person.
 	-->
-	<p
-		class="flex items-start gap-2 rounded-2xl border-2 border-info-edge bg-info-soft p-3 text-xs font-medium text-info-fg"
-	>
-		<Info class="mt-0.5 h-4 w-4 shrink-0" />
-		{m.payo_otp_hint()}
-	</p>
+	{#if !data.manualPayouts}
+		<p
+			class="flex items-start gap-2 rounded-2xl border-2 border-info-edge bg-info-soft p-3 text-xs font-medium text-info-fg"
+		>
+			<Info class="mt-0.5 h-4 w-4 shrink-0" />
+			{m.payo_otp_hint()}
+		</p>
+	{/if}
 
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div class="flex flex-wrap items-center gap-2">
@@ -141,7 +146,7 @@
 						<div class="flex flex-wrap items-start justify-between gap-3">
 							<div class="flex items-center gap-3">
 								<AppImage
-									src={assetUrl(row.creatorAvatar)}
+									src={hostedAssetUrl(row.creatorAvatar)}
 									alt={row.creatorName ?? ''}
 									class="h-10 w-10 rounded-full border-2 border-edge object-cover"
 								/>
@@ -218,15 +223,30 @@
 										{blocked}
 									</span>
 								{:else}
-									<form method="POST" action="?/send" use:enhance={handle(m.payo_sent_toast())}>
+									<form
+										method="POST"
+										action="?/send"
+										use:enhance={handle(
+											data.manualPayouts ? m.payo_recorded_toast() : m.payo_sent_toast()
+										)}
+										class="flex flex-wrap items-end gap-2"
+									>
 										<input type="hidden" name="bookingId" value={row.id} />
+										{#if data.manualPayouts}
+											<InputComp
+												name="transferRef"
+												id="transferRef-{row.id}"
+												type="text"
+												label={m.payo_transfer_ref()}
+												value=""
+											/>
+										{/if}
 										<button
 											type="submit"
-											disabled={!data.chapaEnabled}
 											class="inline-flex items-center gap-1 rounded-full border-2 border-edge bg-brand px-4 py-1.5 text-[11px] font-black text-brand-ink shadow-[3px_3px_0px_0px_rgb(var(--bento-shadow))] hover:bg-brand-strong disabled:opacity-60"
 										>
 											<Banknote class="h-3.5 w-3.5" />
-											{m.payo_send()}
+											{data.manualPayouts ? m.payo_record_paid() : m.payo_send()}
 										</button>
 									</form>
 								{/if}
@@ -280,7 +300,7 @@
 								<p>
 									{m.payo_reference()}: {payout.reference}
 									{#if payout.providerRef}
-										· {m.payo_provider_ref()}: {payout.providerRef}
+										· {payout.provider === 'manual' ? m.payo_bank_ref() : m.payo_provider_ref()}: {payout.providerRef}
 									{/if}
 								</p>
 								<p>{m.payo_sent_on({ date: formatDate(payout.verifiedAt ?? payout.createdAt) })}</p>

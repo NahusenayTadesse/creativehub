@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { and, desc, eq, ne } from 'drizzle-orm';
-import { db } from '$lib/server/db';
+import { and, desc, eq, isNotNull, isNull, ne } from 'drizzle-orm';
+import { db, rowsAffected } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { getSettings } from '$lib/server/queries';
 import { recordAudit } from '$lib/server/guards';
@@ -12,7 +12,8 @@ import { contractText } from '$lib/domain/contract-text';
  * Generated the moment terms freeze, from the frozen snapshot and nothing
  * else, so what both sides sign is exactly what both sides agreed. Signed by
  * each side with a typed name — see `schema.contracts` for what a signature
- * records — and once both have signed, the deal is booked.
+ * records — and once both have signed, the platform countersigns and the deal
+ * is booked.
  */
 
 type Booking = typeof t.bookings.$inferSelect;
@@ -175,16 +176,51 @@ export async function signContract(
 				creatorSignedAt: now,
 				creatorSignerIp: input.ip
 			};
-	const complete = Boolean(brand ? contract.creatorSignedAt : contract.brandSignedAt);
 
-	await db
+	/* The side's own signature, only if that side has not signed meanwhile. */
+	const signed = await db
+		.update(t.contracts)
+		.set({ ...patch, updatedBy: input.user.id })
+		.where(
+			and(
+				eq(t.contracts.id, contract.id),
+				eq(t.contracts.status, 'awaiting_signatures'),
+				isNull(brand ? t.contracts.brandSignedAt : t.contracts.creatorSignedAt)
+			)
+		);
+	if (rowsAffected(signed) === 0) return { ok: false, problem: 'already_signed' };
+
+	/*
+	 * Completion is its own write, decided by the row rather than by the copy
+	 * read before signing. The two signatures can land at the same moment, and
+	 * each would then have seen the other as missing — leaving a contract both
+	 * sides signed stuck at `awaiting_signatures` with no button left to press.
+	 * Whichever write finds both signatures present completes it; the other
+	 * matches nothing.
+	 *
+	 * The platform countersigns in the same write, in the legal name the
+	 * invoices are issued under, since it is the party both of them contracted
+	 * with.
+	 */
+	const settings = await getSettings();
+	const completed = await db
 		.update(t.contracts)
 		.set({
-			...patch,
-			...(complete ? { status: 'signed' as const, signedAt: now } : {}),
-			updatedBy: input.user.id
+			status: 'signed',
+			signedAt: now,
+			platformSignerName:
+				settings?.invoiceLegalName?.trim() || settings?.siteName || 'Influencer Ethiopia',
+			platformSignedAt: now
 		})
-		.where(and(eq(t.contracts.id, contract.id), eq(t.contracts.status, 'awaiting_signatures')));
+		.where(
+			and(
+				eq(t.contracts.id, contract.id),
+				eq(t.contracts.status, 'awaiting_signatures'),
+				isNotNull(t.contracts.brandSignedAt),
+				isNotNull(t.contracts.creatorSignedAt)
+			)
+		);
+	const complete = rowsAffected(completed) > 0;
 
 	await recordAudit({
 		actorId: input.user.id,

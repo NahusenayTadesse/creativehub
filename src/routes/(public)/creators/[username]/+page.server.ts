@@ -7,7 +7,12 @@ import type { PageServerLoad, Actions } from './$types';
 import { db, insertedId } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { notify } from '$lib/server/notify';
-import { getCreatorByUsername, listProfilePosts } from '$lib/server/queries';
+import {
+	getCreatorByUsername,
+	isPubliclyListed,
+	listingRules,
+	listProfilePosts
+} from '$lib/server/queries';
 import { getOrganizationFor, recordAudit } from '$lib/server/guards';
 import { bookingCreate } from '$lib/schemas';
 import { bookingReference } from '$lib/domain/booking';
@@ -19,10 +24,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const creator = await getCreatorByUsername(params.username);
 	if (!creator) error(404, m.srv_creator_not_found());
 
-	/* Unpublished profiles are visible only to their owner and to operators. */
+	/*
+	 * Unpublished profiles, and published ones that discovery keeps off the
+	 * public site — unverified, or with no price to book against — are visible
+	 * only to their owner and to staff. The second list lives at
+	 * /dashboard/admin/creators/hidden; a page anyone could still open, and a
+	 * search engine index, would undo it.
+	 */
 	const isOwner = locals.user?.id && creator.userId === locals.user.id;
-	const isAdmin = (locals.user as { role?: string })?.role === 'admin';
-	if (!creator.isPublished && !isOwner && !isAdmin) {
+	const role = (locals.user as { role?: string } | undefined)?.role;
+	const isStaff = role === 'admin' || role === 'encoder';
+	const listed = creator.isPublished && isPubliclyListed(creator, await listingRules());
+	if (!listed && !isOwner && !isStaff) {
 		error(404, m.srv_creator_not_published());
 	}
 
@@ -36,6 +49,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	return {
 		creator: publicView(creator),
+		/* Seen here only by the owner or staff when false; kept out of search. */
+		listed,
 		articles,
 		canBook: Boolean(organization),
 		organizationName: organization?.name ?? null,
@@ -142,7 +157,8 @@ export const actions: Actions = {
 			)
 			.limit(1);
 		const creator = creatorRows.at(0);
-		if (!creator) {
+		/* A profile kept off the public listing cannot be booked either. */
+		if (!creator || !isPubliclyListed(creator, await listingRules())) {
 			return message(form, { type: 'error', text: m.srv_unknown_creator() }, { status: 400 });
 		}
 

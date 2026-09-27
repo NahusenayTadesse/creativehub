@@ -70,7 +70,10 @@ export const load: PageServerLoad = async (event) => {
 		db
 			.select({
 				count: sql<number>`count(*)`,
-				paid: sql<number>`sum(${t.bookings.compensationType} = 'paid' and ${t.bookings.price} > 0)`,
+				/* "Paid" means the brand's money actually came in and went out to
+				   the creator — not merely that the deal was priced in money. The
+				   Version 2 gate is twenty of these a month. */
+				paid: sql<number>`sum(${t.bookings.compensationType} = 'paid' and ${t.bookings.price} > 0 and ${t.bookings.escrowStatus} = 'released')`,
 				revenue: sql<number>`coalesce(sum(${t.bookings.platformFee} + ${t.bookings.brandServiceFee}), 0)`,
 				volume: sql<number>`coalesce(sum(${t.bookings.price}), 0)`
 			})

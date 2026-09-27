@@ -22,6 +22,13 @@ const name = (max = 180) =>
 		.min(2, { error: () => m.val_too_short() })
 		.max(max);
 const optionalText = z.string().trim().optional().default('');
+/** An Ethiopian TIN is ten digits; optional wherever it is asked for. */
+const tin = z
+	.string()
+	.trim()
+	.regex(/^(\d{10})?$/, { error: () => m.val_tin() })
+	.optional()
+	.default('');
 
 /**
  * True only for an absolute http(s) URL.
@@ -506,6 +513,16 @@ export const organizationCreate = z.object({
 	orgType: z.enum(ORG_TYPES).default('company'),
 	countryId: refId,
 	city: z.string().trim().max(120).optional().default(''),
+	/*
+	 * Required: a creator judging an offer before the NDA sees this in the
+	 * brand's place. Without it the offer reads "Confidential brand", which
+	 * tells them nothing the roadmap promised they would know.
+	 */
+	industry: z
+		.string()
+		.trim()
+		.min(2, { error: () => m.val_industry_required() })
+		.max(120),
 	website: optionalUrl,
 	bio: optionalText
 });
@@ -514,8 +531,8 @@ export const organizationSelfEdit = organizationCreate.extend({
 	id: z.coerce.number(),
 	logo: optionalUrl,
 	monthlyBudgetCap: z.coerce.number().int().min(0).optional(),
-	/* Shown to creators in the brand's place until they accept the NDA. */
-	industry: z.string().trim().max(120).optional().default('')
+	/* Printed on the invoices the platform issues to the brand. */
+	tin
 });
 
 /* ------------------------------------------------------------------ *
@@ -713,7 +730,12 @@ export const payDepositSchema = z.object({ bookingId: refId });
 
 export const fundEscrowSchema = z.object({
 	bookingId: refId,
-	paymentMethod: z.enum(['telebirr', 'chapa', 'cbe_birr', 'bank_transfer']).default('telebirr')
+	paymentMethod: z
+		.enum(['telebirr', 'chapa', 'cbe_birr', 'bank_transfer'])
+		.default('bank_transfer'),
+	/* The bank's or telebirr's own reference for the transfer, as the operator
+	   read it off the statement — what a later reconciliation matches against. */
+	transferRef: z.string().trim().max(100).optional().default('')
 });
 
 export const submissionSchema = z.object({
@@ -792,6 +814,10 @@ export const proofSubmit = z.object({
 		.string()
 		.trim()
 		.min(1, { error: () => m.val_posted_at() }),
+	/* The browser's `getTimezoneOffset()` when it posted, in minutes (EAT is
+	   -180). What turns that wall-clock time into an instant; absent without
+	   JavaScript, when Ethiopian time is assumed. */
+	tzOffset: z.coerce.number().int().min(-840).max(840).optional(),
 	notes: optionalText
 });
 
@@ -1046,7 +1072,8 @@ export const commissionSchema = z.object({
 	invoiceLegalName: z.string().trim().max(200).optional().default(''),
 	invoiceTin: z.string().trim().max(40).optional().default(''),
 	invoiceVatNumber: z.string().trim().max(40).optional().default(''),
-	invoiceAddress: optionalText
+	invoiceAddress: optionalText,
+	invoicePaymentInstructions: z.string().trim().max(1000).optional().default('')
 });
 
 export const settingsSchema = z.object({
@@ -1549,11 +1576,19 @@ export const payoutAccountSchema = z.object({
 		.trim()
 		.min(4, { error: () => m.val_too_short() })
 		.max(60)
-		.regex(/^\d+$/, { error: () => m.val_digits_only() })
+		.regex(/^\d+$/, { error: () => m.val_digits_only() }),
+	/* Kept on the creator, not the account: it is printed on their statements
+	   and withholding certificates, whichever bank the money goes to. */
+	tin: tin
 });
 
 /** An operator sending one booking's money. The id is the booking, not a payout. */
-export const sendPayoutSchema = z.object({ bookingId: refId });
+export const sendPayoutSchema = z.object({
+	bookingId: refId,
+	/* With the gateway off: the bank's or telebirr's reference for the transfer
+	   the operator made. Ignored when Chapa sends the money. */
+	transferRef: z.string().trim().max(100).optional().default('')
+});
 
 /** An operator asking Chapa again what became of one attempt. */
 export const payoutRefSchema = z.object({ id: refId });
@@ -1624,6 +1659,22 @@ export const cancelRequest = z.object({
 		.trim()
 		.min(5, { error: () => m.val_too_short() })
 		.max(2000)
+});
+
+/** An operator stepping in on a stuck deal: always with a reason on the record. */
+export const operatorOverride = z.object({
+	bookingId: refId,
+	reason: z
+		.string()
+		.trim()
+		.min(5, { error: () => m.val_too_short() })
+		.max(500)
+});
+
+/** An operator recording a refund they made by hand while the gateway is off. */
+export const refundRecord = z.object({
+	bookingId: refId,
+	transferRef: z.string().trim().max(100).optional().default('')
 });
 
 /** Answering that request. The booking is the route; only the verdict posts. */

@@ -24,6 +24,9 @@ export type Issuer = {
 	tin: string;
 	vatNumber: string;
 	address: string;
+	/* How to pay an invoice by transfer. Absent on documents issued before it
+	   was captured, which is why it is optional. */
+	paymentInstructions?: string;
 };
 
 export type DealFacts = {
@@ -62,7 +65,7 @@ export type DocumentLine = {
 export type DocumentData = {
 	kind: DocumentKind;
 	issuer: Issuer;
-	recipient: { name: string; detail?: string };
+	recipient: { name: string; detail?: string; tin?: string };
 	deal: DealFacts;
 	lines: DocumentLine[];
 	total: number;
@@ -75,7 +78,7 @@ const pct = (value: number) => `${Number(value.toFixed(2))}%`;
 
 export function brandInvoice(
 	issuer: Issuer,
-	brand: { name: string },
+	brand: { name: string; tin?: string },
 	deal: DealFacts,
 	vatPercent: number
 ): DocumentData {
@@ -93,7 +96,7 @@ export function brandInvoice(
 	return {
 		kind: 'brand_invoice',
 		issuer,
-		recipient: { name: brand.name },
+		recipient: { name: brand.name, tin: brand.tin || undefined },
 		deal,
 		lines,
 		total: deal.price + deal.brandServiceFee + deal.brandServiceFeeVat,
@@ -104,7 +107,7 @@ export function brandInvoice(
 
 export function creatorStatement(
 	issuer: Issuer,
-	creator: { name: string; handle: string },
+	creator: { name: string; handle: string; tin?: string },
 	deal: DealFacts,
 	withholdingPercent: number
 ): DocumentData {
@@ -128,7 +131,7 @@ export function creatorStatement(
 	return {
 		kind: 'creator_statement',
 		issuer,
-		recipient: { name: creator.name, detail: creator.handle },
+		recipient: { name: creator.name, detail: creator.handle, tin: creator.tin || undefined },
 		deal,
 		lines,
 		total: deal.creatorPayout - deal.withholdingTax,
@@ -139,14 +142,14 @@ export function creatorStatement(
 
 export function withholdingCertificate(
 	issuer: Issuer,
-	creator: { name: string; handle: string },
+	creator: { name: string; handle: string; tin?: string },
 	deal: DealFacts,
 	withholdingPercent: number
 ): DocumentData {
 	return {
 		kind: 'withholding_certificate',
 		issuer,
-		recipient: { name: creator.name, detail: creator.handle },
+		recipient: { name: creator.name, detail: creator.handle, tin: creator.tin || undefined },
 		deal,
 		lines: [
 			{ label: 'gross_payment', amount: deal.creatorPayout },

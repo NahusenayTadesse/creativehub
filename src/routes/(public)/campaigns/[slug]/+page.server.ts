@@ -13,6 +13,8 @@ import { applicationSchema } from '$lib/schemas';
 import { recalcCampaignApplications } from '$lib/server/db/rollups';
 import { acceptNda, maskCampaigns } from '$lib/server/nda';
 import { clientAddress } from '$lib/server/bot-defence';
+import { getCommissionSettings } from '$lib/server/commission';
+import { projectSizeProblem } from '$lib/domain/commission';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const found = await getCampaignBySlug(params.slug);
@@ -125,6 +127,20 @@ export const actions: Actions = {
 		]);
 		if (seen.brandHidden) {
 			return message(form, { type: 'error', text: m.nda_required_apply() }, { status: 403 });
+		}
+
+		/* A paid pitch below the platform's smallest deal would open a deal that
+		   could never be agreed, so it is refused here, where it can be fixed. */
+		const commission = await getCommissionSettings();
+		if (projectSizeProblem(form.data.proposedPrice, campaign.compensationType, commission)) {
+			return message(
+				form,
+				{
+					type: 'error',
+					text: m.srv_below_min_project({ min: commission.minProjectSize.toLocaleString('en-US') })
+				},
+				{ status: 400 }
+			);
 		}
 
 		/* One active application per creator per campaign (PRD INV-005). */

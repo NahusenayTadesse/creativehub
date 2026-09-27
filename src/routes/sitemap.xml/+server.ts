@@ -2,6 +2,7 @@ import { and, desc, eq, isNull, lte } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { HELP_SLUGS } from '$lib/domain/help';
 import * as t from '$lib/server/db/schema';
+import { bookableCreators, listingRules } from '$lib/server/queries';
 import type { RequestHandler } from './$types';
 
 /**
@@ -36,18 +37,23 @@ type Entry = { path: string; lastmod?: string | null; changefreq: string; priori
 
 export const GET: RequestHandler = async ({ url, setHeaders }) => {
 	const [creators, brands, campaigns, posts] = await Promise.all([
-		db
-			.select({ username: t.creators.username, updatedAt: t.creators.updatedAt })
-			.from(t.creators)
-			.where(
-				and(
-					isNull(t.creators.deletedAt),
-					eq(t.creators.isActive, true),
-					eq(t.creators.isPublished, true)
+		/* Only the profiles discovery lists: an unverified or unpriced one has
+		   no public page, and listing it would send a crawler to a 404. */
+		listingRules().then((rules) =>
+			db
+				.select({ username: t.creators.username, updatedAt: t.creators.updatedAt })
+				.from(t.creators)
+				.where(
+					and(
+						isNull(t.creators.deletedAt),
+						eq(t.creators.isActive, true),
+						eq(t.creators.isPublished, true),
+						...bookableCreators(rules)
+					)
 				)
-			)
-			.orderBy(desc(t.creators.updatedAt))
-			.limit(MAX_URLS),
+				.orderBy(desc(t.creators.updatedAt))
+				.limit(MAX_URLS)
+		),
 		/* The same test `getBrandBySlug` applies — organisations have no
 		   `isPublished` of their own, so `isActive` is the whole of it. A brand an
 		   operator has switched off has no page, and listing one would send a

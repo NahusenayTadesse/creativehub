@@ -40,11 +40,18 @@
 		data.requests.some((r) => ['pending', 'under_review', 'more_info'].includes(r.status))
 	);
 
-	const levelItems = $derived([
-		{ value: 'social_verified', name: m.vf_level_social() },
-		{ value: 'identity_verified', name: m.vf_level_identity() },
-		{ value: 'cn_verified', name: m.vf_level_cn() }
-	]);
+	/* A creator's identity goes through Fayda alone, so their request here is
+	   about channels; only a brand sends papers for a person to read. */
+	const isCreatorSubject = $derived(data.subject?.type === 'creator');
+	const levelItems = $derived(
+		isCreatorSubject
+			? [{ value: 'social_verified', name: m.vf_level_social() }]
+			: [
+					{ value: 'social_verified', name: m.vf_level_social() },
+					{ value: 'identity_verified', name: m.vf_level_identity() },
+					{ value: 'cn_verified', name: m.vf_level_cn() }
+				]
+	);
 
 	const formatDate = (value: string | Date) =>
 		new Date(value).toLocaleDateString(getLocale() === 'am' ? 'am-ET' : 'en-GB', {
@@ -194,14 +201,18 @@
 						required
 					/>
 
-					<InputComp
-						{form}
-						{errors}
-						label={m.vf_evidence_doc()}
-						name="documentUrl"
-						type="file"
-						placeholder={m.vf_evidence_placeholder()}
-					/>
+					{#if isCreatorSubject}
+						<p class="text-[11px] font-medium text-ink-soft">{m.vf_creator_no_documents()}</p>
+					{:else}
+						<InputComp
+							{form}
+							{errors}
+							label={m.vf_evidence_doc()}
+							name="documentUrl"
+							type="file"
+							placeholder={m.vf_evidence_placeholder()}
+						/>
+					{/if}
 
 					<InputComp
 						{form}

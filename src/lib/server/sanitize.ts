@@ -114,9 +114,15 @@ const CONFIG: sanitizeHtml.IOptions = {
 	 * `allowBase64: true` and a pasted image arrives that way; an image is
 	 * decoded as an image whatever it claims to be, and `X-Content-Type-Options`
 	 * is already set on every response.
+	 *
+	 * An image may not point at another site at all. Every picture a reader
+	 * sees has to be served from ours — a hot-linked one breaks the day its
+	 * host renames it, and tells that host who read the article — so an `img`
+	 * keeps only a path on this site (an upload under `/files/`) or `data:`.
+	 * A remote one is dropped with its tag, like any other refused source.
 	 */
 	allowedSchemes: ['http', 'https', 'mailto'],
-	allowedSchemesByTag: { img: ['http', 'https', 'data'] },
+	allowedSchemesByTag: { img: ['data'] },
 	allowProtocolRelative: false,
 	/* An unrecognised tag's *text* is worth keeping; its markup is not. */
 	disallowedTagsMode: 'discard',

@@ -230,6 +230,16 @@
 				type="textarea"
 				rows={2}
 			/>
+			<InputComp
+				{form}
+				{errors}
+				label={m.cm_payment_instructions()}
+				name="invoicePaymentInstructions"
+				type="textarea"
+				rows={3}
+				placeholder={m.cm_payment_instructions_placeholder()}
+				hint={m.cm_payment_instructions_hint()}
+			/>
 		</div>
 
 		<button

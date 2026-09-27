@@ -175,6 +175,8 @@ export const organizations = mysqlTable(
 		 * of the brand's name until they accept the NDA on a brief or a deal.
 		 */
 		industry: varchar('industry', { length: 120 }),
+		/** Tax identification number, printed on the invoices issued to the brand. */
+		tin: varchar('tin', { length: 40 }),
 		/** Creators' reviews of this brand, rolled up like a creator's. */
 		averageRating: double('average_rating').default(0).notNull(),
 		reviewsCount: int('reviews_count').default(0).notNull(),
@@ -230,6 +232,8 @@ export const creators = mysqlTable(
 		totalReach: int('total_reach').default(0).notNull(),
 		startingPrice: int('starting_price').default(0).notNull(),
 		currencyCode: varchar('currency_code', { length: 8 }).default('ETB').notNull(),
+		/** Tax identification number, printed on the creator's statements and withholding certificates. */
+		tin: varchar('tin', { length: 40 }),
 		/** 0–100, derived by $lib/server/score.ts. Never edited by hand. */
 		score: int('score').default(10).notNull(),
 		verificationLevel: mysqlEnum('verification_level', verificationLevelEnum)
@@ -1651,6 +1655,13 @@ export const siteSettings = mysqlTable('site_settings', {
 	invoiceVatNumber: varchar('invoice_vat_number', { length: 40 }).default('').notNull(),
 	invoiceAddress: text('invoice_address'),
 	/**
+	 * How a brand pays an invoice while online payment is off: the bank, the
+	 * account and the name it is held in. Printed on every invoice and on the
+	 * deal page, and what an operator checks a transfer against before
+	 * recording the campaign funds as held.
+	 */
+	invoicePaymentInstructions: text('invoice_payment_instructions'),
+	/**
 	 * How long after a booking completes a brand may still dispute it.
 	 *
 	 * Escrow releases the moment a deal completes, so without a window the
@@ -2676,6 +2687,13 @@ export const contracts = mysqlTable(
 		creatorSignerName: varchar('creator_signer_name', { length: 180 }),
 		creatorSignedAt: timestamp('creator_signed_at', { fsp: 3 }),
 		creatorSignerIp: varchar('creator_signer_ip', { length: 64 }),
+		/**
+		 * The platform's countersignature, applied the moment the second party
+		 * signs: the name is the legal entity from the invoice settings at that
+		 * moment, so the record says who contracted, not who the site is called.
+		 */
+		platformSignerName: varchar('platform_signer_name', { length: 200 }),
+		platformSignedAt: timestamp('platform_signed_at', { fsp: 3 }),
 		signedAt: timestamp('signed_at', { fsp: 3 }),
 		voidedAt: timestamp('voided_at', { fsp: 3 }),
 		...audit()

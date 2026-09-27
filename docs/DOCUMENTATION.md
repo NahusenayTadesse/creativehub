@@ -746,18 +746,39 @@ Only ETB, and only the brand's deposit. A booking priced in anything else says
 so and falls back to the operator path rather than being converted at a rate an
 operator last touched months ago.
 
-### What is not connected
+### Money while the gateway is off
 
-**Payouts.** Money comes in through Chapa; it goes out by hand. `settle`
-releases the held funds as a _record_, not a transfer, and the interface says so rather
-than implying a creator has been paid. Wiring the other direction needs Chapa
-Transfers, a funded balance, and bank details on creator profiles — none of
-which exist yet.
+`PAYMENT_GATEWAY_ENABLED` in `src/lib/payment-gateway.ts` is `false`, so no
+money moves through Chapa. The managed model still holds — the brand pays the
+platform one invoice, the platform holds the campaign funds and pays the
+creator — with an operator doing by hand what the gateway would do:
 
-**Recording a deposit by hand** remains, for money that genuinely moved outside
-the platform: a bank transfer, telebirr paid directly. It is operator-only, and
-the `MANUAL-` payment reference is what tells the two kinds of deposit apart
-afterwards.
+1. **The brand pays against the invoice.** The invoice is issued when both
+   sides have signed the contract. The deal page and every unpaid invoice show
+   the platform's bank details (`invoice_payment_instructions`, set on
+   `/dashboard/admin/commission`) and the deal reference to quote.
+2. **An operator records the funds as held** from the deal page, with the
+   bank's or telebirr's reference. The booking's `payment_ref` becomes
+   `MANUAL-<reference>` and both sides are notified. Production — the concept's
+   approval — waits on this for every paid deal (`awaitsDeposit`).
+3. **The brand confirms delivery** once the proof is in. A paid deal cannot
+   complete until its funds are held; completing releases them.
+4. **An operator pays the creator** from `/dashboard/admin/payouts` and records
+   it with the bank's reference. The payout row is written `success` with a
+   fixed `…-PO-MANUAL` reference, so the unique index refuses a second record
+   for the same deal. Creators give their bank details, and optionally their
+   TIN, on `/dashboard/payouts`; with no provider to ask, the bank list is the
+   static Ethiopian one in `server/payouts.ts`.
+5. **Refunds.** An operator can cancel a stuck deal from the deal page. Held
+   funds on a cancelled deal are returned by transfer and recorded there too,
+   which marks them `refunded`.
+
+A dispute resolved in the creator's favour releases funds only if they were
+held; a deal disputed before the brand paid has nothing to release.
+
+Turning the gateway on restores Chapa checkout, transfers and refunds.
+Accounts saved against the static bank list have ids from 900001 and need
+re-picking from Chapa's list before a transfer can reach them.
 
 ---
 

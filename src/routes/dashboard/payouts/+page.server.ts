@@ -1,10 +1,8 @@
 import * as m from '$lib/paraglide/messages';
 import { superValidate, message } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
-import { error } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
-import { PAYMENT_GATEWAY_ENABLED } from '$lib/payment-gateway';
 import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { requireCreator, recordAudit } from '$lib/server/guards';
@@ -23,16 +21,8 @@ import { payoutAccountSchema } from '$lib/schemas';
 export const load: PageServerLoad = async (event) => {
 	const { creator } = await requireCreator(event);
 
-	/*
-	 * Nothing to show while the gateway is off.
-	 *
-	 * The bank list this form is built from comes from Chapa, and no transfer
-	 * can be sent even once it is filled in — so the page would collect an
-	 * account number it has no use for, which is worse than not asking. Gone
-	 * from the sidebar too; this is for anyone holding the link.
-	 */
-	if (!PAYMENT_GATEWAY_ENABLED) error(404, m.srv_payouts_unavailable());
-
+	/* With the gateway off the bank list is the manual one, and an operator
+	   pays into the account saved here by hand — see `payouts.banks`. */
 	const [account, history, owed, bankList] = await Promise.all([
 		payouts.accountFor(creator.id),
 		listCreatorPayouts(creator.id),
@@ -45,10 +35,12 @@ export const load: PageServerLoad = async (event) => {
 			? {
 					bank: account.bankCode,
 					accountName: account.accountName,
-					accountNumber: account.accountNumber
+					accountNumber: account.accountNumber,
+					tin: creator.tin ?? ''
 				}
-			: undefined,
-		zod4(payoutAccountSchema)
+			: { tin: creator.tin ?? '' },
+		zod4(payoutAccountSchema),
+		{ errors: false }
 	);
 
 	return {
@@ -66,7 +58,6 @@ export const load: PageServerLoad = async (event) => {
 export const actions: Actions = {
 	saveAccount: async (event) => {
 		const { creator, user } = await requireCreator(event);
-		if (!PAYMENT_GATEWAY_ENABLED) error(404, m.srv_payouts_unavailable());
 		const form = await superValidate(event.request, zod4(payoutAccountSchema));
 		if (!form.valid)
 			return message(form, { type: 'error', text: m.srv_check_form() }, { status: 400 });
@@ -103,6 +94,11 @@ export const actions: Actions = {
 		}
 
 		const existing = await payouts.accountFor(creator.id);
+
+		await db
+			.update(t.creators)
+			.set({ tin: form.data.tin || null, updatedBy: user.id })
+			.where(eq(t.creators.id, creator.id));
 
 		/*
 		 * Any edit clears the operator's check.

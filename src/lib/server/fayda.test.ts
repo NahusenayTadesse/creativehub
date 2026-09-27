@@ -6,6 +6,7 @@ import {
 	exchangeCode,
 	fetchIdentity,
 	newAttempt,
+	verifyIdToken,
 	type FaydaConfig
 } from './fayda';
 
@@ -20,7 +21,8 @@ const config: FaydaConfig = {
 	authorizeEndpoint: 'https://fayda.test/authorize',
 	tokenEndpoint: 'https://fayda.test/token',
 	userinfoEndpoint: 'https://fayda.test/userinfo',
-	jwksEndpoint: 'https://fayda.test/jwks'
+	jwksEndpoint: 'https://fayda.test/jwks',
+	issuer: 'https://fayda.test'
 };
 
 const b64 = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -29,13 +31,38 @@ const faydaJwt = (claims: Record<string, unknown>, key = fayda.privateKey) => {
 	return `${input}.${sign('RSA-SHA256', Buffer.from(input), key).toString('base64url')}`;
 };
 
+const inAnHour = () => Math.floor(Date.now() / 1000) + 3600;
+
+/** What Fayda puts in a genuine ID token for this client and attempt. */
+const idClaims = (overrides: Record<string, unknown> = {}) => ({
+	iss: 'https://fayda.test/v1/esignet',
+	aud: 'ie-client',
+	sub: 'psut-123',
+	nonce: 'n-1',
+	exp: inAnHour(),
+	...overrides
+});
+
+/** And in a genuine userinfo answer. */
+const infoClaims = (overrides: Record<string, unknown> = {}) => ({
+	iss: 'https://fayda.test/v1/esignet',
+	aud: 'ie-client',
+	sub: 'psut-123',
+	name: 'Selam Tesfaye',
+	...overrides
+});
+
 /** A stand-in for Fayda's three endpoints. */
 const fakeFayda = (userinfo: string, tokenStatus = 200) =>
 	(async (input: RequestInfo | URL) => {
 		const url = String(input);
 		if (url.endsWith('/token')) {
 			return new Response(
-				JSON.stringify(tokenStatus === 200 ? { access_token: 'at' } : { error: 'invalid_grant' }),
+				JSON.stringify(
+					tokenStatus === 200
+						? { access_token: 'at', id_token: faydaJwt(idClaims()) }
+						: { error: 'invalid_grant' }
+				),
 				{
 					status: tokenStatus
 				}
@@ -68,21 +95,48 @@ describe('Fayda', () => {
 
 	it('keeps the pseudonymous subject and the name, from a signed answer only', async () => {
 		const token = await exchangeCode(config, 'code', 'verifier', fakeFayda(''));
-		expect(token).toEqual({ ok: true, value: { accessToken: 'at' } });
+		expect(token.ok && token.value.accessToken).toBe('at');
 
-		const good = await fetchIdentity(
-			config,
-			'at',
-			fakeFayda(faydaJwt({ sub: 'psut-123', name: 'Selam Tesfaye' }))
-		);
+		const good = await fetchIdentity(config, 'at', fakeFayda(faydaJwt(infoClaims())), 'psut-123');
 		expect(good).toEqual({ ok: true, value: { subject: 'psut-123', name: 'Selam Tesfaye' } });
 
 		const forged = await fetchIdentity(
 			config,
 			'at',
-			fakeFayda(faydaJwt({ sub: 'psut-123', name: 'Someone' }, client.privateKey))
+			fakeFayda(faydaJwt(infoClaims({ name: 'Someone' }), client.privateKey))
 		);
 		expect(forged).toEqual({ ok: false, error: 'bad_signature' });
+	});
+
+	it('believes an ID token only when it was issued for this client and this attempt', async () => {
+		const check = (claims: Record<string, unknown>) =>
+			verifyIdToken(config, faydaJwt(claims), 'n-1', fakeFayda(''));
+
+		expect(await check(idClaims())).toEqual({ ok: true, value: { subject: 'psut-123' } });
+		expect(await check(idClaims({ nonce: 'someone-elses' }))).toEqual({
+			ok: false,
+			error: 'wrong_nonce'
+		});
+		expect(await check(idClaims({ aud: 'another-client' }))).toEqual({
+			ok: false,
+			error: 'wrong_audience'
+		});
+		expect(await check(idClaims({ iss: 'https://evil.test' }))).toEqual({
+			ok: false,
+			error: 'wrong_issuer'
+		});
+		expect(await check(idClaims({ exp: undefined }))).toEqual({ ok: false, error: 'no_expiry' });
+		expect(await check(idClaims({ exp: 1 }))).toEqual({ ok: false, error: 'expired' });
+	});
+
+	it('refuses a userinfo answer about someone other than the ID token', async () => {
+		const other = await fetchIdentity(
+			config,
+			'at',
+			fakeFayda(faydaJwt(infoClaims({ sub: 'psut-999' }))),
+			'psut-123'
+		);
+		expect(other).toEqual({ ok: false, error: 'subject_mismatch' });
 	});
 
 	it('reports a refused code rather than throwing', async () => {

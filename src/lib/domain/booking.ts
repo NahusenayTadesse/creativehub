@@ -1,5 +1,4 @@
 import * as m from '$lib/paraglide/messages';
-import { PAYMENT_GATEWAY_ENABLED } from '$lib/payment-gateway';
 
 /**
  * The booking lifecycle. Transitions are declared here and enforced on the
@@ -80,20 +79,35 @@ type Deal = { status: string; compensationType: string; escrowStatus: string };
 /**
  * Whether money has to arrive before the work may begin.
  *
- * Only a paid deal, and only while there is a way to pay it. A barter deal and
- * an event pass have no deposit by construction, and with the gateway off
- * neither has a paid one: there is no button that would take it and `settle`
- * already stopped asking for it, so waiting on one would be waiting forever.
+ * Every paid deal, whichever way the money travels. The brand pays the
+ * platform — through Chapa where the gateway is on, by bank transfer against
+ * the invoice where it is off — and an operator records a transfer as held.
+ * A barter deal and an event pass have no deposit by construction.
  */
 export const awaitsDeposit = (booking: Deal) =>
-	PAYMENT_GATEWAY_ENABLED && booking.compensationType === 'paid' && booking.escrowStatus !== 'held';
+	booking.compensationType === 'paid' && booking.escrowStatus !== 'held';
+
+/**
+ * The states in which an operator may record the campaign funds as held: from
+ * the signed contract, which is when the brand's invoice is issued, until the
+ * deal ends — including the deals that ran on while no money was taken.
+ */
+export const FUNDABLE_STATUSES: BookingStatus[] = [
+	'booked',
+	'concept',
+	'in_production',
+	'submitted',
+	'revision',
+	'approved',
+	'awaiting_settlement',
+	'disputed'
+];
 
 /**
  * Whether the brand may approve the concept, and so start production.
  *
- * Money first: where a deposit is expected, production waits on it being held,
- * so the creator never makes the content against funds that never arrived.
- * With the gateway off there is no deposit to wait for.
+ * Money first: production waits on the campaign funds being held, so the
+ * creator never makes the content against funds that never arrived.
  */
 export const canApproveConcept = (booking: Deal) =>
 	booking.status === 'concept' && !awaitsDeposit(booking);
@@ -248,5 +262,7 @@ export function bookingReference(): string {
 	const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford: no I, L, O, U
 	const random = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
 
-	return `CN-${stamp}-${random}`;
+	/* `IE` for Influencer Ethiopia. Deals made before the rename keep the `CN-`
+	   they were issued with: the reference is on their contracts and invoices. */
+	return `IE-${stamp}-${random}`;
 }

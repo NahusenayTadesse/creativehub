@@ -37,5 +37,27 @@ export const load: PageServerLoad = async (event) => {
 		typeof doc.data === 'string'
 			? (JSON.parse(doc.data) as DocumentData)
 			: (doc.data as unknown as DocumentData);
-	return { number: doc.number, issuedAt: doc.issuedAt, currencyCode: doc.currencyCode, doc: data };
+	/*
+	 * Whether an invoice has been paid is not part of the snapshot — it changes
+	 * after issue — so it is read from the deal each time: the campaign funds
+	 * are held, or were held and released, once the brand's payment landed.
+	 */
+	let paid: boolean | null = null;
+	if (doc.kind === 'brand_invoice') {
+		const deal = await db
+			.select({ escrowStatus: t.bookings.escrowStatus })
+			.from(t.bookings)
+			.where(eq(t.bookings.id, doc.bookingId))
+			.limit(1);
+		const status = deal.at(0)?.escrowStatus;
+		paid = status === 'held' || status === 'released' || status === 'refunded';
+	}
+
+	return {
+		number: doc.number,
+		issuedAt: doc.issuedAt,
+		currencyCode: doc.currencyCode,
+		doc: data,
+		paid
+	};
 };

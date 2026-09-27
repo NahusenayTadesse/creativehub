@@ -86,7 +86,9 @@
 							<Star class="h-3 w-3 fill-current" />
 							{brand.averageRating.toFixed(1)}
 							<span class="font-bold text-ink-dim">
-								· {m.br_review_count({ count: brand.reviewsCount })}
+								· {brand.reviewsCount === 1
+									? m.br_review_count_one()
+									: m.br_review_count({ count: brand.reviewsCount })}
 							</span>
 						</span>
 					{/if}

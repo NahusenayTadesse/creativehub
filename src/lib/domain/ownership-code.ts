@@ -24,13 +24,21 @@
 const ALPHABET = '2346789ABCDEFGHJKMNPQRTVWXYZ';
 
 /** Marks the string as ours in a bio that may have other things in it. */
-const PREFIX = 'CN';
+const PREFIX = 'IE';
+
+/*
+ * Codes minted before the rename to Influencer Ethiopia began `CN-`. A creator
+ * may still be part-way through proving a channel with one — it is stored on
+ * the channel and checked against their bio — so those are still recognised;
+ * only new codes carry the new prefix.
+ */
+const PREFIXES = [PREFIX, 'CN'];
 
 /** Characters after the prefix. 28^4 ≈ 615,000 — far more than a guesser gets attempts at. */
 const LENGTH = 4;
 
 /**
- * A code, as `CN-4F7K`.
+ * A code, as `IE-4F7K`.
  *
  * Rejection sampling rather than `% ALPHABET.length`: 256 is not a multiple of
  * 28, so plain modulo would make the first 4 characters of the alphabet
@@ -81,5 +89,5 @@ export function bioContainsCode(bio: string | null | undefined, code: string | n
 
 /** Whether a string looks like one of ours, for narrowing what gets checked at all. */
 export function isOwnershipCode(value: string): boolean {
-	return new RegExp(`^${PREFIX}[${ALPHABET}]{${LENGTH}}$`).test(squash(value));
+	return new RegExp(`^(${PREFIXES.join('|')})[${ALPHABET}]{${LENGTH}}$`).test(squash(value));
 }

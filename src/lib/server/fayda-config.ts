@@ -42,6 +42,7 @@ export function faydaConfig(): FaydaConfig | null {
 		authorizeEndpoint: env.FAYDA_AUTHORIZE_URL || `${issuer}/authorize`,
 		tokenEndpoint: env.FAYDA_TOKEN_URL || `${issuer}/v1/esignet/oauth/v2/token`,
 		userinfoEndpoint: env.FAYDA_USERINFO_URL || `${issuer}/v1/esignet/oidc/userinfo`,
-		jwksEndpoint: env.FAYDA_JWKS_URL || `${issuer}/v1/esignet/oauth/.well-known/jwks.json`
+		jwksEndpoint: env.FAYDA_JWKS_URL || `${issuer}/v1/esignet/oauth/.well-known/jwks.json`,
+		issuer
 	};
 }

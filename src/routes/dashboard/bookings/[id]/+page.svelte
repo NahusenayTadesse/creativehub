@@ -392,13 +392,28 @@
 		(code) => ({ value: code, name: code })
 	);
 
-	/** The four sub-scores, keyed so the star rows stay type-safe. */
-	const SUB_RATINGS = $derived([
-		{ key: 'communication', label: m.profile_rating_communication() },
-		{ key: 'quality', label: m.profile_rating_quality() },
-		{ key: 'timeliness', label: m.profile_rating_timeliness() },
-		{ key: 'professionalism', label: m.profile_rating_compliance() }
-	] as const);
+	/**
+	 * The four sub-scores, keyed so the star rows stay type-safe.
+	 *
+	 * The same four columns either way, but not the same questions: a brand
+	 * rates the creator's content and whether it followed the brief; a creator
+	 * rates how clear the brief was and whether approvals came on time.
+	 */
+	const SUB_RATINGS = $derived(
+		data.side === 'creator'
+			? ([
+					{ key: 'communication', label: m.profile_rating_communication() },
+					{ key: 'quality', label: m.rating_brand_brief_clarity() },
+					{ key: 'timeliness', label: m.rating_brand_timeliness() },
+					{ key: 'professionalism', label: m.rating_brand_professionalism() }
+				] as const)
+			: ([
+					{ key: 'communication', label: m.profile_rating_communication() },
+					{ key: 'quality', label: m.profile_rating_quality() },
+					{ key: 'timeliness', label: m.profile_rating_timeliness() },
+					{ key: 'professionalism', label: m.profile_rating_compliance() }
+				] as const)
+	);
 
 	/**
 	 * Plain form posts share one handler so every outcome toasts consistently.
@@ -711,25 +726,6 @@
 						>
 							<Wallet class="h-3.5 w-3.5" />
 							{m.bk_pay_deposit()}
-						</button>
-					</form>
-				{/if}
-
-				<!-- The manual path is what remains for money that moved outside the
-				     platform — a bank transfer, telebirr paid directly. Operators only;
-				     the server refuses it from anyone else, and refuses it from
-				     everyone while the gateway is off, since a deal that completes
-				     without a deposit should not be collecting one. -->
-				{#if data.paymentsEnabled && ['booked', 'concept'].includes(booking.status) && isOperator && booking.escrowStatus !== 'held'}
-					<form method="POST" action="?/fund" use:enhance={actionEnhance(m.bk_deposit_recorded())}>
-						<input type="hidden" name="bookingId" value={booking.id} />
-						<input type="hidden" name="paymentMethod" value="bank_transfer" />
-						<button
-							type="submit"
-							class="flex items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-4 py-2 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] hover:bg-panel"
-						>
-							<Wallet class="h-3.5 w-3.5" />
-							{m.bk_record_deposit_manual()}
 						</button>
 					</form>
 				{/if}
@@ -1211,9 +1207,9 @@
 				<p
 					class="mt-2 rounded-xl border border-warn-edge bg-warn-soft p-2 text-[10px] leading-relaxed font-medium text-warn-fg"
 				>
-					<!-- With the gateway off the badge above says `unfunded` on deals that
-					     completed perfectly well, so the note has to explain that rather
-					     than promise a confirmation step that no longer runs. -->
+					<!-- With the gateway off the brand pays by bank transfer and an
+					     operator records it; the note says so rather than promising a
+					     checkout that is not there. -->
 					{data.paymentsEnabled ? m.bk_compensation_note() : m.bk_compensation_note_offline()}
 				</p>
 			</div>

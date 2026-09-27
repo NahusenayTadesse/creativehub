@@ -30,6 +30,8 @@ export const load: PageServerLoad = async (event) => {
 			brandSignedAt: contract.brandSignedAt,
 			creatorSignerName: contract.creatorSignerName,
 			creatorSignedAt: contract.creatorSignedAt,
+			platformSignerName: contract.platformSignerName,
+			platformSignedAt: contract.platformSignedAt,
 			signedAt: contract.signedAt
 		}
 	};

@@ -16,7 +16,7 @@ import { recordAudit } from '$lib/server/guards';
  */
 
 /**
- * A reference for one attempt: `CN-2608-K4F2WQ7A-LZ4F9K2P`.
+ * A reference for one attempt: `IE-2608-K4F2WQ7A-LZ4F9K2P`.
  *
  * The booking's own reference is the readable half, so an operator holding a
  * Chapa dashboard entry can find the deal without a lookup. The random half is

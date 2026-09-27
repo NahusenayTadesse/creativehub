@@ -44,6 +44,8 @@ export type FaydaConfig = {
 	tokenEndpoint: string;
 	userinfoEndpoint: string;
 	jwksEndpoint: string;
+	/** Who signs Fayda's tokens; a token naming another origin is refused. */
+	issuer: string;
 };
 
 const TIMEOUT_MS = 15_000;
@@ -134,7 +136,7 @@ export async function exchangeCode(
 	code: string,
 	codeVerifier: string,
 	fetchImpl: FaydaFetch = fetch
-): Promise<FaydaResult<{ accessToken: string }>> {
+): Promise<FaydaResult<{ accessToken: string; idToken: string }>> {
 	try {
 		const { status, json } = await post(
 			config.tokenEndpoint,
@@ -153,7 +155,11 @@ export async function exchangeCode(
 		if (status !== 200 || !accessToken) {
 			return { ok: false, error: String(json?.error ?? `token_http_${status}`) };
 		}
-		return { ok: true, value: { accessToken } };
+		/* The ID token is what carries the nonce this attempt sent, and so what
+		   ties the answer to the browser that asked. No ID token, no answer. */
+		const idToken = typeof json?.id_token === 'string' ? json.id_token : '';
+		if (!idToken) return { ok: false, error: 'no_id_token' };
+		return { ok: true, value: { accessToken, idToken } };
 	} catch {
 		return { ok: false, error: 'token_unreachable' };
 	}
@@ -161,11 +167,40 @@ export async function exchangeCode(
 
 type Jwk = Record<string, unknown> & { kid?: string; kty?: string; use?: string };
 
-/** Checks an RS256 JWT against Fayda's published keys and returns its claims. */
+/** What a token has to say about itself, beyond carrying a good signature. */
+export type JwtExpectations = {
+	/** The issuer's origin must match this one's. */
+	issuer?: string;
+	/** Must be the token's audience, or one of them. */
+	audience?: string;
+	/** Must equal the token's `nonce` claim exactly. */
+	nonce?: string;
+	/** Refuse a token with no `exp` at all, rather than treating it as eternal. */
+	requireExpiry?: boolean;
+};
+
+const sameOrigin = (a: string, b: string) => {
+	try {
+		return new URL(a).origin === new URL(b).origin;
+	} catch {
+		return false;
+	}
+};
+
+/**
+ * Checks an RS256 JWT against Fayda's published keys and returns its claims.
+ *
+ * A good signature proves Fayda wrote the token, not that it was written for
+ * us or for this attempt: a token Fayda issued to another relying party, or
+ * one captured from an earlier sign-in, is signed just as well. So the claims
+ * are held to `expect` too — the issuer, the audience, the nonce this attempt
+ * sent, and an expiry.
+ */
 export async function verifyJwt(
 	token: string,
 	jwksEndpoint: string,
-	fetchImpl: FaydaFetch = fetch
+	fetchImpl: FaydaFetch = fetch,
+	expect: JwtExpectations = {}
 ): Promise<FaydaResult<Record<string, unknown>>> {
 	const parts = token.split('.');
 	if (parts.length !== 3) return { ok: false, error: 'not_a_jwt' };
@@ -206,8 +241,41 @@ export async function verifyJwt(
 	if (!valid) return { ok: false, error: 'bad_signature' };
 
 	const exp = typeof claims.exp === 'number' ? claims.exp : null;
+	if (exp === null && expect.requireExpiry) return { ok: false, error: 'no_expiry' };
 	if (exp !== null && exp * 1000 < Date.now() - 60_000) return { ok: false, error: 'expired' };
+	if (expect.issuer && !(typeof claims.iss === 'string' && sameOrigin(claims.iss, expect.issuer))) {
+		return { ok: false, error: 'wrong_issuer' };
+	}
+	if (expect.audience) {
+		const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+		if (!aud.includes(expect.audience)) return { ok: false, error: 'wrong_audience' };
+	}
+	if (expect.nonce !== undefined && claims.nonce !== expect.nonce) {
+		return { ok: false, error: 'wrong_nonce' };
+	}
 	return { ok: true, value: claims };
+}
+
+/**
+ * The subject of the ID token this attempt was answered with — once it is
+ * shown to be Fayda's, addressed to us, unexpired, and carrying our nonce.
+ */
+export async function verifyIdToken(
+	config: FaydaConfig,
+	idToken: string,
+	nonce: string,
+	fetchImpl: FaydaFetch = fetch
+): Promise<FaydaResult<{ subject: string }>> {
+	const verified = await verifyJwt(idToken, config.jwksEndpoint, fetchImpl, {
+		issuer: config.issuer,
+		audience: config.clientId,
+		nonce,
+		requireExpiry: true
+	});
+	if (!verified.ok) return verified;
+	const subject = typeof verified.value.sub === 'string' ? verified.value.sub : '';
+	if (!subject) return { ok: false, error: 'no_subject' };
+	return { ok: true, value: { subject } };
 }
 
 export type FaydaIdentity = { subject: string; name: string | null };
@@ -219,7 +287,10 @@ export type FaydaIdentity = { subject: string; name: string | null };
 export async function fetchIdentity(
 	config: FaydaConfig,
 	accessToken: string,
-	fetchImpl: FaydaFetch = fetch
+	fetchImpl: FaydaFetch = fetch,
+	/* The ID token's subject: OIDC requires the userinfo answer to be about
+	   the same person, or it is not believed. */
+	expectedSubject?: string
 ): Promise<FaydaResult<FaydaIdentity>> {
 	let body: string;
 	try {
@@ -233,11 +304,19 @@ export async function fetchIdentity(
 		return { ok: false, error: 'userinfo_unreachable' };
 	}
 
-	const verified = await verifyJwt(body, config.jwksEndpoint, fetchImpl);
+	/* A signed userinfo answer carries an issuer and audience but, unlike the
+	   ID token, no required expiry. */
+	const verified = await verifyJwt(body, config.jwksEndpoint, fetchImpl, {
+		issuer: config.issuer,
+		audience: config.clientId
+	});
 	if (!verified.ok) return verified;
 
 	const subject = typeof verified.value.sub === 'string' ? verified.value.sub : '';
 	if (!subject) return { ok: false, error: 'no_subject' };
+	if (expectedSubject !== undefined && subject !== expectedSubject) {
+		return { ok: false, error: 'subject_mismatch' };
+	}
 	const name = typeof verified.value.name === 'string' ? verified.value.name : null;
 	return { ok: true, value: { subject, name } };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkpointIsOpen, dueCheckpoints, postedAtProblem } from './proof';
+import { checkpointIsOpen, dueCheckpoints, postedAtProblem, wallClockToDate } from './proof';
 
 const posted = new Date('2026-09-01T12:00:00Z');
 const at = (iso: string) => new Date(iso);
@@ -23,5 +23,24 @@ describe('checkpoints', () => {
 		expect(postedAtProblem(at('2026-09-06T00:00:00Z'), posted, now)).toBe('future');
 		expect(postedAtProblem(at('2026-08-01T00:00:00Z'), posted, now)).toBe('before_deal');
 		expect(postedAtProblem(at('2026-09-02T00:00:00Z'), posted, now)).toBeNull();
+	});
+});
+
+describe('wallClockToDate', () => {
+	it("reads the time on the creator's clock, not the server's", () => {
+		/* 21:09 in Addis is 18:09 UTC, whatever zone the server runs in. */
+		expect(wallClockToDate('2026-09-27T21:09', -180)?.toISOString()).toBe(
+			'2026-09-27T18:09:00.000Z'
+		);
+		expect(wallClockToDate('2026-09-27T21:09', 0)?.toISOString()).toBe('2026-09-27T21:09:00.000Z');
+	});
+
+	it('assumes Ethiopian time without an offset', () => {
+		expect(wallClockToDate('2026-09-27T00:30')?.toISOString()).toBe('2026-09-26T21:30:00.000Z');
+	});
+
+	it('refuses anything that is not a datetime-local value', () => {
+		expect(wallClockToDate('yesterday')).toBeNull();
+		expect(wallClockToDate('2026-09-27')).toBeNull();
 	});
 });

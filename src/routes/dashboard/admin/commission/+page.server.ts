@@ -34,7 +34,8 @@ export const load: PageServerLoad = async (event) => {
 		invoiceLegalName: settings?.invoiceLegalName ?? '',
 		invoiceTin: settings?.invoiceTin ?? '',
 		invoiceVatNumber: settings?.invoiceVatNumber ?? '',
-		invoiceAddress: settings?.invoiceAddress ?? ''
+		invoiceAddress: settings?.invoiceAddress ?? '',
+		invoicePaymentInstructions: settings?.invoicePaymentInstructions ?? ''
 	});
 	return { form };
 };
@@ -60,6 +61,7 @@ export const actions: Actions = {
 		const row = {
 			...rest,
 			invoiceAddress: rest.invoiceAddress || null,
+			invoicePaymentInstructions: rest.invoicePaymentInstructions || null,
 			commissionTiers: tiers
 		};
 		const existing = await getSettings();

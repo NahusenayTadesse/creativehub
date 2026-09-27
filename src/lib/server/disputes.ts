@@ -5,6 +5,9 @@ import * as t from '$lib/server/db/schema';
 import { notify } from '$lib/server/notify';
 import { recordAudit } from '$lib/server/guards';
 import * as refunds from '$lib/server/refunds';
+import * as documents from '$lib/server/documents';
+import { getSettings } from '$lib/server/queries';
+import { withholdingOn } from '$lib/domain/documents';
 import {
 	disputeResolutionLabel,
 	resolutionAmounts,
@@ -231,14 +234,28 @@ export async function resolve(
 	const outcome = resolutionOutcome(input.resolution);
 
 	/*
-	 * Escrow follows the decision only where the decision is final on its own.
+	 * Escrow follows the decision only where the decision is final on its own,
+	 * and only for money that is actually there.
 	 *
-	 * `released` is permission for the payout queue and takes effect now. A
-	 * refund is not: the money has not gone back until Chapa says so, and
+	 * `released` is permission for the payout queue and takes effect now — so
+	 * it is written only over funds that were `held`. A deal disputed before the
+	 * brand paid has nothing to release, and marking it released would put a
+	 * creator in the payout queue for money that never came in. A refund is not
+	 * final either: the money has not gone back until Chapa says so, and
 	 * `refunds.reconcile` is what writes `refunded`. Marking it here would show
 	 * the brand as repaid the instant an operator pressed a button.
 	 */
-	const escrowStatus = outcome.escrowStatus === 'released' ? 'released' : booking.escrowStatus;
+	const escrowStatus =
+		outcome.escrowStatus === 'released' && booking.escrowStatus === 'held'
+			? 'released'
+			: booking.escrowStatus;
+
+	/* A decision that completes the deal fixes the tax withheld from the
+	   creator's share, as `settle` does, so the documents below certify it. */
+	const withholdingTax =
+		outcome.status === 'completed' && booking.compensationType === 'paid'
+			? withholdingOn(amounts.payout, (await getSettings())?.withholdingPercent ?? 0)
+			: 0;
 
 	await db
 		.update(t.bookings)
@@ -247,6 +264,7 @@ export async function resolve(
 			escrowStatus,
 			platformFee: amounts.platformFee,
 			creatorPayout: amounts.payout,
+			withholdingTax,
 			completedAt: outcome.status === 'completed' ? (booking.completedAt ?? new Date()) : null,
 			cancelReason: outcome.status === 'cancelled' ? input.note || 'Dispute resolved' : null,
 			updatedBy: input.actor.id
@@ -281,6 +299,18 @@ export async function resolve(
 				300
 			)
 	});
+
+	/* A deal the decision completed gets the statement and certificate a
+	   deal completed by `settle` would have, and its invoice if it had none. */
+	if (outcome.status === 'completed') {
+		const after = (
+			await db.select().from(t.bookings).where(eq(t.bookings.id, booking.id)).limit(1)
+		)[0];
+		if (after) {
+			await documents.issueCreatorDocuments(after);
+			await documents.issueBrandInvoice(after);
+		}
+	}
 
 	let refundQueued = false;
 	let refundError: string | undefined;

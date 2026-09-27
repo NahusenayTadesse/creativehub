@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
 	import type { SubmitFunction } from '@sveltejs/kit';
@@ -20,7 +20,13 @@
 	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
 	import { assetUrl } from '$lib/assets';
 	import { formatAmountWithCode } from '$lib/domain/money';
-	import { CHECKPOINTS, checkpointIsOpen, checkpointOpensAt } from '$lib/domain/proof';
+	import {
+		CHECKPOINTS,
+		checkpointIsOpen,
+		checkpointOpensAt,
+		EAT_OFFSET_MINUTES
+	} from '$lib/domain/proof';
+	import { canTransition, FUNDABLE_STATUSES, type BookingStatus } from '$lib/domain/booking';
 	import * as m from '$lib/paraglide/messages';
 	import { getLocale } from '$lib/paraglide/runtime';
 
@@ -50,11 +56,17 @@
 			canSeeBrand: boolean;
 			canApproveConcept: boolean;
 			awaitsDeposit: boolean;
+			/* True while no provider is configured: money moves by hand. */
+			manualPayments: boolean;
+			/* The platform's bank details, from the invoice settings. */
+			paymentInstructions: string;
 			identityRequired: boolean;
 			booking: {
 				id: number;
 				status: string;
 				compensationType: string;
+				escrowStatus: string;
+				reference: string;
 				currencyCode: string;
 				price: number;
 				platformFee: number;
@@ -79,6 +91,8 @@
 				brandSignedAt: string | Date | null;
 				creatorSignerName: string | null;
 				creatorSignedAt: string | Date | null;
+				platformSignerName: string | null;
+				platformSignedAt: string | Date | null;
 				signedAt: string | Date | null;
 			} | null;
 			concepts: {
@@ -269,6 +283,35 @@
 
 	const paid = $derived(booking.compensationType === 'paid' && booking.price > 0);
 
+	/*
+	 * Where the campaign funds are owed and not yet held: from the signed
+	 * contract, which is when the invoice is issued, until the deal ends. The
+	 * brand is told how to pay; an operator records the transfer once it lands.
+	 */
+	const fundsOwed = $derived(
+		paid &&
+			booking.escrowStatus === 'unfunded' &&
+			FUNDABLE_STATUSES.includes(booking.status as BookingStatus)
+	);
+	/* The creator's clock, for reading the posted-at time they type. Ethiopia's
+	   until the browser says otherwise: the server's own clock is not theirs. */
+	let tzOffset = $state(EAT_OFFSET_MINUTES);
+	onMount(() => {
+		tzOffset = new Date().getTimezoneOffset();
+	});
+	let transferRef = $state('');
+	let paymentMethod = $state('bank_transfer');
+
+	/* What an operator may do when a deal is stuck — decided by the same
+	   transition table and escrow state the actions re-check. */
+	const canOperatorCancel = $derived(canTransition(booking.status as BookingStatus, 'cancelled'));
+	const canRecordRefund = $derived(
+		booking.status === 'cancelled' && booking.escrowStatus === 'held' && data.manualPayments
+	);
+	let waiveReason = $state('');
+	let cancelReason = $state('');
+	let refundRef = $state('');
+
 	/* What the deal is waiting on, and whose move it is — said once, above the stages. */
 	const nextStep = $derived.by(() => {
 		switch (booking.status) {
@@ -375,6 +418,55 @@
 			{/if}
 		</dl>
 		<p class="text-[10px] font-medium text-ink-dim">{m.md_money_note()}</p>
+
+		{#if fundsOwed && (isBrand || isOperator) && data.manualPayments}
+			<div class="space-y-2 rounded-xl border-2 border-info-edge bg-info-soft p-3 text-xs">
+				<p class="font-black text-info-fg">{m.md_pay_by_transfer_title()}</p>
+				{#if data.paymentInstructions}
+					<p class="font-medium whitespace-pre-line text-ink">{data.paymentInstructions}</p>
+				{:else}
+					<p class="font-medium text-ink-soft">{m.md_pay_by_transfer_missing()}</p>
+				{/if}
+				<p class="font-medium text-ink-soft">
+					{m.md_pay_by_transfer_quote({
+						reference: booking.reference,
+						amount: money(booking.brandTotal || booking.price)
+					})}
+				</p>
+			</div>
+		{/if}
+
+		{#if fundsOwed && isOperator}
+			<form
+				method="POST"
+				action="?/fund"
+				use:enhance={actionEnhance(m.bk_deposit_recorded())}
+				class="space-y-2 rounded-xl border-2 border-edge-soft bg-well p-3"
+			>
+				<p class="text-xs font-black text-ink">{m.md_record_funds_title()}</p>
+				<input type="hidden" name="bookingId" value={booking.id} />
+				<InputComp
+					name="paymentMethod"
+					type="select"
+					label={m.md_record_funds_method()}
+					items={[
+						{ value: 'bank_transfer', name: m.md_method_bank_transfer() },
+						{ value: 'telebirr', name: 'telebirr' },
+						{ value: 'cbe_birr', name: 'CBE Birr' }
+					]}
+					bind:value={paymentMethod}
+				/>
+				<InputComp
+					name="transferRef"
+					type="text"
+					label={m.md_record_funds_ref()}
+					bind:value={transferRef}
+				/>
+				<button type="submit" class={secondaryButton}>
+					{m.md_record_funds_submit({ amount: money(booking.brandTotal || booking.price) })}
+				</button>
+			</form>
+		{/if}
 	</div>
 {/if}
 
@@ -415,6 +507,15 @@
 					<p class="mt-1 font-bold text-ink-soft">{m.ct_not_signed()}</p>
 				{/if}
 			</div>
+			{#if contract.platformSignedAt}
+				<div class="rounded-xl border-2 border-edge-soft bg-well p-3 sm:col-span-2">
+					<p class="font-black tracking-wider text-ink-dim uppercase">
+						{m.ct_platform_signature()}
+					</p>
+					<p class="mt-1 font-bold text-ink">{contract.platformSignerName}</p>
+					<p class="text-ink-dim">{formatDateTime(contract.platformSignedAt)}</p>
+				</div>
+			{/if}
 		</div>
 
 		<details class="rounded-xl border-2 border-edge-soft" open={canSign}>
@@ -811,6 +912,8 @@
 					name="postedAt"
 					type="datetime-local"
 				/>
+				<!-- Which clock that time was read on; see `wallClockToDate`. -->
+				<input type="hidden" name="tzOffset" value={tzOffset} />
 				<InputComp
 					form={proofForm}
 					errors={proofErrors}
@@ -866,5 +969,72 @@
 				</li>
 			{/each}
 		</ul>
+	</div>
+{/if}
+
+<!-- ===== An operator stepping in ===== -->
+{#if isOperator && (canOperatorCancel || booking.status === 'approved' || canRecordRefund)}
+	<div class="bento-card bento-card-static space-y-3 border-warn-edge">
+		<h2 class={cardTitle}>{m.op_title()}</h2>
+		<p class="text-[11px] font-medium text-ink-soft">{m.op_body()}</p>
+
+		{#if booking.status === 'approved'}
+			<form
+				method="POST"
+				action="?/waiveProof"
+				use:enhance={actionEnhance(m.op_waived_toast())}
+				class="space-y-2"
+			>
+				<input type="hidden" name="bookingId" value={booking.id} />
+				<InputComp
+					name="reason"
+					id="waive-reason"
+					type="text"
+					label={m.op_waive_reason()}
+					bind:value={waiveReason}
+				/>
+				<button type="submit" class={secondaryButton}>{m.op_waive()}</button>
+			</form>
+		{/if}
+
+		{#if canOperatorCancel}
+			<form
+				method="POST"
+				action="?/operatorCancel"
+				use:enhance={actionEnhance(m.op_cancelled_toast())}
+				class="space-y-2"
+			>
+				<input type="hidden" name="bookingId" value={booking.id} />
+				<InputComp
+					name="reason"
+					id="cancel-reason"
+					type="text"
+					label={m.op_cancel_reason()}
+					bind:value={cancelReason}
+				/>
+				<button type="submit" class={secondaryButton}>{m.op_cancel()}</button>
+			</form>
+		{/if}
+
+		{#if canRecordRefund}
+			<form
+				method="POST"
+				action="?/recordRefund"
+				use:enhance={actionEnhance(m.op_refund_toast())}
+				class="space-y-2"
+			>
+				<input type="hidden" name="bookingId" value={booking.id} />
+				<InputComp
+					name="transferRef"
+					id="refund-ref"
+					type="text"
+					label={m.md_record_funds_ref()}
+					bind:value={refundRef}
+				/>
+				<button type="submit" class={secondaryButton}>
+					{m.op_record_refund({ amount: money(booking.brandTotal || booking.price) })}
+				</button>
+			</form>
+		{/if}
 	</div>
 {/if}

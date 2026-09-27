@@ -29,6 +29,29 @@ export function dueCheckpoints(
 	return CHECKPOINTS.filter((cp) => !done.has(cp) && checkpointIsOpen(postedAt, cp, now));
 }
 
+/** Ethiopia's offset from UTC as `getTimezoneOffset()` reports it: UTC+3, no DST. */
+export const EAT_OFFSET_MINUTES = -180;
+
+/**
+ * The instant a `datetime-local` value names, read on the creator's clock.
+ *
+ * The field sends "2026-09-27T21:09" and nothing else. `new Date()` on the
+ * server would read that on the *server's* clock — UTC in production — putting
+ * every post three hours late and refusing "now" as a future time. The
+ * browser's own offset says which clock it was; without one, Ethiopia's.
+ */
+export function wallClockToDate(
+	value: string,
+	tzOffsetMinutes: number = EAT_OFFSET_MINUTES
+): Date | null {
+	const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
+	if (!match) return null;
+	const [, y, mo, d, h, mi, sec] = match.map(Number);
+	const asUtc = Date.UTC(y, mo - 1, d, h, mi, sec || 0);
+	const date = new Date(asUtc + tzOffsetMinutes * 60_000);
+	return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /** A posted-at time the creator states: not in the future, not before the deal. */
 export function postedAtProblem(
 	postedAt: Date,

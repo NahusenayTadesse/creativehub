@@ -14,25 +14,25 @@
 
 ## Contents
 
-| #   | Section                                                                     | What it lists                                        |
-| --- | --------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 1   | [How to read this](#1-how-to-read-this)                                     | Scope, conventions, and what "shipped" means here    |
-| 2   | [The feature map](#2-the-feature-map)                                       | Everything at a glance, in one table                 |
-| 3   | [Discovery and the public site](#3-discovery-and-the-public-site)           | What a visitor with no account can do                |
-| 4   | [The creator workspace](#4-the-creator-workspace)                           | Profile, channels, packages, portfolio, applications |
-| 5   | [The brand workspace](#5-the-brand-workspace)                               | Organisation, briefs, shortlist, spend               |
-| 6   | [The deal engine](#6-the-deal-engine)                                       | Lifecycle, terms, messaging, delivery, reviews       |
-| 7   | [Payments and money](#7-payments-and-money)                                 | Chapa checkout, held-funds states, fee split, currency   |
-| 8   | [Trust, identity and verification](#8-trust-identity-and-verification)      | The ladder, claims, introductions, badges            |
-| 9   | [Ranking and curation](#9-ranking-and-curation)                             | The creator score, the match score, trending, lanes  |
-| 10  | [Editorial](#10-editorial)                                                  | The blog, its editor, its feed, its states           |
-| 11  | [The operator console](#11-the-operator-console)                            | Reference data, queues, levers, the audit log        |
-| 12  | [Accounts, access and notifications](#12-accounts-access-and-notifications) | Sign-in, roles, sessions, preferences, mail          |
-| 13  | [Platform capabilities](#13-platform-capabilities)                          | The features every screen inherits for free          |
-| 14  | [Security features](#14-security-features)                                  | What is enforced, and where                          |
-| 15  | [Operations and tooling](#15-operations-and-tooling)                        | Build, test, deploy, scripts, health                 |
-| 16  | [Appendix: route map](#16-appendix-route-map)                               | All 58 routes                                        |
-| 17  | [Appendix: data model](#17-appendix-data-model)                             | All 43 tables, grouped                               |
+| #   | Section                                                                     | What it lists                                          |
+| --- | --------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 1   | [How to read this](#1-how-to-read-this)                                     | Scope, conventions, and what "shipped" means here      |
+| 2   | [The feature map](#2-the-feature-map)                                       | Everything at a glance, in one table                   |
+| 3   | [Discovery and the public site](#3-discovery-and-the-public-site)           | What a visitor with no account can do                  |
+| 4   | [The creator workspace](#4-the-creator-workspace)                           | Profile, channels, packages, portfolio, applications   |
+| 5   | [The brand workspace](#5-the-brand-workspace)                               | Organisation, briefs, shortlist, spend                 |
+| 6   | [The deal engine](#6-the-deal-engine)                                       | Lifecycle, terms, messaging, delivery, reviews         |
+| 7   | [Payments and money](#7-payments-and-money)                                 | Chapa checkout, held-funds states, fee split, currency |
+| 8   | [Trust, identity and verification](#8-trust-identity-and-verification)      | The ladder, claims, introductions, badges              |
+| 9   | [Ranking and curation](#9-ranking-and-curation)                             | The creator score, the match score, trending, lanes    |
+| 10  | [Editorial](#10-editorial)                                                  | The blog, its editor, its feed, its states             |
+| 11  | [The operator console](#11-the-operator-console)                            | Reference data, queues, levers, the audit log          |
+| 12  | [Accounts, access and notifications](#12-accounts-access-and-notifications) | Sign-in, roles, sessions, preferences, mail            |
+| 13  | [Platform capabilities](#13-platform-capabilities)                          | The features every screen inherits for free            |
+| 14  | [Security features](#14-security-features)                                  | What is enforced, and where                            |
+| 15  | [Operations and tooling](#15-operations-and-tooling)                        | Build, test, deploy, scripts, health                   |
+| 16  | [Appendix: route map](#16-appendix-route-map)                               | All 58 routes                                          |
+| 17  | [Appendix: data model](#17-appendix-data-model)                             | All 43 tables, grouped                                 |
 
 ---
 
@@ -72,7 +72,7 @@ Three conventions run through it:
 | **Creator workspace** | Profile editor and publish toggle, first-run creation, profile claiming, social channels, priced packages, portfolio, brief applications, verification submission, reviews, earnings dashboard | `creator`       |
 | **Brand workspace**   | Organisation profile and creation, campaign briefs with three compensation models, application triage, shortlist, spend dashboard, reviews written                                             | `brand`         |
 | **Deals**             | Nine-state lifecycle, counter-proposals, frozen terms snapshot, masked messaging, submissions, reasoned revisions, two-way reviews, per-transition audit                                       | Both sides      |
-| **Money**             | Chapa hosted checkout, verified settlement, held-funds states, stored fee split, manual deposit recording, per-country currency conversion                                                         | Brand, operator |
+| **Money**             | Chapa hosted checkout, verified settlement, held-funds states, stored fee split, manual deposit recording, per-country currency conversion                                                     | Brand, operator |
 | **Trust**             | Four-level verification ladder with evidence review, profile claims queue, introduction queue for unclaimed profiles, representation badges                                                    | Operator        |
 | **Ranking**           | Derived 0–100 creator score, five-factor campaign fit score, ten-signal trending policy, six kinds of trending lane, reader-location ranking                                                   | Automatic       |
 | **Editorial**         | Rich-text article editor, sanitised HTML storage, sections, tags, galleries, scheduling, RSS, SEO metadata                                                                                     | `admin`         |
@@ -330,7 +330,7 @@ requests an action; it never asserts a state.
 | Terms              | Title, brief, deliverables, deadline, revision allowance, compensation model                                     |
 | Price              | Amount and currency, plus the platform fee and creator payout, split and stored at creation                      |
 | Terms snapshot     | Frozen on mutual acceptance, once — editing a profile, package or brief afterwards cannot reach into a live deal |
-| Funds state       | `unfunded`, `pending`, `held`, `released`, `refunded`                                                            |
+| Funds state        | `unfunded`, `pending`, `held`, `released`, `refunded`                                                            |
 | Introduction state | Whether anyone has yet reached the creator behind an unclaimed profile (§8.3)                                    |
 
 ### 6.3 Actions on a deal
@@ -343,7 +343,7 @@ requests an action; it never asserts a state.
 | `fund`       | Operator        | Record a deposit that moved outside the platform                    |
 | `submit`     | Creator         | Hand over the work, with a link, files and a note                   |
 | `review`     | Brand           | Approve the submission, or request a revision with a reason         |
-| `settle`     | Operator        | Release the held funds as a record and complete the deal                    |
+| `settle`     | Operator        | Release the held funds as a record and complete the deal            |
 | `rate`       | Both            | Leave a review once the deal is complete                            |
 | `message`    | Both            | Post to the deal conversation                                       |
 
@@ -400,11 +400,15 @@ depth rather than the thing holding the door.
 | Funding starts work   | A funded deposit moves a booking from `booked` to `in_production`, because submission accepts nothing earlier                                        |
 | Currency scope        | ETB only; a booking priced otherwise says so and falls back to the operator path rather than being converted at a stale rate                         |
 
-### 7.2 Manual deposits
+### 7.2 Manual deposits and payouts
 
-Operator-only recording of money that genuinely moved outside the platform — a
-bank transfer, telebirr paid directly. A `MANUAL-` reference is what tells the
-two kinds of deposit apart afterwards.
+While the gateway is off, every paid deal is funded this way. The brand pays
+the platform by bank transfer against its invoice, which shows the platform's
+bank details. An operator records the transfer with the bank's reference,
+production waits until they have, and completion releases the funds. The
+operator then pays the creator and records that payout on
+`/dashboard/admin/payouts`. Refunds on cancelled deals are recorded the same
+way. A `MANUAL-` reference is what tells these apart from Chapa's afterwards.
 
 ### 7.3 The fee split
 
@@ -419,13 +423,12 @@ Conversion goes through a per-country USD rate an operator maintains: one source
 of truth, no live FX feed to fail. A price is stored in its own currency
 alongside its code, so a listing shows what the creator actually asks.
 
-### 7.5 What is not connected
+### 7.5 Operator overrides
 
-**Payouts.** Money comes in through Chapa; it goes out by hand. Settlement
-releases the held funds as a record, not a transfer, and the interface says so rather
-than implying a creator has been paid. Wiring the other direction needs Chapa
-Transfers, a funded balance and bank details on creator profiles — none of which
-exist yet.
+On any deal, an operator can cancel where the state machine allows it, or
+confirm delivery without a live-post proof when the deliverable is not a
+public post. Each override carries a reason on the record, and both sides are
+told.
 
 ---
 

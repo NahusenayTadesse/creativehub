@@ -34,6 +34,13 @@ describe('sanitizeArticleHtml', () => {
 		expect(out).toContain('Click');
 	});
 
+	it('keeps images on our own server and drops ones hot-linked from elsewhere', () => {
+		expect(sanitizeArticleHtml('<img src="/files/a.png" alt="A">')).toContain('src="/files/a.png"');
+		const out = sanitizeArticleHtml('<p>a</p><img src="https://scontent.cdninstagram.com/x.jpg">');
+		expect(out).not.toContain('<img');
+		expect(out).toContain('<p>a</p>');
+	});
+
 	it('refuses a javascript: image source, and the empty image with it', () => {
 		const out = sanitizeArticleHtml('<p>a</p><img src="javascript:alert(1)"><p>b</p>');
 		expect(out).not.toContain('javascript');

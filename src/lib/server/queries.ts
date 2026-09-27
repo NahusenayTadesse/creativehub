@@ -460,10 +460,21 @@ type ListingRules = Awaited<ReturnType<typeof listingRules>>;
  * a price to book against. A profile that fails either stays in the system and
  * on the staff list at /dashboard/admin/creators/hidden, and nowhere public.
  */
-const bookableCreators = (rules: ListingRules): SQL[] => [
+export const bookableCreators = (rules: ListingRules): SQL[] => [
 	verifiedCreators(),
 	...(rules.requirePrice ? [gt(t.creators.startingPrice, 0)] : [])
 ];
+
+/**
+ * The same test for one row already in hand — the profile page's, which must
+ * agree with discovery about who is public. A profile that fails it is on the
+ * staff list only, so its page is not a public one either.
+ */
+export const isPubliclyListed = (
+	creator: { verificationLevel: string; startingPrice: number },
+	rules: ListingRules
+) =>
+	creator.verificationLevel !== 'unverified' && (!rules.requirePrice || creator.startingPrice > 0);
 
 /** Home-market creators first, as an ORDER BY term. None when no market leads. */
 const homeMarketLead = (rules: ListingRules): SQL[] =>
@@ -1469,7 +1480,7 @@ export const BOOKING_TABS = {
 	closed: ['cancelled', 'disputed']
 } as const;
 
-export const bookingsQuery = defineQuery({
+const bookingQueryConfig = {
 	table: t.bookings,
 	columns: bookingColumns,
 	joins: bookingJoins,
@@ -1492,6 +1503,19 @@ export const bookingsQuery = defineQuery({
 	},
 	defaultSort: 'newest',
 	tiebreaker: t.bookings.id
+} satisfies Parameters<typeof defineQuery>[0];
+
+export const bookingsQuery = defineQuery(bookingQueryConfig);
+
+/*
+ * The same list for a creator, minus one searched column: the brand's name.
+ * A deal hides its brand until the creator accepts the NDA on it, and a search
+ * that matched "Ethio" would say which brand is behind a deal the page itself
+ * masks. Brands and staff keep searching by it.
+ */
+const creatorBookingsQuery = defineQuery({
+	...bookingQueryConfig,
+	search: [t.bookings.title, t.bookings.reference, t.creators.fullName]
 });
 
 /**
@@ -1570,13 +1594,22 @@ export const listBookings = (
 	url: URL,
 	filter: { role?: string; creatorId?: number; organizationId?: number },
 	options: { perPage?: number } = {}
-) => bookingsQuery.run(url, { where: bookingScope(filter), perPage: options.perPage });
+) =>
+	(filter.creatorId && filter.role !== 'admin' ? creatorBookingsQuery : bookingsQuery).run(url, {
+		where: bookingScope(filter),
+		perPage: options.perPage
+	});
 
 export const bookingFacet = (
 	url: URL,
 	key: string,
 	filter: { role?: string; creatorId?: number; organizationId?: number }
-) => bookingsQuery.facet(url, key, { where: bookingScope(filter) });
+) =>
+	(filter.creatorId && filter.role !== 'admin' ? creatorBookingsQuery : bookingsQuery).facet(
+		url,
+		key,
+		{ where: bookingScope(filter) }
+	);
 
 /** One booking with the joined labels, by id. */
 async function getBookingRow(bookingId: number) {
@@ -1655,7 +1688,7 @@ const applicationJoins = (qb: any) =>
 		.innerJoin(t.organizations, eq(t.organizations.id, t.campaigns.organizationId))
 		.innerJoin(t.creators, eq(t.creators.id, t.applications.creatorId));
 
-export const applicationsQuery = defineQuery({
+const applicationQueryConfig = {
 	table: t.applications,
 	columns: applicationColumns,
 	joins: applicationJoins,
@@ -1672,6 +1705,20 @@ export const applicationsQuery = defineQuery({
 	},
 	defaultSort: 'newest',
 	tiebreaker: t.applications.id
+} satisfies Parameters<typeof defineQuery>[0];
+
+export const applicationsQuery = defineQuery(applicationQueryConfig);
+
+/* A creator's own applications, not searchable by a confidential brief's
+   brand for the reason `creatorBookingsQuery` gives. */
+const creatorApplicationsQuery = defineQuery({
+	...applicationQueryConfig,
+	search: [
+		t.campaigns.title,
+		t.creators.fullName,
+		sql`if(${t.campaigns.confidential}, '', ${t.organizations.name})` as unknown as typeof t.organizations.name,
+		t.applications.pitch
+	]
 });
 
 export type ApplicationRow = RowOf<typeof applicationColumns>;
@@ -1697,13 +1744,21 @@ export const listApplications = (
 	url: URL,
 	filter: { role?: string; creatorId?: number; organizationId?: number; campaignId?: number },
 	options: { perPage?: number } = {}
-) => applicationsQuery.run(url, { where: applicationScope(filter), perPage: options.perPage });
+) =>
+	(filter.creatorId && filter.role !== 'admin' ? creatorApplicationsQuery : applicationsQuery).run(
+		url,
+		{ where: applicationScope(filter), perPage: options.perPage }
+	);
 
 export const applicationFacet = (
 	url: URL,
 	key: string,
 	filter: { role?: string; creatorId?: number; organizationId?: number; campaignId?: number }
-) => applicationsQuery.facet(url, key, { where: applicationScope(filter) });
+) =>
+	(filter.creatorId && filter.role !== 'admin'
+		? creatorApplicationsQuery
+		: applicationsQuery
+	).facet(url, key, { where: applicationScope(filter) });
 
 /* ------------------------------------------------------------------ *
  * Reviews, shortlist, verification, users, audit
@@ -2941,6 +2996,7 @@ const payoutColumns = {
 	/* The last four are enough to match a bank statement; see `maskAccount`. */
 	accountNumber: t.payouts.accountNumber,
 	providerRef: t.payouts.providerRef,
+	provider: t.payouts.provider,
 	mode: t.payouts.mode,
 	failureReason: t.payouts.failureReason,
 	verifiedAt: t.payouts.verifiedAt,

@@ -156,7 +156,7 @@ describe('splitFee', () => {
 });
 
 describe('bookingReference', () => {
-	const SHAPE = /^CN-\d{4}-[0-9ABCDEFGHJKMNPQRSTVWXYZ]{8}$/;
+	const SHAPE = /^IE-\d{4}-[0-9ABCDEFGHJKMNPQRSTVWXYZ]{8}$/;
 
 	it('has the documented shape', () => {
 		expect(bookingReference()).toMatch(SHAPE);

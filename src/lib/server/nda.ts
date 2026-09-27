@@ -135,6 +135,57 @@ export function maskRow<
 	};
 }
 
+/** Every account on a brand's side: its members and its owner. */
+export async function brandStaffIds(organizationId: number): Promise<Set<string>> {
+	const [members, owner] = await Promise.all([
+		db
+			.select({ id: t.organizationMembers.userId })
+			.from(t.organizationMembers)
+			.where(eq(t.organizationMembers.organizationId, organizationId)),
+		db
+			.select({ id: t.organizations.ownerId })
+			.from(t.organizations)
+			.where(eq(t.organizations.id, organizationId))
+	]);
+	return new Set([...members, ...owner].map((row) => row.id).filter((id): id is string => !!id));
+}
+
+/**
+ * A deal's messages with the brand staff's names replaced, for a viewer who
+ * has not accepted the NDA on it.
+ *
+ * Every path that hands messages to a creator goes through this — the page's
+ * load and the thread endpoint the open page polls — because a staff member's
+ * name ("Ethio Telecom Team") is the brand's name by another route. The
+ * stand-in is the same one the deal's header uses.
+ */
+export async function maskThread<M extends { senderId: string | null; senderName: string | null }>(
+	viewer: Viewer,
+	deal: { id: number; organizationId: number; campaignId: number | null },
+	messages: M[]
+): Promise<M[]> {
+	if (!messages.length) return messages;
+	const ref = {
+		organizationId: deal.organizationId,
+		campaignId: deal.campaignId,
+		bookingId: deal.id
+	};
+	if ((await brandVisibility(viewer, [ref]))(ref)) return messages;
+
+	const [staff, org] = await Promise.all([
+		brandStaffIds(deal.organizationId),
+		db
+			.select({ industry: t.organizations.industry })
+			.from(t.organizations)
+			.where(eq(t.organizations.id, deal.organizationId))
+			.limit(1)
+	]);
+	const standIn = maskedBrandName(org.at(0)?.industry);
+	return messages.map((msg) =>
+		msg.senderId && staff.has(msg.senderId) ? { ...msg, senderName: standIn } : msg
+	);
+}
+
 /**
  * Records a creator's acceptance, once. Accepting again is not an error — the
  * button may have been pressed twice — and changes nothing.

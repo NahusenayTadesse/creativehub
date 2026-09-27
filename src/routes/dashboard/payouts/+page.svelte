@@ -155,6 +155,8 @@
 					required
 				/>
 
+				<InputComp label={m.payo_tin()} name="tin" hint={m.payo_tin_hint()} {form} {errors} />
+
 				{#if data.account?.isVerified}
 					<p class="text-[11px] font-medium text-ink-soft">{m.payo_edit_clears_check()}</p>
 				{:else if data.account}

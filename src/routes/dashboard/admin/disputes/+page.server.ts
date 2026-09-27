@@ -78,13 +78,29 @@ export const actions: Actions = {
 		const booking = bookingRows.at(0);
 		if (!booking) return fail(404, { message: m.srv_booking_not_found() });
 
-		/* What was agreed stands for the full amount; a retained part of it is
-		   priced by the rate card, as the booking itself was. */
+		/*
+		 * What was agreed stands for the full amount, and a retained part of it
+		 * is charged at the rate that was agreed — not at whatever the rate card
+		 * says today, which the creator never saw. Only the minimum commission
+		 * comes from the rate card, capped at the amount itself. A deal agreed
+		 * before rates were frozen onto it is priced by the rate card, as it
+		 * always was.
+		 */
 		const commission = await getCommissionSettings();
 		const discount = await creatorDiscountPoints(booking.creatorId);
 		const fee = (amount: number) => {
 			if (amount === booking.price && booking.termsFrozenAt) {
 				return { platformFee: booking.platformFee, creatorPayout: booking.creatorPayout };
+			}
+			if (booking.termsFrozenAt) {
+				const platformFee = Math.min(
+					amount,
+					Math.max(
+						Math.round((amount * booking.commissionPercent) / 100),
+						Math.min(commission.minCommission, amount)
+					)
+				);
+				return { platformFee, creatorPayout: amount - platformFee };
 			}
 			const quote = quoteDeal(amount, commission, { discountPoints: discount });
 			return { platformFee: quote.commission, creatorPayout: quote.creatorPayout };

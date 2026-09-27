@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import * as m from '$lib/paraglide/messages';
 	import PageMeta from '$lib/components/page-meta.svelte';
@@ -9,7 +8,7 @@
 	import NoResults from '$lib/components/no-results.svelte';
 	import { accentTile } from '$lib/blog';
 	import { withParams } from '$lib/query';
-	import { Newspaper, Rss, Tag } from '@lucide/svelte';
+	import { Newspaper, Tag } from '@lucide/svelte';
 
 	let { data } = $props();
 
@@ -46,16 +45,6 @@
 			<h1 class="text-2xl font-black text-ink sm:text-3xl">{m.blog_title()}</h1>
 			<p class="mt-1 max-w-2xl text-xs font-medium text-ink-soft">{m.blog_subtitle()}</p>
 		</div>
-
-		<a
-			href={resolve('/blog/rss.xml')}
-			rel="alternate"
-			type="application/rss+xml"
-			class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border-2 border-edge bg-surface px-3 py-2 text-xs font-black text-ink shadow-[2px_2px_0px_0px_rgb(var(--bento-shadow))] transition-all hover:bg-panel"
-		>
-			<Rss class="h-3.5 w-3.5" />
-			{m.blog_rss()}
-		</a>
 	</div>
 
 	<!-- Sections. Each chip is a link that rewrites the URL, and the counts come

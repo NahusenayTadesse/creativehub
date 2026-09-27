@@ -308,7 +308,7 @@
 	image={creator.avatar || creator.cover}
 	type="profile"
 	wideImage={!creator.avatar && !!creator.cover}
-	noIndex={!creator.isPublished}
+	noIndex={!data.listed}
 	jsonLd={profileJsonLd}
 >
 	<meta property="profile:username" content={creator.username} />

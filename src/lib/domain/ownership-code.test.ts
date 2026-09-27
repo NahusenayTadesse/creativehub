@@ -5,13 +5,16 @@ import { ownershipStatusEnum } from '$lib/server/db/schema';
 
 describe('generateOwnershipCode', () => {
 	it('is shaped the way the instructions describe it', () => {
-		expect(generateOwnershipCode()).toMatch(/^CN-[0-9A-Z]{4}$/);
+		expect(generateOwnershipCode()).toMatch(/^IE-[0-9A-Z]{4}$/);
 	});
 
 	it('never mints a character somebody could transcribe as another', () => {
 		/* 0/O, 1/I/L and 5/S are the confusable pairs, and U is left out with them.
 		   A code is copied off a screen and typed into a phone at least once. */
-		const minted = Array.from({ length: 300 }, generateOwnershipCode).join('');
+		/* The random part only: the prefix is fixed text, not a draw. */
+		const minted = Array.from({ length: 300 }, () => generateOwnershipCode().split('-')[1]).join(
+			''
+		);
 		expect(minted).not.toMatch(/[01ILOSU5]/);
 	});
 
@@ -25,6 +28,8 @@ describe('generateOwnershipCode', () => {
 	it('recognises its own output', () => {
 		for (let i = 0; i < 50; i++) expect(isOwnershipCode(generateOwnershipCode())).toBe(true);
 		expect(isOwnershipCode('CN-0000')).toBe(false);
+		/* Minted before the rename, and still on channels mid-proof. */
+		expect(isOwnershipCode('CN-4F7K')).toBe(true);
 		expect(isOwnershipCode('hello')).toBe(false);
 	});
 });

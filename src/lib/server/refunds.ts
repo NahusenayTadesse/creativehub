@@ -20,7 +20,7 @@ import { LIVE_PAYOUT_STATUSES } from '$lib/domain/payout';
  * ordering is the whole reason this file is not three lines long.
  */
 
-/** A reference for one attempt: `CN-2608-K4F2WQ7A-RF-LZ4F9K2P`. */
+/** A reference for one attempt: `IE-2608-K4F2WQ7A-RF-LZ4F9K2P`. */
 export function refundReference(bookingReference: string): string {
 	const bytes = crypto.getRandomValues(new Uint8Array(8));
 	const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';

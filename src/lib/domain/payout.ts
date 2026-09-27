@@ -112,7 +112,7 @@ export function payoutProblem(
 }
 
 /**
- * A reference for one attempt: `CN-2608-K4F2WQ7A-PO-LZ4F9K2P`.
+ * A reference for one attempt: `IE-2608-K4F2WQ7A-PO-LZ4F9K2P`.
  *
  * The `PO-` infix is not decoration. Chapa references are unique per business
  * across *both* directions, the webhook receives deposits and transfers on one

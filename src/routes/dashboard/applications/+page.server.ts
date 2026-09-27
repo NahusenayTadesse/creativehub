@@ -12,7 +12,8 @@ import { maskApplications } from '$lib/server/nda';
 import { requireUser, getCreatorFor, getOrganizationFor, recordAudit } from '$lib/server/guards';
 import { applicationDecision } from '$lib/schemas';
 import { bookingReference } from '$lib/domain/booking';
-import { priceDeal, quoteColumns } from '$lib/server/commission';
+import { getCommissionSettings, priceDeal, quoteColumns } from '$lib/server/commission';
+import { projectSizeProblem } from '$lib/domain/commission';
 import { recalcCampaignApplications } from '$lib/server/db/rollups';
 
 export const load: PageServerLoad = async ({ url, parent, locals }) => {
@@ -119,6 +120,14 @@ export const actions: Actions = {
 		if (existing.length) redirect(303, `/dashboard/bookings/${existing[0].id}`);
 
 		const price = row.campaign.compensationType === 'paid' ? row.application.proposedPrice : 0;
+		/* Refused rather than opened: a deal below the minimum could never be
+		   agreed, and the creator's pitch is theirs to change, not ours. */
+		const commission = await getCommissionSettings();
+		if (projectSizeProblem(price, row.campaign.compensationType, commission)) {
+			return fail(400, {
+				message: m.srv_below_min_project({ min: commission.minProjectSize.toLocaleString('en-US') })
+			});
+		}
 		const fees = quoteColumns(await priceDeal(price, row.creator.id));
 
 		const result = await db.insert(t.bookings).values({

@@ -2,6 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import * as m from '$lib/paraglide/messages';
 import { requireBookingAccess } from '$lib/server/guards';
+import { maskThread } from '$lib/server/nda';
 import {
 	dealVersion,
 	markBookingRead,
@@ -26,10 +27,13 @@ export const GET: RequestHandler = async (event) => {
 	const { user, booking } = await requireBookingAccess(event, id);
 	const after = Math.max(0, Math.floor(Number(event.url.searchParams.get('after')) || 0));
 
-	const [messages, version] = await Promise.all([
+	const [raw, version] = await Promise.all([
 		messagesAfter(id, after),
 		dealVersion(id, booking.updatedAt)
 	]);
+	/* Masked exactly as the page's load masks them: a creator who has not
+	   accepted the NDA must not learn the brand from a staff member's name. */
+	const messages = await maskThread(user, booking, raw);
 	if (messages.length) {
 		await Promise.all([
 			markBookingRead(user.id, id),

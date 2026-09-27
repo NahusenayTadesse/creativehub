@@ -883,18 +883,20 @@ not fail the decision. A resolution recorded whose refund bounced is recoverable
 against a case the database never closed is money moved with no reason attached
 to it.
 
-## What is not connected
+## Money by hand
 
-**Recording a deposit by hand** remains, for money that genuinely moved outside
-the platform: a bank transfer, telebirr paid directly. It is operator-only, and
-the `MANUAL-` payment reference is what tells the two kinds of deposit apart
-afterwards. There is no equivalent on the way out — a payout or refund made by
-hand is not recorded, so anything sent from the Chapa dashboard directly leaves
-the booking sitting in a queue here.
+While `PAYMENT_GATEWAY_ENABLED` is off, money still goes through the platform,
+with operators doing by hand what Chapa would do. The brand pays by bank
+transfer against its invoice, which shows the platform's bank details. An
+operator records the funds as held, with the bank's reference; production
+waits for that. Completing the deal releases the funds. An operator then
+records the payout on `/dashboard/admin/payouts`, or, on a cancelled deal, the
+refund on the deal page. A `MANUAL-` reference tells these records apart from
+Chapa's. See `docs/DOCUMENTATION.md`, "Money while the gateway is off".
 
-**A manual deposit cannot be refunded.** Chapa reverses a transaction it took,
-and a `MANUAL-` deposit is not one, so a cancelled booking funded that way
-reports that there is nothing to return and an operator moves the money by hand.
+**A manual deposit cannot be refunded through Chapa.** Chapa reverses a
+transaction it took, and a `MANUAL-` deposit is not one, so an operator returns
+the money by transfer and records it on the cancelled deal.
 
 ## Scripts
 

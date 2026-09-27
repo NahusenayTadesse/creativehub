@@ -78,6 +78,17 @@
 			<InputComp
 				{form}
 				{errors}
+				label={m.og_industry()}
+				name="industry"
+				type="text"
+				placeholder={m.og_industry_placeholder()}
+				hint={m.og_industry_hint()}
+				required
+			/>
+
+			<InputComp
+				{form}
+				{errors}
 				label={m.og_website()}
 				name="website"
 				type="text"

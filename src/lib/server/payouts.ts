@@ -55,6 +55,9 @@ const BANK_TTL_MS = 60 * 60 * 1000;
  * outage.
  */
 export async function banks(): Promise<{ ok: true; banks: chapa.Bank[] } | { ok: false }> {
+	/* No provider to ask while the gateway is off: an operator pays by hand,
+	   so the creator picks from the banks an operator can send to. */
+	if (!chapa.chapaEnabled) return { ok: true, banks: MANUAL_BANKS };
 	if (bankCache && Date.now() - bankCache.at < BANK_TTL_MS) {
 		return { ok: true, banks: bankCache.banks };
 	}
@@ -70,6 +73,63 @@ export async function banks(): Promise<{ ok: true; banks: chapa.Bank[] } | { ok:
 	bankCache = { banks: result.banks, at: Date.now() };
 	return { ok: true, banks: result.banks };
 }
+
+/**
+ * The banks and wallets an operator pays into by hand while the gateway is off.
+ *
+ * Ids start at 900001 so they can never be mistaken for one of Chapa's bank
+ * codes: an account saved against this list has to be re-picked from Chapa's
+ * own before the gateway can transfer to it, and `payoutProblem` will not
+ * clear it until an operator has verified it again anyway.
+ */
+const MANUAL_BANKS: chapa.Bank[] = [
+	'Commercial Bank of Ethiopia',
+	'Awash Bank',
+	'Dashen Bank',
+	'Bank of Abyssinia',
+	'Wegagen Bank',
+	'Hibret Bank',
+	'Nib International Bank',
+	'Cooperative Bank of Oromia',
+	'Lion International Bank',
+	'Zemen Bank',
+	'Oromia Bank',
+	'Bunna Bank',
+	'Berhan Bank',
+	'Abay Bank',
+	'Addis International Bank',
+	'Enat Bank',
+	'Global Bank Ethiopia',
+	'Amhara Bank',
+	'Tsehay Bank',
+	'Siinqee Bank',
+	'Ahadu Bank',
+	'Gadaa Bank',
+	'Hijra Bank',
+	'ZamZam Bank',
+	'Goh Betoch Bank',
+	'Tsedey Bank',
+	'Sidama Bank',
+	'Shabelle Bank',
+	'Omo Bank',
+	'Development Bank of Ethiopia'
+]
+	.map((name, index) => ({
+		id: 900001 + index,
+		name,
+		accountLength: 0,
+		currency: 'ETB',
+		isMobileMoney: false
+	}))
+	.concat(
+		['telebirr', 'CBE Birr', 'M-PESA Ethiopia'].map((name, index) => ({
+			id: 900901 + index,
+			name,
+			accountLength: 0,
+			currency: 'ETB',
+			isMobileMoney: true
+		}))
+	);
 
 /* ------------------------------------------------------------------ *
  * Whether this may be paid
@@ -209,6 +269,86 @@ export async function send(
 		reason: `${amount} ${booking.currencyCode} to ${account.bankName} ${maskAccount(
 			account.accountNumber
 		)} (${reference})`
+	});
+
+	return { ok: true, payoutId, reference };
+}
+
+/**
+ * Records a payout an operator made by hand — a bank transfer or telebirr
+ * payment from the platform's own account — while the gateway is off.
+ *
+ * The same guards as `send`, except the provider's currency list: nothing is
+ * handed to Chapa, so any currency the operator's bank will send is fine. The
+ * row is written `success` at once, because the operator is reporting money
+ * that has already left, with the bank's reference to prove it.
+ *
+ * The reference is fixed per deal rather than random, and that is the lock:
+ * the unique index refuses a second record for the same deal, so two presses
+ * of the button cannot report the creator paid twice.
+ */
+export async function recordManual(
+	booking: Booking,
+	actor: { id: string; name?: string | null },
+	transferRef: string
+): Promise<SendOutcome> {
+	const account = await accountFor(booking.creatorId);
+	const problem = payoutProblem(booking, account, await liveAttemptCount(booking.id), () => true);
+	if (problem) return { ok: false, problem };
+	if (!account) return { ok: false, problem: 'no_account' };
+
+	const reference = `${booking.reference}-PO-MANUAL`;
+	const amount = booking.creatorPayout - (booking.withholdingTax ?? 0);
+
+	let payoutId: number;
+	try {
+		const inserted = await db.insert(t.payouts).values({
+			bookingId: booking.id,
+			creatorId: booking.creatorId,
+			payoutAccountId: account.id,
+			reference,
+			provider: 'manual',
+			status: 'success',
+			mode: 'manual',
+			amount,
+			currencyCode: booking.currencyCode,
+			bankCode: account.bankCode,
+			bankName: account.bankName,
+			accountName: account.accountName,
+			accountNumber: account.accountNumber,
+			providerRef: transferRef.slice(0, 120) || null,
+			verifiedAt: new Date(),
+			createdBy: actor.id
+		});
+		payoutId = insertedId(inserted);
+	} catch {
+		/* The unique reference: another press recorded this deal first. */
+		return { ok: false, problem: 'already' };
+	}
+
+	await recordAudit({
+		actorId: actor.id,
+		actorLabel: actor.name ?? undefined,
+		entity: 'booking',
+		entityId: booking.id,
+		action: 'payout_recorded',
+		toState: 'success',
+		reason: `${amount} ${booking.currencyCode} paid by hand to ${account.bankName} ${maskAccount(
+			account.accountNumber
+		)}${transferRef ? ` (${transferRef})` : ''}`
+	});
+
+	await tellCreator(booking.creatorId, {
+		category: 'deals',
+		kind: 'payout',
+		title: m.notif_payout_paid_title(),
+		body: m.notif_payout_paid_body({
+			amount: `${amount.toLocaleString()} ${booking.currencyCode}`,
+			bank: account.bankName
+		}),
+		link: '/dashboard/payouts',
+		actionLabel: m.mail_open_payouts(),
+		footnote: m.mail_prefs_footnote()
 	});
 
 	return { ok: true, payoutId, reference };

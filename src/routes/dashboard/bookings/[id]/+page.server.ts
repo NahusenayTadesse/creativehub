@@ -20,15 +20,28 @@ import {
 	awaitsDeposit,
 	canApproveConcept,
 	canTransition,
+	FUNDABLE_STATUSES,
 	type BookingStatus
 } from '$lib/domain/booking';
 import { projectSizeProblem } from '$lib/domain/commission';
-import { checkpointIsOpen, postedAtProblem, type Checkpoint } from '$lib/domain/proof';
+import {
+	checkpointIsOpen,
+	postedAtProblem,
+	wallClockToDate,
+	type Checkpoint
+} from '$lib/domain/proof';
 import { withholdingOn } from '$lib/domain/documents';
 import { getCommissionSettings, priceDeal, quoteColumns } from '$lib/server/commission';
 import * as contracts from '$lib/server/contracts';
 import * as documents from '$lib/server/documents';
-import { acceptNda, brandVisibility, maskRow } from '$lib/server/nda';
+import {
+	acceptNda,
+	brandStaffIds,
+	brandVisibility,
+	maskedBrandName,
+	maskRow,
+	maskThread
+} from '$lib/server/nda';
 import { faydaConfig } from '$lib/server/fayda-config';
 import { saveUploadedFile } from '$lib/server/upload';
 import { uploadErrorText } from '$lib/server/crud';
@@ -57,6 +70,8 @@ import {
 	disputeWithdraw,
 	cancelRequest,
 	cancelDecision,
+	operatorOverride,
+	refundRecord,
 	contractSign,
 	conceptSubmit,
 	conceptReview,
@@ -183,14 +198,7 @@ export const load: PageServerLoad = async (event) => {
 		bookingId: id
 	});
 	const booking = maskRow(current.booking, canSeeBrand);
-	const orgMemberIds = canSeeBrand
-		? new Set<string>()
-		: await organizationUserIds(booking.organizationId);
-	const threadMessages = current.messages.map((msg) =>
-		!canSeeBrand && orgMemberIds.has(msg.senderId)
-			? { ...msg, senderName: booking.organizationName }
-			: msg
-	);
+	const threadMessages = await maskThread(user, current.booking, current.messages);
 
 	return {
 		...current,
@@ -233,11 +241,17 @@ export const load: PageServerLoad = async (event) => {
 		   provider is configured at all, and whether this booking is one it can
 		   take money for. */
 		canPayOnline: chapaEnabled && payments.payableProblem(current.booking) === null,
+		manualPayments: !chapaEnabled,
 		payProblem: payments.payableProblem(current.booking),
 		/* The operator's manual deposit is drawn from this rather than from
 		   `canPayOnline`: it records money that moved outside the platform, so
 		   it belongs to the gateway being on, not to Chapa being reachable. */
 		paymentsEnabled: PAYMENT_GATEWAY_ENABLED,
+		/* How to pay the invoice by transfer. Only the two sides that pay or
+		   record the money read it; a creator has no use for the platform's
+		   account number. */
+		paymentInstructions:
+			side === 'creator' ? '' : (settings?.invoicePaymentInstructions ?? '').trim(),
 		/* Decided here rather than re-derived in the template, so the button and
 		   the action it posts to are asking the same question. */
 		canApproveConcept: canApproveConcept(current.booking),
@@ -283,6 +297,8 @@ async function managedDeal(
 					brandSignedAt: contract.brandSignedAt,
 					creatorSignerName: contract.creatorSignerName,
 					creatorSignedAt: contract.creatorSignedAt,
+					platformSignerName: contract.platformSignerName,
+					platformSignedAt: contract.platformSignedAt,
 					signedAt: contract.signedAt
 				}
 			: null,
@@ -303,21 +319,6 @@ async function creatorIdentityVerified(creatorId: number) {
 		.where(and(eq(t.identityChecks.creatorId, creatorId), eq(t.identityChecks.status, 'verified')))
 		.limit(1);
 	return rows.length > 0;
-}
-
-/** Every account on a brand's side, for masking their names on the thread. */
-async function organizationUserIds(organizationId: number) {
-	const [members, owner] = await Promise.all([
-		db
-			.select({ id: t.organizationMembers.userId })
-			.from(t.organizationMembers)
-			.where(eq(t.organizationMembers.organizationId, organizationId)),
-		db
-			.select({ id: t.organizations.ownerId })
-			.from(t.organizations)
-			.where(eq(t.organizations.id, organizationId))
-	]);
-	return new Set([...members, ...owner].map((row) => row.id));
 }
 
 /** Whether this creator may see the brand on this deal yet. */
@@ -346,10 +347,19 @@ async function transition(
 		return { ok: false as const, text: m.srv_bad_transition({ from, to }) };
 	}
 
-	await db
+	/*
+	 * `from` is re-tested in the WHERE clause rather than trusted from the read
+	 * the caller made: two actions posted at once — an approval and a
+	 * cancellation, say — both passed that read. Zero rows means the other one
+	 * moved the deal first, and this one must not write over it.
+	 */
+	const moved = await db
 		.update(t.bookings)
 		.set({ status: to, updatedBy: event.locals.user?.id, ...extra })
-		.where(eq(t.bookings.id, bookingId));
+		.where(and(eq(t.bookings.id, bookingId), eq(t.bookings.status, from)));
+	if (rowsAffected(moved) === 0) {
+		return { ok: false as const, text: m.srv_bad_transition({ from, to }) };
+	}
 
 	await recordAudit({
 		actorId: event.locals.user?.id,
@@ -573,6 +583,19 @@ export const actions: Actions = {
 			return { declined: true };
 		}
 
+		/*
+		 * The minimum holds at the moment of agreement too, not only when an
+		 * offer is made: a deal opened from a brief carries the creator's pitch
+		 * price as its first offer, and that price was never checked against
+		 * the minimum until now. Refused, it stays open for a counter-offer.
+		 */
+		const commission = await getCommissionSettings();
+		if (projectSizeProblem(proposal.price, booking.compensationType, commission)) {
+			return fail(400, {
+				message: m.srv_below_min_project({ min: commission.minProjectSize.toLocaleString('en-US') })
+			});
+		}
+
 		/* Priced by the rate card in force now, and frozen with the terms. */
 		const quote = await priceDeal(proposal.price, booking.creatorId);
 		const fees = quoteColumns(quote);
@@ -701,32 +724,36 @@ export const actions: Actions = {
 		const form = await superValidate(event.request, zod4(fundEscrowSchema));
 
 		/*
-		 * Operators only, now that brands pay through Chapa.
+		 * Operators only.
 		 *
-		 * This marks a deposit held without any money moving, which is exactly
-		 * what is needed for a bank transfer or a telebirr payment made outside
-		 * the platform — and exactly what a brand must not be able to do for
-		 * itself. The audit entry and the `MANUAL-` reference are what keep the
-		 * two kinds of deposit apart afterwards.
+		 * This marks a deposit held without any money moving through the app,
+		 * which is exactly what a bank transfer or a telebirr payment against the
+		 * invoice needs — it is how every paid deal is funded while the gateway
+		 * is off — and exactly what a brand must not be able to do for itself.
+		 * The audit entry and the `MANUAL-` reference are what keep the two kinds
+		 * of deposit apart afterwards.
 		 */
 		if (side !== 'admin') return fail(403, { message: m.srv_manual_deposit_operator() });
-		/* The button is not drawn while the gateway is off, so reaching this is a
-		   page held open across the switch. Refused rather than honoured: a deal
-		   that needs no deposit to complete should not collect one either. */
-		if (!PAYMENT_GATEWAY_ENABLED) return fail(503, { message: m.srv_payments_unavailable() });
 		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 		/* There is no deposit to record against barter or an event pass, and
 		   `settle` only requires one for a paid booking. */
 		if (booking.compensationType !== 'paid') {
 			return fail(400, { message: m.srv_only_paid_funded() });
 		}
+		/* From the signed contract — when the invoice is issued — until the deal
+		   ends. Before that there is nothing agreed to pay for; after it, a
+		   deposit would be money for a deal that is over. */
+		if (!FUNDABLE_STATUSES.includes(booking.status as BookingStatus)) {
+			return fail(409, { message: m.srv_not_fundable_now() });
+		}
 		if (booking.escrowStatus !== 'unfunded') {
 			return fail(409, { message: m.srv_already_funded() });
 		}
 
 		/*
-		 * No payment provider is connected yet, so this records an operator-marked
-		 * deposit rather than moving money. The reference makes that explicit.
+		 * An operator-marked deposit rather than money moved by the app. The
+		 * reference makes that explicit, and carries the bank's own reference
+		 * where the operator typed one.
 		 *
 		 * `escrow_status` is re-tested in the WHERE clause rather than trusted from
 		 * the read above: two concurrent posts both passed that check and both
@@ -737,7 +764,9 @@ export const actions: Actions = {
 			.set({
 				escrowStatus: 'held',
 				paymentMethod: form.data.paymentMethod,
-				paymentRef: `MANUAL-${Date.now().toString(36).toUpperCase()}`,
+				paymentRef: form.data.transferRef
+					? `MANUAL-${form.data.transferRef}`.slice(0, 120)
+					: `MANUAL-${Date.now().toString(36).toUpperCase()}`,
 				updatedBy: event.locals.user?.id
 			})
 			.where(and(eq(t.bookings.id, id), eq(t.bookings.escrowStatus, 'unfunded')));
@@ -755,8 +784,22 @@ export const actions: Actions = {
 			entityId: id,
 			action: 'compensation_held',
 			toState: 'held',
-			reason: `Recorded via ${form.data.paymentMethod}`
+			reason: `Recorded via ${form.data.paymentMethod}${form.data.transferRef ? ` (${form.data.transferRef})` : ''}`
 		});
+
+		/* The brand paid and the creator is waiting on it: production can start
+		   once the concept is approved, so both sides hear it now. */
+		const creatorRows = await db
+			.select({ userId: t.creators.userId })
+			.from(t.creators)
+			.where(eq(t.creators.id, booking.creatorId))
+			.limit(1);
+		await notifyDeal(
+			[creatorRows.at(0)?.userId, ...(await brandStaffIds(booking.organizationId))],
+			m.notif_funds_held_title(),
+			m.notif_funds_held_body({ title: booking.title }),
+			`/dashboard/bookings/${id}`
+		);
 
 		return { funded: true };
 	},
@@ -771,19 +814,22 @@ export const actions: Actions = {
 		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
 
 		/*
-		 * PRD FR-083: completion requires the compensation obligation to be met.
-		 *
-		 * Only while there is a way to meet it. With the gateway off there is no
-		 * deposit to take and no button that would have taken one, so holding a
-		 * paid deal at `delivered` would strand it on a step that cannot be
-		 * performed — the compensation is settled between the parties instead,
-		 * exactly as a barter deal's always was.
+		 * Only from `awaiting_settlement`. The transition table also lets a
+		 * disputed deal complete, but that is the operator's decision on the case
+		 * (`admin/disputes`), never the brand's while the case is still open.
 		 */
-		if (
-			PAYMENT_GATEWAY_ENABLED &&
-			booking.compensationType === 'paid' &&
-			booking.escrowStatus !== 'held'
-		) {
+		if (booking.status !== 'awaiting_settlement') {
+			return fail(409, {
+				message: m.srv_bad_transition({ from: booking.status, to: 'completed' })
+			});
+		}
+
+		/*
+		 * PRD FR-083: completion requires the compensation obligation to be met.
+		 * The platform holds the campaign funds, so a paid deal completes only
+		 * once they are held — through Chapa, or recorded by an operator.
+		 */
+		if (booking.compensationType === 'paid' && booking.escrowStatus !== 'held') {
 			return fail(409, { message: m.srv_record_deposit_first() });
 		}
 
@@ -968,6 +1014,134 @@ export const actions: Actions = {
 		);
 
 		return { cancelled: true, refundQueued };
+	},
+
+	/* ---------------- operators stepping in ---------------- */
+
+	/**
+	 * Calls off a deal nobody else can move: an offer left unanswered, a
+	 * creator gone quiet mid-production. Only where the state machine allows a
+	 * cancellation at all — a delivered deal is settled or disputed, not
+	 * cancelled over the parties' heads.
+	 */
+	operatorCancel: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side, user } = await requireBookingAccess(event, id);
+		if (side !== 'admin') return fail(403, { message: m.srv_operators_only() });
+		const form = await superValidate(event.request, zod4(operatorOverride));
+		if (!form.valid) return fail(400, { message: m.srv_reason_required() });
+
+		const result = await transition(
+			event,
+			id,
+			booking.status as BookingStatus,
+			'cancelled',
+			{ cancelReason: form.data.reason },
+			`Cancelled by an operator: ${form.data.reason}`.slice(0, 300)
+		);
+		if (!result.ok) return fail(409, { message: result.text });
+
+		/* Held funds go back to the brand: through Chapa where they came that
+		   way; by hand, then recorded below, where an operator took them. */
+		let refundQueued = false;
+		if (booking.escrowStatus === 'held' && chapaEnabled) {
+			const sent = await refunds.send(booking, {
+				reason: 'Cancelled by an operator',
+				actor: { id: user.id, name: user.name }
+			});
+			refundQueued = sent.ok;
+		}
+
+		const parties = await bookingParties(booking.organizationId, booking.creatorId);
+		await notifyDeal(
+			[parties.organizationOwnerId, parties.creatorUserId],
+			m.notif_operator_cancelled_title(),
+			m.notif_operator_cancelled_body({ title: booking.title, reason: form.data.reason }),
+			`/dashboard/bookings/${id}`
+		);
+
+		return { cancelled: true, refundQueued };
+	},
+
+	/**
+	 * Moves an approved deal to settlement without the creator's proof — for a
+	 * deliverable that is not a public post (a raw file, an event appearance),
+	 * or a creator who published and never came back to say so. The reason is
+	 * what stands in the record where the proof would have been.
+	 */
+	waiveProof: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side } = await requireBookingAccess(event, id);
+		if (side !== 'admin') return fail(403, { message: m.srv_operators_only() });
+		const form = await superValidate(event.request, zod4(operatorOverride));
+		if (!form.valid) return fail(400, { message: m.srv_reason_required() });
+		if (booking.status !== 'approved') {
+			return fail(409, {
+				message: m.srv_bad_transition({ from: booking.status, to: 'awaiting_settlement' })
+			});
+		}
+
+		const result = await transition(
+			event,
+			id,
+			'approved',
+			'awaiting_settlement',
+			{},
+			`Proof waived by an operator: ${form.data.reason}`.slice(0, 300)
+		);
+		if (!result.ok) return fail(409, { message: result.text });
+
+		const parties = await bookingParties(booking.organizationId, booking.creatorId);
+		await notifyDeal(
+			parties.organizationOwnerId,
+			m.notif_proof_waived_title(),
+			m.notif_proof_waived_body({ title: booking.title }),
+			`/dashboard/bookings/${id}`
+		);
+		return { waived: true };
+	},
+
+	/**
+	 * Records that the brand's campaign funds went back to them by hand, on a
+	 * cancelled deal — the manual mirror of a Chapa refund, for money an
+	 * operator took by transfer and returned the same way.
+	 */
+	recordRefund: async (event) => {
+		const id = Number(event.params.id);
+		const { booking, side, user } = await requireBookingAccess(event, id);
+		if (side !== 'admin') return fail(403, { message: m.srv_operators_only() });
+		const form = await superValidate(event.request, zod4(refundRecord));
+		if (!form.valid) return fail(400, { message: m.srv_invalid_request() });
+		if (booking.status !== 'cancelled' || booking.escrowStatus !== 'held') {
+			return fail(409, { message: m.srv_nothing_to_refund_by_hand() });
+		}
+
+		const updated = await db
+			.update(t.bookings)
+			.set({ escrowStatus: 'refunded', updatedBy: user.id })
+			.where(and(eq(t.bookings.id, id), eq(t.bookings.escrowStatus, 'held')));
+		if (rowsAffected(updated) === 0) {
+			return fail(409, { message: m.srv_nothing_to_refund_by_hand() });
+		}
+
+		await recordAudit({
+			actorId: user.id,
+			actorLabel: user.name,
+			entity: 'booking',
+			entityId: id,
+			action: 'refund_recorded',
+			toState: 'refunded',
+			reason: `Returned to the brand by hand${form.data.transferRef ? ` (${form.data.transferRef})` : ''}`
+		});
+
+		const parties = await bookingParties(booking.organizationId, booking.creatorId);
+		await notifyDeal(
+			parties.organizationOwnerId,
+			m.notif_refund_recorded_title(),
+			m.notif_refund_recorded_body({ title: booking.title }),
+			`/dashboard/bookings/${id}`
+		);
+		return { refunded: true };
 	},
 
 	/* ---------------- disputes ---------------- */
@@ -1471,8 +1645,8 @@ export const actions: Actions = {
 			return message(form, { type: 'error', text: m.pr_not_open() }, { status: 409 });
 		}
 
-		const postedAt = new Date(form.data.postedAt);
-		if (Number.isNaN(postedAt.getTime())) {
+		const postedAt = wallClockToDate(form.data.postedAt, form.data.tzOffset);
+		if (!postedAt) {
 			return message(form, { type: 'error', text: m.val_posted_at() }, { status: 400 });
 		}
 		const timing = postedAtProblem(postedAt, booking.createdAt);
@@ -1684,12 +1858,35 @@ export const actions: Actions = {
 				? [parties.organizationOwnerId, parties.creatorUserId]
 				: [side === 'creator' ? parties.organizationOwnerId : parties.creatorUserId];
 
+		/*
+		 * A brand's message to a creator who has not accepted the NDA is signed
+		 * with the stand-in the deal page shows, not the sender's name — the
+		 * notification reaches their inbox, their phone and their email, and a
+		 * staff name like "Ethio Telecom Team" is the brand's name by another
+		 * route.
+		 */
+		let senderName = event.locals.user?.name ?? '';
+		if (side === 'organization' && parties.creatorUserId) {
+			const hidden = !(await creatorCanSeeBrand(
+				{ id: parties.creatorUserId, role: 'creator' },
+				booking
+			));
+			if (hidden) {
+				const org = await db
+					.select({ industry: t.organizations.industry })
+					.from(t.organizations)
+					.where(eq(t.organizations.id, booking.organizationId))
+					.limit(1);
+				senderName = maskedBrandName(org.at(0)?.industry);
+			}
+		}
+
 		await notify(
 			recipients.filter((uid) => uid !== event.locals.user?.id),
 			{
 				category: 'messages',
 				kind: 'message',
-				title: m.notif_new_message_title({ sender: event.locals.user?.name ?? '' }),
+				title: m.notif_new_message_title({ sender: senderName }),
 				body: text,
 				link: `/dashboard/bookings/${id}`,
 				actionLabel: m.mail_open_booking(),

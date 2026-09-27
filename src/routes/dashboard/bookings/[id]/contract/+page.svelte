@@ -57,6 +57,13 @@
 			<p class="mt-2 font-serif text-base italic">{contract.creatorSignerName ?? '—'}</p>
 			<p class="text-ink-dim">{when(contract.creatorSignedAt)}</p>
 		</div>
+		{#if contract.platformSignedAt}
+			<div class="sm:col-span-2">
+				<p class="font-black tracking-wider uppercase">{m.ct_platform_signature()}</p>
+				<p class="mt-2 font-serif text-base italic">{contract.platformSignerName}</p>
+				<p class="text-ink-dim">{when(contract.platformSignedAt)}</p>
+			</div>
+		{/if}
 	</section>
 
 	<p class="border-t border-edge pt-4 font-mono text-[10px] break-all text-ink-dim">

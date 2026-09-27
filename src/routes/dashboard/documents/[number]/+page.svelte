@@ -71,6 +71,15 @@
 			<p class="text-xl font-black tracking-tight uppercase">{title}</p>
 			<p class="font-mono">{data.number}</p>
 			<p>{m.doc_issued({ date: issued })}</p>
+			{#if data.paid !== null}
+				<p
+					class="inline-block rounded-md border-2 px-2 py-0.5 text-[10px] font-black tracking-wider uppercase {data.paid
+						? 'border-brand-edge text-brand-soft-fg'
+						: 'border-warn-edge text-warn-fg'}"
+				>
+					{data.paid ? m.doc_status_paid() : m.doc_status_unpaid()}
+				</p>
+			{/if}
 		</div>
 	</header>
 
@@ -79,6 +88,7 @@
 			<p class="font-black tracking-wider text-ink-dim uppercase">{m.doc_to()}</p>
 			<p class="mt-1 text-sm font-black">{doc.recipient.name}</p>
 			{#if doc.recipient.detail}<p>{doc.recipient.detail}</p>{/if}
+			{#if doc.recipient.tin}<p>{m.doc_tin({ tin: doc.recipient.tin })}</p>{/if}
 		</div>
 		<div>
 			<p class="font-black tracking-wider text-ink-dim uppercase">{m.doc_for()}</p>
@@ -117,6 +127,16 @@
 			</tr>
 		</tfoot>
 	</table>
+
+	{#if doc.kind === 'brand_invoice' && data.paid === false}
+		<section class="space-y-1 rounded-xl border-2 border-edge p-4 text-xs">
+			<p class="font-black tracking-wider uppercase">{m.doc_how_to_pay()}</p>
+			{#if doc.issuer.paymentInstructions}
+				<p class="whitespace-pre-line">{doc.issuer.paymentInstructions}</p>
+			{/if}
+			<p>{m.doc_pay_quote({ reference: doc.deal.reference })}</p>
+		</section>
+	{/if}
 
 	<p class="border-t border-edge pt-4 text-[10px] leading-relaxed text-ink-dim">
 		{doc.kind === 'brand_invoice'

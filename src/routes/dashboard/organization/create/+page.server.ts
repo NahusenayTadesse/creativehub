@@ -68,6 +68,7 @@ export const actions: Actions = {
 				bio: form.data.bio || null,
 				countryId: form.data.countryId,
 				city: form.data.city,
+				industry: form.data.industry,
 				createdBy: user.id
 			});
 			organizationId = insertedId(result);

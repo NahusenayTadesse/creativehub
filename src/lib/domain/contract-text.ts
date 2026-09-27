@@ -17,7 +17,7 @@
  */
 
 /** Bumped whenever the wording changes, and stamped into every contract. */
-export const CONTRACT_TEMPLATE_VERSION = '2026-09 v1';
+export const CONTRACT_TEMPLATE_VERSION = '2026-09 v2';
 
 /** How long after a deal ends the parties may not go around the platform. */
 export const NON_CIRCUMVENTION_MONTHS = 12;
@@ -61,7 +61,17 @@ const day = (date: Date) =>
 
 export function contractText(input: ContractInput): string {
 	const { platform, brand, creator, terms } = input;
-	const platformName = platform.legalName || platform.name;
+	/* "Acme PLC, operating Influencer Ethiopia" where a legal name is set; the
+	   site's own name alone where it is not, rather than the name twice. */
+	const legalName = platform.legalName.trim();
+	const platformName =
+		legalName && legalName !== platform.name
+			? `${legalName}, operating ${platform.name}`
+			: platform.name;
+	const platformDetails = [
+		platform.tin ? `TIN ${platform.tin}` : '',
+		platform.address ? platform.address : ''
+	].filter(Boolean);
 	const paid = terms.compensationType === 'paid';
 	const c = terms.currencyCode;
 
@@ -86,7 +96,7 @@ Contract ${input.reference} · Deal ${input.dealReference}
 Generated ${day(input.generatedAt)} · Template ${CONTRACT_TEMPLATE_VERSION}
 
 PARTIES
-The Platform: ${platformName}${platform.tin ? `, TIN ${platform.tin}` : ''}${platform.address ? `, ${platform.address}` : ''}, operating ${platform.name}.
+The Platform: ${platformName}${platformDetails.length ? ` (${platformDetails.join(', ')})` : ''}.
 The Brand: ${brand.name}.
 The Creator: ${creator.fullName} (${creator.handle}).
 
@@ -129,7 +139,7 @@ For ${NON_CIRCUMVENTION_MONTHS} months after this agreement ends, the Brand and 
 
 10. GENERAL
 10.1 This agreement is governed by the laws of the Federal Democratic Republic of Ethiopia.
-10.2 The parties sign electronically on the Platform. Each signature records the signer's account, their typed full name, the time and the network address, and the agreement's fingerprint below. Each party agrees that this signature binds them as a handwritten one would.
+10.2 The parties sign electronically on the Platform. Each signature records the signer's account, their typed full name, the time and the network address, and the agreement's fingerprint below. Each party agrees that this signature binds them as a handwritten one would. The Platform countersigns when the Brand and the Creator have both signed, and the agreement takes effect then.
 10.3 This agreement, the frozen terms of the deal and the record kept on the Platform are the whole agreement between the parties about this engagement.
 `;
 }

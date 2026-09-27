@@ -4,7 +4,7 @@ import { db } from '$lib/server/db';
 import * as t from '$lib/server/db/schema';
 import { requireUser, getCreatorFor, recordAudit } from '$lib/server/guards';
 import { FAYDA_COOKIE, faydaConfig } from '$lib/server/fayda-config';
-import { exchangeCode, fetchIdentity } from '$lib/server/fayda';
+import { exchangeCode, fetchIdentity, verifyIdToken } from '$lib/server/fayda';
 import { recalcCreatorVerification } from '$lib/server/db/creator-verification';
 
 /**
@@ -67,9 +67,21 @@ export const GET: RequestHandler = async (event) => {
 		await record('failed', { failureReason: token.error.slice(0, 250) });
 		back('failed');
 	}
+	const { accessToken, idToken } = (
+		token as { ok: true; value: { accessToken: string; idToken: string } }
+	).value;
+	/* The ID token has to carry the nonce this browser's attempt sent: that is
+	   what makes the answer this attempt's and not a replayed one. */
+	const idCheck = await verifyIdToken(config!, idToken, attempt!.nonce);
+	if (!idCheck.ok) {
+		await record('failed', { failureReason: idCheck.error.slice(0, 250) });
+		back('failed');
+	}
 	const identity = await fetchIdentity(
 		config!,
-		(token as { ok: true; value: { accessToken: string } }).value.accessToken
+		accessToken,
+		fetch,
+		(idCheck as { ok: true; value: { subject: string } }).value.subject
 	);
 	if (!identity.ok) {
 		await record('failed', { failureReason: identity.error.slice(0, 250) });

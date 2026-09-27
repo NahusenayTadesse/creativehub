@@ -35,6 +35,7 @@ async function issuer(): Promise<Issuer & { vatPercent: number; withholdingPerce
 		tin: settings?.invoiceTin ?? '',
 		vatNumber: settings?.invoiceVatNumber ?? '',
 		address: settings?.invoiceAddress ?? '',
+		paymentInstructions: settings?.invoicePaymentInstructions?.trim() ?? '',
 		vatPercent: settings?.vatPercent ?? 15,
 		withholdingPercent: settings?.withholdingPercent ?? 0
 	};
@@ -87,7 +88,9 @@ async function issue(
 			.where(and(eq(t.documents.kind, kind), eq(t.documents.year, year)))
 			.orderBy(desc(t.documents.sequence))
 			.limit(1);
-		const sequence = (last.at(0)?.sequence ?? 0) + 1 + attempt;
+		/* Re-read on every attempt, so a retry takes the number after whoever
+		   won rather than skipping one and leaving a gap in the sequence. */
+		const sequence = (last.at(0)?.sequence ?? 0) + 1;
 		const number = documentNumber(kind, year, sequence);
 		try {
 			await db.insert(t.documents).values({
@@ -130,7 +133,7 @@ export async function issueBrandInvoice(booking: Booking) {
 		issuer(),
 		dealFacts(booking),
 		db
-			.select({ name: t.organizations.name })
+			.select({ name: t.organizations.name, tin: t.organizations.tin })
 			.from(t.organizations)
 			.where(eq(t.organizations.id, booking.organizationId))
 			.limit(1)
@@ -138,7 +141,12 @@ export async function issueBrandInvoice(booking: Booking) {
 	return issue(
 		booking,
 		'brand_invoice',
-		brandInvoice(from, { name: org.at(0)?.name ?? '' }, facts, from.vatPercent),
+		brandInvoice(
+			from,
+			{ name: org.at(0)?.name ?? '', tin: org.at(0)?.tin ?? '' },
+			facts,
+			from.vatPercent
+		),
 		{ organizationId: booking.organizationId }
 	);
 }
@@ -154,12 +162,16 @@ export async function issueCreatorDocuments(booking: Booking) {
 		issuer(),
 		dealFacts(booking),
 		db
-			.select({ name: t.creators.fullName, username: t.creators.username })
+			.select({ name: t.creators.fullName, username: t.creators.username, tin: t.creators.tin })
 			.from(t.creators)
 			.where(eq(t.creators.id, booking.creatorId))
 			.limit(1)
 	]);
-	const who = { name: creator.at(0)?.name ?? '', handle: `@${creator.at(0)?.username ?? ''}` };
+	const who = {
+		name: creator.at(0)?.name ?? '',
+		handle: `@${creator.at(0)?.username ?? ''}`,
+		tin: creator.at(0)?.tin ?? ''
+	};
 	const issued = [
 		await issue(
 			booking,

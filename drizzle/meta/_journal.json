@@ -246,6 +246,20 @@
       "when": 1790455248595,
       "tag": "0034_backfill_brand_ratings",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1790535546215,
+      "tag": "0035_money_path_tins_countersign",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1790535560619,
+      "tag": "0036_retire_creator_network_content",
+      "breakpoints": true
     }
   ]
 }
