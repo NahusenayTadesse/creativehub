@@ -83,6 +83,7 @@
 			 * `never` keeps this form's own results and ignores the reloads.
 			 */
 			applyAction: 'never',
+			resetForm: false,
 			onUpdate({ result }) {
 				preview =
 					result.type === 'success' ? ((result.data?.preview as TrendingPreview) ?? null) : null;

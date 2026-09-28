@@ -27,7 +27,8 @@
 	let { data } = $props();
 
 	const { form, errors, enhance, delayed, allErrors, message } = superForm(
-		untrack(() => data.form)
+		untrack(() => data.form),
+		{ resetForm: false }
 	);
 
 	$effect(() => {

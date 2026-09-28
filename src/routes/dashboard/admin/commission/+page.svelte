@@ -15,7 +15,7 @@
 
 	const { form, errors, enhance, delayed, allErrors, message } = superForm(
 		untrack(() => data.form),
-		{ dataType: 'json' }
+		{ dataType: 'json', resetForm: false }
 	);
 
 	$effect(() => {

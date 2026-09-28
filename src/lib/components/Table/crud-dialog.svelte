@@ -91,7 +91,7 @@
 	const editing = untrack(() => 'id' in values);
 	const formId = `crud-${Math.random().toString(36).slice(2, 9)}`;
 
-	const { form, errors, enhance, delayed, message, allErrors } = superForm(
+	const { form, errors, enhance, delayed, message, allErrors, reset } = superForm(
 		untrack(() => data),
 		{
 			resetForm: !editing,
@@ -143,6 +143,20 @@
 		prefilled = next;
 		prefill();
 	});
+
+	/**
+	 * Opening an edit dialog starts from the row as stored.
+	 *
+	 * Shutting it without saving used to leave the edit behind in the form, so
+	 * a box unticked and abandoned opened again unticked while the row itself
+	 * was still ticked. `reset` also drops the errors from that attempt.
+	 */
+	function openChanged(next: boolean) {
+		if (!next || !editing) return;
+		reset({ data: values });
+		prefilled = JSON.stringify(values);
+		prefill();
+	}
 
 	$effect(() => {
 		if (!$message) return;
@@ -215,7 +229,7 @@
 	}
 </script>
 
-<Dialog.Root bind:open>
+<Dialog.Root bind:open onOpenChange={openChanged}>
 	<Dialog.Trigger>
 		{#snippet child({ props })}
 			<Button

@@ -40,7 +40,7 @@
 		message: detailsMessage
 	} = superForm(
 		untrack(() => data.detailsForm),
-		{ id: 'details' }
+		{ id: 'details', resetForm: false }
 	);
 
 	const {
@@ -63,6 +63,7 @@
 		untrack(() => data.notifyForm),
 		{
 			id: 'notify',
+			resetForm: false,
 			onUpdated: ({ form }) => {
 				if (form.valid) toast.success(m.set_saved());
 			}
